@@ -5,17 +5,22 @@ import { removeAssetsCommand } from "#/engine/commands";
 import { randomId, stringParam, type MediaAssetInfo, type Project } from "#/engine/model";
 import { buildFramePlan } from "#/engine/render";
 import {
-  ProjectsService, SaveManager, StorageQuotaError, canStoreFile, isQuotaExceededError,
+  ProjectLockedError, ProjectsService, SaveManager, StorageQuotaError, canStoreFile, isQuotaExceededError,
+  type AssetRepository, type ProjectLockHandle, type ProjectLocks, type ProjectRepository,
 } from "#/engine/persistence";
 import { Compositor } from "#/render/compositor";
 import { createCanvas } from "#/render/canvas";
 import { AudioEngine } from "#/platform/audio-engine";
+import { browserProjectLocks } from "#/platform/project-locks";
 import { loadFont } from "#/platform/fonts";
 import { OpfsFileStore } from "#/platform/file-store";
 import { MediaRuntime } from "#/platform/media-runtime";
 import { PrefsStore } from "#/platform/prefs";
 import { startPlaybackClock } from "./clock";
 import { probeMedia, UnsupportedMediaError } from "#/platform/probe";
+import type { Playback } from "#/engine/editor";
+import type { AudioClip } from "#/engine/audio";
+import type { AudioSinkCache } from "#/platform/audio-scheduler";
 import { IdbAssetRepository, IdbProjectRepository, openOpenCutDatabase } from "#/platform/repositories";
 
 export interface ImportOutcome {
@@ -32,27 +37,78 @@ export class ProjectNotFoundError extends Error {
   }
 }
 
+export class ImportCanceledError extends Error {
+  constructor() {
+    super("Import canceled: the project was closed");
+    this.name = "ImportCanceledError";
+  }
+}
+
+export interface AudioEngineLike {
+  attach(): void;
+  restart(): void;
+  dispose(): void;
+}
+
+export interface AppServicesDeps {
+  projectRepository: ProjectRepository;
+  assetRepository: AssetRepository;
+  locks: ProjectLocks;
+  storageMode: "opfs" | "indexeddb";
+  createRuntime: () => MediaRuntime;
+  createAudioEngine: (deps: { playback: Playback; getClips: () => AudioClip[]; sinks: AudioSinkCache }) => AudioEngineLike;
+  probe: typeof probeMedia;
+}
+
+function browserDeps(): AppServicesDeps {
+  const db = openOpenCutDatabase();
+  const files = OpfsFileStore.isSupported() ? new OpfsFileStore() : null;
+  return {
+    projectRepository: new IdbProjectRepository(db),
+    assetRepository: new IdbAssetRepository(db, files),
+    locks: browserProjectLocks(),
+    storageMode: files ? "opfs" : "indexeddb",
+    createRuntime: () => new MediaRuntime(),
+    createAudioEngine: (deps) => new AudioEngine(deps),
+    probe: probeMedia,
+  };
+}
+
+/** One open project: everything that must be torn down together, and the identity imports register against. */
+interface Session {
+  readonly projectId: string;
+  readonly runtime: MediaRuntime;
+  readonly lock: ProjectLockHandle;
+  accepting: boolean;
+  stopAudio: () => void;
+}
+
+const ignore = (): void => undefined;
+
 /** Composition root: wires storage, the editor engine, autosave and media decoding for the browser. */
 export class AppServices {
   readonly prefs = new PrefsStore();
   readonly editor = new Editor({ newId: randomId, now: () => new Date().toISOString() });
-  readonly projectRepository: IdbProjectRepository;
-  readonly assetRepository: IdbAssetRepository;
+  readonly projectRepository: ProjectRepository;
+  readonly assetRepository: AssetRepository;
   readonly projects: ProjectsService;
   readonly saveManager: SaveManager;
   readonly storageMode: "opfs" | "indexeddb";
-  runtime = new MediaRuntime();
-  private audioEngine: AudioEngine | null = null;
-  private openProjectId: string | null = null;
+  runtime: MediaRuntime;
+  private session: Session | null = null;
+  private chain: Promise<unknown> = Promise.resolve();
+  private readonly exports = new Set<AbortController>();
+  private readonly deps: AppServicesDeps;
 
-  constructor() {
-    const db = openOpenCutDatabase();
-    const files = OpfsFileStore.isSupported() ? new OpfsFileStore() : null;
-    this.storageMode = files ? "opfs" : "indexeddb";
-    this.projectRepository = new IdbProjectRepository(db);
-    this.assetRepository = new IdbAssetRepository(db, files);
+  constructor(deps: AppServicesDeps = browserDeps()) {
+    this.deps = deps;
+    this.storageMode = deps.storageMode;
+    this.runtime = deps.createRuntime();
+    this.projectRepository = deps.projectRepository;
+    this.assetRepository = deps.assetRepository;
     this.projects = new ProjectsService({
       projects: this.projectRepository, assets: this.assetRepository, newId: randomId, now: () => new Date().toISOString(),
+      locks: deps.locks,
     });
     this.saveManager = new SaveManager({ editor: this.editor, repository: this.projectRepository });
     this.saveManager.start();
@@ -60,18 +116,41 @@ export class AppServices {
   }
 
   get currentProjectId(): string | null {
-    return this.openProjectId;
+    return this.session?.projectId ?? null;
   }
 
-  async openProject(id: string): Promise<void> {
-    if (this.openProjectId === id && this.editor.hasProject) return;
-    await this.closeProject();
+  /** Registers a running export so closing the project cancels it. Returns the unregister function. */
+  trackExport(controller: AbortController): () => void {
+    this.exports.add(controller);
+    return () => void this.exports.delete(controller);
+  }
+
+  /** Open, close and every other lifecycle step run strictly one after another, in call order. */
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.chain.then(task);
+    this.chain = run.then(ignore, ignore);
+    return run;
+  }
+
+  openProject(id: string): Promise<void> {
+    return this.enqueue(() => this.openNow(id));
+  }
+
+  closeProject(): Promise<void> {
+    return this.enqueue(() => this.closeNow());
+  }
+
+  private async openNow(id: string): Promise<void> {
+    if (this.session?.projectId === id && this.editor.hasProject) return;
+    await this.closeNow();
+    const lock = await this.deps.locks.tryAcquire(id);
+    if (!lock) throw new ProjectLockedError(id);
     this.saveManager.pause();
     try {
       const project = await this.projectRepository.load(id);
       if (!project) throw new ProjectNotFoundError(id);
       const stored = await this.projects.loadAssets(project);
-      const runtime = new MediaRuntime();
+      const runtime = this.deps.createRuntime();
       const available: MediaAssetInfo[] = [];
       for (const info of stored) {
         const blob = await this.assetRepository.getFile(id, info.id);
@@ -82,29 +161,38 @@ export class AppServices {
       }
       this.runtime = runtime;
       this.editor.load({ project, assets: available });
-      this.openProjectId = id;
-      this.startAudio();
+      this.session = { projectId: id, runtime, lock, accepting: true, stopAudio: this.startAudio(runtime) };
       void this.preloadFonts(project);
+    } catch (error) {
+      lock.release();
+      throw error;
     } finally {
       this.saveManager.resume();
     }
   }
 
-  private startAudio(): void {
-    this.audioEngine?.dispose();
-    const engine = new AudioEngine({
+  /** Returns the teardown for this project's audio: its commit listener and its engine. */
+  private startAudio(runtime: MediaRuntime): () => void {
+    const engine = this.deps.createAudioEngine({
       playback: this.editor.playback,
       getClips: () => {
         const doc = this.editor.effectiveDoc();
         return collectAudioClips({ tracks: currentScene(doc).tracks, assets: doc.assets });
       },
-      sinks: this.runtime.audio,
+      sinks: runtime.audio,
     });
     engine.attach();
-    this.audioEngine = engine;
-    this.editor.onCommitted(() => {
+    let lastDoc = this.editor.getState().doc;
+    const unsubscribe = this.editor.onCommitted(() => {
+      const doc = this.editor.getState().doc;
+      if (doc === lastDoc) return;
+      lastDoc = doc;
       if (this.editor.playback.getState().isPlaying) engine.restart();
     });
+    return () => {
+      unsubscribe();
+      engine.dispose();
+    };
   }
 
   private async preloadFonts(project: Project): Promise<void> {
@@ -117,23 +205,39 @@ export class AppServices {
     await Promise.all([...families].map((f) => loadFont(f)));
   }
 
-  /** Saves, renders a thumbnail, sweeps orphaned media, and releases every decoder. */
-  async closeProject(): Promise<void> {
-    if (!this.openProjectId || !this.editor.hasProject) return;
+  /**
+   * Makes every edit durable, sweeps orphaned media, then releases the project. If the edits cannot be saved
+   * this rejects and the project stays open (and keeps retrying) rather than discarding unsaved work.
+   */
+  private async closeNow(): Promise<void> {
+    const session = this.session;
+    if (!session || !this.editor.hasProject) return;
     this.editor.playback.pause();
+    session.accepting = false;
+    try {
+      await this.saveManager.flush();
+    } catch (error) {
+      session.accepting = true;
+      throw error;
+    }
+    for (const controller of this.exports) controller.abort();
     try {
       await this.updateThumbnail();
       await this.saveManager.flush();
-      await this.projects.collectOrphans(this.editor.toProject());
     } catch (error) {
-      console.error("Could not finish saving the project", error);
+      console.warn("Could not refresh the project thumbnail", error);
     }
-    this.audioEngine?.dispose();
-    this.audioEngine = null;
+    try {
+      await this.projects.sweepOrphans(session.projectId);
+    } catch (error) {
+      console.warn("Could not sweep unused media", error);
+    }
+    session.stopAudio();
     this.editor.close();
-    await this.runtime.dispose();
-    this.runtime = new MediaRuntime();
-    this.openProjectId = null;
+    this.session = null;
+    await session.runtime.dispose();
+    this.runtime = this.deps.createRuntime();
+    session.lock.release();
   }
 
   async updateThumbnail(): Promise<void> {
@@ -160,23 +264,38 @@ export class AppServices {
     this.editor.updateMetadata({ thumbnail: dataUrl });
   }
 
-  /** Probe, store and register files. Every failure is reported per file; successes are kept. */
+  /**
+   * Probe, store and register files into the project that was open when the import started. Every failure is
+   * reported per file; successes are kept. If that project closes mid-import, remaining files are abandoned and
+   * any bytes already stored for the closed project are removed again.
+   */
   async importFiles(files: ReadonlyArray<File>, onProgress?: (done: number, total: number) => void): Promise<ImportOutcome> {
-    const projectId = this.openProjectId;
-    if (!projectId) throw new Error("No project is open");
+    const session = this.session;
+    if (!session?.accepting) throw new Error("No project is open");
+    const { projectId, runtime } = session;
+    const live = (): boolean => this.session === session && session.accepting;
     const outcome: ImportOutcome = { imported: [], failures: [] };
     let done = 0;
     for (const file of files) {
       try {
-        const info = await probeMedia(file, randomId());
-        const estimate = await navigator.storage?.estimate?.().catch(() => undefined);
+        const info = await this.deps.probe(file, randomId());
+        const estimate = await globalThis.navigator?.storage?.estimate?.().catch(() => undefined);
         const decision = canStoreFile({ size: file.size, usage: estimate?.usage, quota: estimate?.quota });
         if (!decision.canStore) throw new StorageQuotaError();
+        if (!live()) throw new ImportCanceledError();
         await this.assetRepository.save(projectId, { info, file });
-        this.runtime.setBlob(info.id, file);
+        if (!live()) {
+          await this.assetRepository.remove(projectId, info.id).catch(ignore);
+          throw new ImportCanceledError();
+        }
+        runtime.setBlob(info.id, file);
         this.editor.registerAsset(info);
         outcome.imported.push(info);
       } catch (error) {
+        if (error instanceof ImportCanceledError) {
+          outcome.failures.push({ name: file.name, message: error.message });
+          break;
+        }
         const message = error instanceof UnsupportedMediaError || error instanceof StorageQuotaError || isQuotaExceededError(error)
           ? (error as Error).message
           : `Could not import ${file.name}: ${error instanceof Error ? error.message : String(error)}`;
@@ -190,7 +309,7 @@ export class AppServices {
   /** Removing media is one undoable step; stored bytes stay until the project closes so undo can restore them. */
   removeAssets(ids: ReadonlyArray<string>): void {
     this.editor.execute(removeAssetsCommand(ids));
-    for (const id of ids) void this.runtime.video.release(id);
+    for (const id of ids) void (this.session?.runtime ?? this.runtime).video.release(id);
   }
 }
 

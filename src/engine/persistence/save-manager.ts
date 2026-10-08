@@ -1,5 +1,5 @@
 import type { Editor } from "#/engine/editor";
-import type { ProjectRepository } from "./types";
+import { SaveFailedError, type ProjectRepository } from "./types";
 
 export type SaveStatus = "idle" | "dirty" | "saving" | "error";
 
@@ -13,29 +13,37 @@ export interface SaveManagerOptions {
   editor: Editor;
   repository: ProjectRepository;
   debounceMs?: number;
+  /** Debounce for commits that only changed view state (scroll, zoom): they ride along with the next real save. */
+  viewDebounceMs?: number;
   maxRetryMs?: number;
 }
 
 export const DEFAULT_AUTOSAVE_DEBOUNCE_MS = 800;
+export const DEFAULT_VIEW_SAVE_DEBOUNCE_MS = 5_000;
 
 /**
  * Debounced autosave. A failed save keeps the project dirty and retries with backoff, so a transient
- * storage error never silently drops edits.
+ * storage error never silently drops edits. `flush` is the durable path: it waits for any in-flight save,
+ * keeps saving until nothing is pending, and rejects if the final save fails.
  */
 export class SaveManager {
   private state: SaveState = { status: "idle", lastSavedAt: null, error: null };
   private listeners = new Set<() => void>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private dirty = false;
-  private saving = false;
+  private viewOnly = false;
+  private inflight: Promise<boolean> | null = null;
   private paused = false;
   private failures = 0;
   private unsubscribe: (() => void) | null = null;
+  private seen: { doc: unknown; meta: unknown } | null = null;
   private readonly debounceMs: number;
+  private readonly viewDebounceMs: number;
   private readonly maxRetryMs: number;
 
   constructor(private readonly options: SaveManagerOptions) {
     this.debounceMs = options.debounceMs ?? DEFAULT_AUTOSAVE_DEBOUNCE_MS;
+    this.viewDebounceMs = options.viewDebounceMs ?? DEFAULT_VIEW_SAVE_DEBOUNCE_MS;
     this.maxRetryMs = options.maxRetryMs ?? 30_000;
   }
 
@@ -51,9 +59,20 @@ export class SaveManager {
     for (const l of this.listeners) l();
   }
 
+  private snapshotSeen(): { doc: unknown; meta: unknown } {
+    const { doc, meta } = this.options.editor.getState();
+    return { doc, meta };
+  }
+
   start(): void {
     this.unsubscribe?.();
-    this.unsubscribe = this.options.editor.onCommitted(() => this.markDirty());
+    this.seen = this.snapshotSeen();
+    this.unsubscribe = this.options.editor.onCommitted(() => {
+      const now = this.snapshotSeen();
+      const viewOnly = this.seen !== null && now.doc === this.seen.doc && now.meta === this.seen.meta;
+      this.seen = now;
+      this.markDirty(viewOnly ? "view" : "content");
+    });
   }
 
   stop(): void {
@@ -62,7 +81,8 @@ export class SaveManager {
     this.clearTimer();
   }
 
-  get isDirty(): boolean { return this.dirty; }
+  /** True while there are unsaved changes not yet durable, including a save that has started but not finished. */
+  get isDirty(): boolean { return (this.dirty && !this.viewOnly) || this.inflight !== null; }
 
   /** Suppress saves while a project is loading. */
   pause(): void {
@@ -72,14 +92,20 @@ export class SaveManager {
 
   resume(): void {
     this.paused = false;
+    this.seen = this.snapshotSeen();
     if (this.dirty) this.schedule(this.debounceMs);
   }
 
-  markDirty(): void {
+  markDirty(kind: "content" | "view" = "content"): void {
     if (this.paused || !this.options.editor.hasProject) return;
+    this.viewOnly = kind === "view" && (this.viewOnly || !this.dirty);
     this.dirty = true;
-    if (this.state.status !== "saving") this.set({ status: "dirty" });
-    if (!this.saving) this.schedule(this.debounceMs);
+    if (kind === "content") {
+      if (this.state.status !== "saving") this.set({ status: "dirty" });
+      if (!this.inflight) this.schedule(this.debounceMs);
+    } else if (!this.inflight && this.timer === null) {
+      this.schedule(this.viewDebounceMs);
+    }
   }
 
   private clearTimer(): void {
@@ -92,31 +118,48 @@ export class SaveManager {
     this.timer = setTimeout(() => void this.saveNow(), ms);
   }
 
-  /** Save immediately (used when leaving the editor). Resolves once nothing is pending or the save failed. */
+  /**
+   * Make every change committed so far durable. Waits for an in-flight save, then saves again until nothing
+   * is pending, and rejects with `SaveFailedError` if a save fails (the project stays dirty and retrying).
+   */
   async flush(): Promise<void> {
     this.clearTimer();
-    await this.saveNow();
+    for (;;) {
+      if (this.inflight) await this.inflight;
+      if (!this.dirty || this.paused || !this.options.editor.hasProject) return;
+      const saved = await this.attempt();
+      if (!saved) throw new SaveFailedError(this.state.error ?? "unknown error");
+    }
   }
 
   async saveNow(): Promise<void> {
     this.clearTimer();
-    if (this.saving || !this.dirty || this.paused || !this.options.editor.hasProject) return;
-    this.saving = true;
+    if (this.inflight || !this.dirty || this.paused || !this.options.editor.hasProject) return;
+    await this.attempt();
+  }
+
+  private attempt(): Promise<boolean> {
+    const run = this.writeOnce().finally(() => { this.inflight = null; });
+    this.inflight = run;
+    return run;
+  }
+
+  private async writeOnce(): Promise<boolean> {
     this.dirty = false;
+    this.viewOnly = false;
     this.set({ status: "saving" });
     try {
       await this.options.repository.save(this.options.editor.toProject());
-      this.failures = 0;
-      this.set({ status: this.dirty ? "dirty" : "idle", lastSavedAt: Date.now(), error: null });
     } catch (error) {
       this.dirty = true;
       this.failures++;
       this.set({ status: "error", error: error instanceof Error ? error.message : String(error) });
-      this.saving = false;
       this.schedule(Math.min(this.maxRetryMs, 1000 * 2 ** (this.failures - 1)));
-      return;
+      return false;
     }
-    this.saving = false;
-    if (this.dirty) this.schedule(this.debounceMs);
+    this.failures = 0;
+    this.set({ status: this.dirty ? "dirty" : "idle", lastSavedAt: Date.now(), error: null });
+    if (this.dirty) this.schedule(this.viewOnly ? this.viewDebounceMs : this.debounceMs);
+    return true;
   }
 }

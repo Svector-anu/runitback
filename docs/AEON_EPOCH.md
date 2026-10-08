@@ -27,3 +27,4 @@ Findings from inspecting the local installs (not assumptions).
 ## Using the real Epoch tooling
 
 Epoch's builder/reviewer/watcher operate on **GitHub pull requests**; they need (1) this project on a GitHub repository, (2) a MiniAeon workspace with the epoch skills enabled, (3) model/provider quota for autonomous runs, and (4) `miniaeon approve` as the human go/no-go. None of those exist for this project yet. Until they do, the Epoch discipline is applied manually (table above) with independent reviewer agents standing in for `epoch-review`. See `docs/PROJECT_STATE.md` → "Blocked on the owner".
+- Epoch workspace needs git origin == target repo (grant targets match origin); run with --no-git so workspace state is never pushed.

@@ -1,11 +1,11 @@
 import { mediaTime, type FrameRate, type MediaTime } from "#/engine/time";
 import {
-  EMPTY_SELECTION, type ElementRef, type IdGenerator, type MediaAssetInfo, type Project, type ProjectMetadata,
+  EMPTY_SELECTION, EngineError, type ElementRef, type IdGenerator, type MediaAssetInfo, type Project, type ProjectMetadata,
   type SceneTracks, type SelectionState, type TimelineViewState,
 } from "#/engine/model";
-import { copyElements, type ClipboardItem } from "#/engine/timeline";
+import { allElements, assertNoNewViolations, copyElements, type ClipboardItem } from "#/engine/timeline";
 import {
-  CommandManager, currentScene, withAsset, type Command, type EditorDocument, type HistorySnapshot,
+  CommandManager, currentScene, withAsset, withAssetList, type Command, type EditorDocument, type HistoryCheckpoint, type HistorySnapshot,
 } from "#/engine/commands";
 import { Playback } from "./playback";
 import { documentDuration, projectDuration } from "./selectors";
@@ -33,6 +33,18 @@ export interface EditorDeps {
 }
 
 type Listener = () => void;
+
+interface Transaction {
+  label: string;
+  checkpoint: HistoryCheckpoint;
+  doc: EditorDocument;
+  selection: SelectionState;
+  /** Steps undone inside this transaction that redo may still reapply. */
+  redoable: number;
+}
+
+/** Outcome of `tryExecute`: the editor is unchanged when `ok` is false. */
+export type ExecuteResult = { ok: true } | { ok: false; error: EngineError };
 
 export const EMPTY_DOCUMENT_ID = "__empty__";
 
@@ -65,6 +77,7 @@ export class Editor {
   private history: CommandManager;
   private clipboardItems: ClipboardItem[] | null = null;
   private previewCommand: Command | null = null;
+  private transactions: Transaction[] = [];
   readonly playback: Playback;
 
   constructor(private readonly deps: EditorDeps) {
@@ -105,13 +118,29 @@ export class Editor {
     for (const l of this.listeners) l();
   }
 
+  /**
+   * Applies a snapshot as the committed state. Derived values are computed first so a snapshot that cannot be
+   * read (and therefore could not be rendered) is refused before any state changes; if reconciling the playhead
+   * still throws, the previous state is restored.
+   */
   private commit(snapshot: HistorySnapshot, extra: Partial<EditorState> = {}): void {
+    documentDuration(snapshot.doc);
+    projectDuration(snapshot.doc);
+    const previous = this.state;
+    const previousPreviewCommand = this.previewCommand;
     this.previewCommand = null;
-    this.set({
-      doc: snapshot.doc, selection: snapshot.selection, preview: null,
-      canUndo: this.history.canUndo, canRedo: this.history.canRedo, revision: this.state.revision + 1, ...extra,
-    });
-    this.playback.reconcile();
+    try {
+      this.set({
+        doc: snapshot.doc, selection: snapshot.selection, preview: null,
+        canUndo: this.history.canUndo, canRedo: this.history.canRedo, revision: this.state.revision + 1, ...extra,
+      });
+      this.playback.reconcile();
+    } catch (error) {
+      this.state = previous;
+      this.previewCommand = previousPreviewCommand;
+      for (const l of this.listeners) l();
+      throw error;
+    }
     for (const l of this.committedListeners) l();
   }
 
@@ -120,6 +149,7 @@ export class Editor {
   load(input: { project: Project; assets: MediaAssetInfo[] }): void {
     const { project } = input;
     this.history.clear();
+    this.transactions = [];
     this.previewCommand = null;
     this.playback.pause();
     this.set({
@@ -133,6 +163,7 @@ export class Editor {
 
   close(): void {
     this.history.clear();
+    this.transactions = [];
     this.previewCommand = null;
     this.playback.pause();
     this.set({
@@ -150,9 +181,21 @@ export class Editor {
       metadata: { ...meta, duration: projectDuration(doc), updatedAt: this.deps.now() },
       scenes: doc.scenes, currentSceneId: doc.currentSceneId, settings: doc.settings,
       timelineViewState: { ...viewState, playheadTime: this.playback.getState().currentTime },
-      assetIds: doc.assets.map((a) => a.id),
+      assetIds: this.retainedAssetIds(),
       version: 1,
     };
+  }
+
+  /** Every asset id that must survive: registered, used by any scene, or restorable by undo/redo. */
+  private retainedAssetIds(): string[] {
+    const ids = new Set(this.state.doc.assets.map((a) => a.id));
+    for (const asset of this.history.retainedAssets()) ids.add(asset.id);
+    for (const scene of this.state.doc.scenes) {
+      for (const { element } of allElements(scene.tracks)) {
+        if ("mediaId" in element) ids.add(element.mediaId);
+      }
+    }
+    return [...ids];
   }
 
   updateMetadata(patch: Partial<ProjectMetadata>): void {
@@ -168,41 +211,130 @@ export class Editor {
 
   // ---- Commands & history ------------------------------------------------------------------------------------
 
+  /**
+   * Runs a command and commits the result. Throws an `EngineError` (`InvalidInputError`, `InvariantViolationError`)
+   * when the command is malformed or would break a document invariant; the document, selection and history are
+   * then exactly as before the call.
+   */
   execute(command: Command): void {
-    this.commit(this.history.execute({
+    const recorded = this.history.length;
+    const snapshot = this.history.execute({
       command, state: { doc: this.state.doc, selection: this.state.selection }, rippleEnabled: this.state.rippleEnabled,
-    }));
+    });
+    try {
+      this.commit(snapshot);
+    } catch (error) {
+      if (this.history.length > recorded) this.history.discardLast();
+      throw error;
+    }
+    for (const tx of this.transactions) tx.redoable = 0;
+    if (this.transactions.length === 0) this.history.trim();
   }
 
+  /** Like `execute`, but reports a rejected edit as a value instead of throwing. Other errors still throw. */
+  tryExecute(command: Command): ExecuteResult {
+    try {
+      this.execute(command);
+      return { ok: true };
+    } catch (error) {
+      if (error instanceof EngineError) return { ok: false, error };
+      throw error;
+    }
+  }
+
+  /** Inside a transaction, undo/redo only reach steps taken inside the innermost transaction. */
   undo(): boolean {
     this.discardPreview();
-    const snapshot = this.history.undo();
+    const tx = this.transactions[this.transactions.length - 1];
+    if (tx && this.history.length <= tx.checkpoint.length) return false;
+    const snapshot = this.history.undo(this.state.doc);
     if (!snapshot) return false;
+    if (tx) tx.redoable++;
     this.commit(snapshot);
     return true;
   }
 
   redo(): boolean {
     this.discardPreview();
-    const snapshot = this.history.redo();
+    const tx = this.transactions[this.transactions.length - 1];
+    if (tx && tx.redoable <= 0) return false;
+    const snapshot = this.history.redo(this.state.doc);
     if (!snapshot) return false;
+    if (tx) tx.redoable--;
     this.commit(snapshot);
     return true;
   }
 
-  /** Evaluate a command against the committed document for live feedback without recording anything. */
-  preview(command: Command): void {
-    const result = command.run(this.state.doc, { newId: this.deps.newId, now: this.deps.now });
-    this.previewCommand = command;
-    this.set({ preview: result.doc });
+  // ---- Transactions ------------------------------------------------------------------------------------------
+
+  get inTransaction(): boolean { return this.transactions.length > 0; }
+
+  /**
+   * Starts a group of edits that ends up as ONE undo step. Calls nest: only the outermost commit collapses history,
+   * an inner rollback reverts to where the inner transaction began.
+   */
+  beginTransaction(label: string): void {
+    if (this.transactions.length === 0) this.discardPreview();
+    this.transactions.push({
+      label, checkpoint: this.history.checkpoint(), doc: this.state.doc, selection: this.state.selection, redoable: 0,
+    });
   }
 
-  commitPreview(): void {
+  commitTransaction(): void {
+    const tx = this.transactions.pop();
+    if (!tx) throw new Error("commitTransaction without beginTransaction");
+    if (this.transactions.length > 0) return;
+    this.history.collapseTo({
+      checkpoint: tx.checkpoint, label: tx.label, selectionBefore: tx.selection, selectionAfter: this.state.selection,
+    });
+    this.set({ canUndo: this.history.canUndo, canRedo: this.history.canRedo });
+  }
+
+  /** Restores the document, selection and history exactly as they were at the matching beginTransaction. */
+  rollbackTransaction(): void {
+    const tx = this.transactions.pop();
+    if (!tx) throw new Error("rollbackTransaction without beginTransaction");
+    this.discardPreview();
+    this.history.rollbackTo(tx.checkpoint);
+    if (this.state.doc === tx.doc && this.state.selection === tx.selection) {
+      this.set({ canUndo: this.history.canUndo, canRedo: this.history.canRedo });
+      return;
+    }
+    const known = new Set(this.state.doc.assets.map((a) => a.id));
+    const assets = [...this.state.doc.assets, ...tx.doc.assets.filter((a) => !known.has(a.id))];
+    this.commit({ doc: withAssetList(tx.doc, assets), selection: tx.selection });
+  }
+
+  /** Evaluate a command against the committed document for live feedback without recording anything. */
+  /**
+   * Returns false (and falls back to the committed document) when the command cannot be evaluated, e.g. a drag
+   * plan computed before the document changed underneath it. Never throws.
+   */
+  preview(command: Command): boolean {
+    try {
+      const result = command.run(this.state.doc, { newId: this.deps.newId, now: this.deps.now });
+      assertNoNewViolations({ before: this.state.doc, after: result.doc, label: command.label });
+      this.previewCommand = command;
+      this.set({ preview: result.doc });
+      return true;
+    } catch {
+      this.discardPreview();
+      return false;
+    }
+  }
+
+  /** Commits the active preview as one undo step. Returns false when it is no longer valid; never throws. */
+  commitPreview(): boolean {
     const command = this.previewCommand;
-    if (!command) return;
+    if (!command) return false;
     this.previewCommand = null;
     this.set({ preview: null });
-    this.execute(command);
+    try {
+      this.execute(command);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   discardPreview(): void {

@@ -1,5 +1,5 @@
 import { createProject, type IdGenerator, type MediaAssetInfo, type Project, type ProjectMetadata } from "#/engine/model";
-import type { AssetRepository, ProjectRepository } from "./types";
+import { ProjectLockedError, type AssetRepository, type ProjectLocks, type ProjectRepository } from "./types";
 
 export type ProjectSortKey = "createdAt" | "updatedAt" | "name" | "duration";
 export type SortOrder = "asc" | "desc";
@@ -35,7 +35,7 @@ export function duplicateName(name: string, existing: ReadonlyArray<string>): st
 
 export class ProjectsService {
   constructor(private readonly deps: {
-    projects: ProjectRepository; assets: AssetRepository; newId: IdGenerator; now: () => string;
+    projects: ProjectRepository; assets: AssetRepository; newId: IdGenerator; now: () => string; locks?: ProjectLocks;
   }) {}
 
   list(): Promise<ProjectMetadata[]> {
@@ -64,17 +64,29 @@ export class ProjectsService {
       const name = duplicateName(source.metadata.name, existing);
       existing.push(name);
       const copy: Project = { ...source, metadata: { ...source.metadata, id: this.deps.newId(), name, createdAt: now, updatedAt: now } };
-      await this.deps.projects.save(copy);
-      await this.deps.assets.copyAll(id, copy.metadata.id);
+      try {
+        await this.deps.assets.copyAll(id, copy.metadata.id);
+        await this.deps.projects.save(copy);
+      } catch (error) {
+        await this.deps.assets.removeAll(copy.metadata.id).catch(() => undefined);
+        throw error;
+      }
       created.push(copy.metadata.id);
     }
     return created;
   }
 
+  /** Removes the project row first so a failure never leaves a listed project whose media is gone. */
   async delete(ids: ReadonlyArray<string>): Promise<void> {
     for (const id of ids) {
-      await this.deps.assets.removeAll(id);
-      await this.deps.projects.delete(id);
+      const lock = await this.deps.locks?.tryAcquire(id);
+      if (lock === null) throw new ProjectLockedError(id);
+      try {
+        await this.deps.projects.delete(id);
+        await this.deps.assets.removeAll(id);
+      } finally {
+        lock?.release();
+      }
     }
   }
 
@@ -90,5 +102,11 @@ export class ProjectsService {
     for (const info of await this.deps.assets.list(project.metadata.id)) {
       if (!keep.has(info.id)) await this.deps.assets.remove(project.metadata.id, info.id);
     }
+  }
+
+  /** Sweeps against the row that is actually in storage, never an in-memory copy that may be stale. */
+  async sweepOrphans(projectId: string): Promise<void> {
+    const persisted = await this.deps.projects.load(projectId);
+    if (persisted) await this.collectOrphans(persisted);
   }
 }

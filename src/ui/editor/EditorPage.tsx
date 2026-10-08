@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getServices, ProjectNotFoundError } from "#/app/services";
+import { ProjectLockedError } from "#/engine/persistence";
 import { navigate } from "#/app/router";
 import { useKeyboardShortcuts } from "#/app/actions";
 import { useEditorState } from "#/app/hooks";
@@ -62,7 +63,8 @@ function Layout(): ReactNode {
 
 export function EditorPage({ id }: { id: string }): ReactNode {
   const services = getServices();
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "error" | "locked">("loading");
+  const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState("");
   const [recording, setRecording] = useState(false);
   const ready = useEditorState((s) => s.meta !== null);
@@ -78,23 +80,31 @@ export function EditorPage({ id }: { id: string }): ReactNode {
         navigate(`/editor/${project.metadata.id}`, { replace: true });
         return;
       }
+      if (e instanceof ProjectLockedError) {
+        setStatus("locked");
+        return;
+      }
       setError(e instanceof Error ? e.message : String(e));
       setStatus("error");
     });
     return () => {
       canceled = true;
-      void services.closeProject();
+      services.closeProject().catch((e: unknown) => toast.error("Could not save the project", e instanceof Error ? e.message : undefined));
     };
-  }, [id, services]);
+  }, [id, services, attempt]);
 
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent): void => {
       if (services.saveManager.isDirty) { e.preventDefault(); e.returnValue = ""; }
     };
-    const onHide = (): void => { void services.saveManager.flush(); };
+    const onHide = (): void => { services.saveManager.flush().catch(() => undefined); };
     window.addEventListener("beforeunload", onBeforeUnload);
-    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") onHide(); });
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+    const onVisibility = (): void => { if (document.visibilityState === "hidden") onHide(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [services]);
 
   useKeyboardShortcuts({ enabled: status === "ready" && ready, recording });
@@ -104,6 +114,18 @@ export function EditorPage({ id }: { id: string }): ReactNode {
     if (status === "ready" && services.storageMode === "indexeddb") toast.info("Using compatibility storage", "Your browser has no private file system, so media is stored in IndexedDB instead.");
   }, [status, services]);
 
+  if (status === "locked") {
+    return (
+      <div className="loading-screen" role="alert">
+        <strong>This project is open in another tab</strong>
+        <p className="muted">Close it there, or switch to that tab, to keep your edits from overwriting each other.</p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+          <Button variant="outline" onClick={() => navigate("/projects")}>Back to projects</Button>
+        </div>
+      </div>
+    );
+  }
   if (status === "loading" || !ready) {
     return status === "error" ? (
       <div className="loading-screen"><p style={{ color: "var(--destructive)" }} role="alert">{error}</p><Button onClick={() => navigate("/projects")}>Back to projects</Button></div>

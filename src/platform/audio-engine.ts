@@ -18,7 +18,8 @@ export class AudioEngine {
   private generation = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
-  private readonly cursors = new Map<string, number>();
+  private cursors = new Map<string, number>();
+  private disposed = false;
   private readonly clips = new Map<string, ScheduledClip>();
   private unsubscribe: Array<() => void> = [];
 
@@ -62,6 +63,7 @@ export class AudioEngine {
   /** Re-anchor at the current playhead; used on seek, play, and when the timeline changes mid-playback. */
   restart(): void {
     this.stop();
+    if (this.disposed) return;
     const state = this.deps.playback.getState();
     if (!state.isPlaying || state.isScrubbing) return;
     const ctx = this.ensureContext();
@@ -81,13 +83,15 @@ export class AudioEngine {
     const master = this.master;
     if (!ctx || !master || !this.running) return;
     const generation = this.generation;
+    const cursors = this.cursors;
     const nowTimeline = this.anchorTimeline + Math.max(0, ctx.currentTime - this.anchorContext);
     const horizon = nowTimeline + LOOKAHEAD_SECONDS;
     for (const clip of this.deps.getClips()) {
+      if (generation !== this.generation) return;
       if (clip.start + clip.duration <= nowTimeline || clip.start >= horizon) continue;
-      const from = Math.max(this.cursors.get(clip.key) ?? nowTimeline, nowTimeline);
+      const from = Math.max(cursors.get(clip.key) ?? nowTimeline, nowTimeline);
       if (from >= horizon) continue;
-      this.cursors.set(clip.key, horizon);
+      cursors.set(clip.key, horizon);
       let scheduled = this.clips.get(clip.key);
       if (!scheduled) {
         scheduled = createClipGain(ctx, master.input);
@@ -112,10 +116,11 @@ export class AudioEngine {
     this.timer = null;
     for (const scheduled of this.clips.values()) stopClip(scheduled);
     this.clips.clear();
-    this.cursors.clear();
+    this.cursors = new Map();
   }
 
   dispose(): void {
+    this.disposed = true;
     this.stop();
     for (const off of this.unsubscribe) off();
     this.unsubscribe = [];

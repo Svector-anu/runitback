@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { exportFileName, DEFAULT_EXPORT_OPTIONS, type ExportOptions } from "#/export/plan";
 import { ExportCanceledError, exportProject, type ExportProgress } from "#/export/exporter";
 import { getServices } from "#/app/services";
@@ -50,9 +50,12 @@ export function ExportButton(): ReactNode {
   const empty = useEditorState((s) => totalDuration(currentScene(s.doc).tracks) === 0);
   const name = useEditorState((s) => s.meta?.name ?? "export");
 
+  useEffect(() => () => abort.current?.abort(), []);
+
   const start = async (): Promise<void> => {
     const controller = new AbortController();
     abort.current = controller;
+    const untrack = services.trackExport(controller);
     services.editor.playback.pause();
     setState({ kind: "exporting", progress: { phase: "preparing", progress: 0 } });
     try {
@@ -66,23 +69,32 @@ export function ExportButton(): ReactNode {
       setOpen(false);
     } catch (error) {
       if (error instanceof ExportCanceledError) setState({ kind: "idle" });
-      else setState({ kind: "error", message: error instanceof Error ? error.message : String(error) });
+      else {
+        const message = error instanceof Error ? error.message : String(error);
+        setState({ kind: "error", message });
+        toast.error("Export failed", message);
+      }
     } finally {
-      abort.current = null;
+      untrack();
+      if (abort.current === controller) abort.current = null;
     }
   };
 
+  /** Dismissing the popover never cancels a running export; only the Cancel button (or leaving the project) does. */
   const close = (): void => {
-    abort.current?.abort();
     setOpen(false);
     if (state.kind !== "exporting") setState({ kind: "idle" });
   };
 
+  const exportingPercent = state.kind === "exporting" ? Math.round(state.progress.progress * 100) : null;
+
   return (
     <>
       <button ref={anchor} type="button" className="export-button" disabled={empty} aria-haspopup="dialog" aria-expanded={open}
-        title={empty ? "Add media to the timeline to export" : "Export"} onClick={() => setOpen((o) => !o)}>
-        <span className="export-button__inner"><Icon name="download" /><span>Export</span></span>
+        title={empty ? "Add media to the timeline to export" : exportingPercent === null ? "Export" : "Export in progress"} onClick={() => setOpen((o) => !o)}>
+        <span className="export-button__inner">
+          <Icon name="download" /><span>{exportingPercent === null ? "Export" : `Exporting ${exportingPercent}%`}</span>
+        </span>
       </button>
       <Popover open={open} onClose={close} anchor={anchor} align="end" label="Export project" className="popover--padded">
         <div style={{ width: 320 }}>

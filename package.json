@@ -9,10 +9,11 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src tests e2e",
+    "lint": "eslint src tests e2e tools",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "mcp": "tsx tools/mcp/server.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

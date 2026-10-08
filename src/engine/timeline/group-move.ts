@@ -1,6 +1,6 @@
 import { mediaTime, type MediaTime } from "#/engine/time";
 import {
-  TRACK_TYPE_FOR_ELEMENT, orderedTracks, type ElementRef, type IdGenerator, type SceneTracks, type TimelineElement,
+  InvalidInputError, TRACK_TYPE_FOR_ELEMENT, orderedTracks, type ElementRef, type IdGenerator, type SceneTracks, type TimelineElement,
   type TimelineTrack, type TrackType,
 } from "#/engine/model";
 import { defaultInsertIndex, highestInsertIndex, canPlaceSpans } from "./placement";
@@ -217,11 +217,11 @@ export function applyGroupMove(input: { tracks: SceneTracks; plan: GroupMovePlan
   const detached = new Map<string, TimelineElement>();
   for (const move of input.plan.moves) {
     const loc = located.find((l) => l.ref.trackId === move.ref.trackId && l.ref.elementId === move.ref.elementId);
-    if (!loc) throw new Error(`Cannot move missing element ${move.ref.elementId}`);
+    if (!loc) throw new InvalidInputError(`Cannot move missing element ${move.ref.elementId}`);
     const dest = orderedTracks(tracks).find((t) => t.id === move.toTrackId);
-    if (!dest) throw new Error(`Move target track ${move.toTrackId} does not exist`);
+    if (!dest) throw new InvalidInputError(`Move target track ${move.toTrackId} does not exist`);
     if (TRACK_TYPE_FOR_ELEMENT[loc.element.type] !== dest.type) {
-      throw new Error(`Cannot place ${loc.element.type} on a ${dest.type} track`);
+      throw new InvalidInputError(`Cannot place ${loc.element.type} on a ${dest.type} track`);
     }
     detached.set(loc.element.id, { ...loc.element, startTime: move.startTime } as TimelineElement);
   }

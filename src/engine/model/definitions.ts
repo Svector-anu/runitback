@@ -14,7 +14,7 @@ export function defaultsOf(defs: ReadonlyArray<ParamDef>): ParamValues {
 export function coerceParam(def: ParamDef, value: unknown): ParamValue | null {
   switch (def.type) {
     case "number": {
-      if (typeof value !== "number" || Number.isNaN(value)) return null;
+      if (typeof value !== "number" || !Number.isFinite(value)) return null;
       let v = value;
       if (def.step > 0) {
         const digits = (String(def.step).split(".")[1] ?? "").length;

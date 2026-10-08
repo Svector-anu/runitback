@@ -58,8 +58,9 @@ describe("resolveTrackPlacement", () => {
   });
 
   it("explicit: returns a compatible track, rejects missing or mismatched types", () => {
-    expect(resolveTrackPlacement({ tracks: base, elementType: "video", spans: [span(1, 1)], strategy: { kind: "explicit", trackId: "o1" } }))
+    expect(resolveTrackPlacement({ tracks: base, elementType: "video", spans: [span(5, 1)], strategy: { kind: "explicit", trackId: "o1" } }))
       .toMatchObject({ kind: "existingTrack", trackId: "o1", trackIndex: 0 });
+    expect(resolveTrackPlacement({ tracks: base, elementType: "video", spans: [span(1, 1)], strategy: { kind: "explicit", trackId: "o1" } })).toBeNull();
     expect(resolveTrackPlacement({ tracks: base, elementType: "video", spans: [span(1, 1)], strategy: { kind: "explicit", trackId: "nope" } })).toBeNull();
     expect(resolveTrackPlacement({ tracks: base, elementType: "video", spans: [span(1, 1)], strategy: { kind: "explicit", trackId: "a1" } })).toBeNull();
   });

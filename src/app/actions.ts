@@ -4,6 +4,7 @@ import {
 } from "#/engine/editor";
 import { getOverlayDepth } from "#/ui/primitives/overlay-store";
 import { getServices } from "./services";
+import { shouldYieldToFocusedControl } from "./shortcut-guard";
 import { Store } from "./store";
 import { interactionStore } from "#/ui/timeline/controllers";
 
@@ -46,6 +47,7 @@ export function useKeyboardShortcuts(options: { enabled: boolean; recording: boo
         return;
       }
       if (isTypableTarget(target)) return;
+      if (shouldYieldToFocusedControl(e, target)) return;
       if (target?.closest("[role='slider'], [role='separator'], select") && (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End")) return;
       const action = resolveAction(e, keybindingsStore.get().bindings, isApple());
       if (!action) return;

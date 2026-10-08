@@ -3,7 +3,8 @@ import { removeKeyframeCommand, upsertKeyframeCommand } from "#/engine/commands"
 import { keyframeIdAtTime } from "#/engine/animation";
 import { SYSTEM_FONTS_LIST } from "./fonts";
 import type { ElementRef, ParamValue, TimelineElement } from "#/engine/model";
-import { resolvePathValue } from "#/engine/timeline";
+import { allElements, resolvePathValue } from "#/engine/timeline";
+import { currentScene } from "#/engine/commands";
 import { getServices } from "#/app/services";
 import { animationPathFor, paramEditCommand } from "#/app/param-edit";
 import { loadFont } from "#/platform/fonts";
@@ -45,6 +46,8 @@ function KeyframeToggle({ element, refValue, def, playhead }: { element: Timelin
 export function ParamControl({ element, refValue, def, playhead }: { element: TimelineElement; refValue: ElementRef; def: FieldDef; playhead: number }): ReactNode {
   const { editor } = getServices();
   const value = fieldValue(element, def, playhead);
+  const committedElement = allElements(currentScene(editor.getState().doc).tracks).find((l) => l.element.id === element.id)?.element ?? element;
+  const committedValue = fieldValue(committedElement, def, playhead);
   const [fontText, setFontText] = useState(String(value));
   useEffect(() => setFontText(String(value)), [value]);
 
@@ -76,8 +79,8 @@ export function ParamControl({ element, refValue, def, playhead }: { element: Ti
       break;
     case "text":
       control = def.widget === "textarea" ? (
-        <textarea className="textarea" aria-label={label} defaultValue={String(value)} key={String(value)} rows={3}
-          onChange={(e) => apply(e.target.value, "preview")} onBlur={(e) => { if (e.target.value !== String(value)) apply(e.target.value, "commit"); else editor.discardPreview(); }} />
+        <textarea className="textarea" aria-label={label} defaultValue={String(committedValue)} key={String(committedValue)} rows={3}
+          onChange={(e) => apply(e.target.value, "preview")} onBlur={(e) => { if (e.target.value !== String(committedValue)) apply(e.target.value, "commit"); else editor.discardPreview(); }} />
       ) : (
         <>
           <input className="input" list="font-families" aria-label={label} value={fontText} onChange={(e) => setFontText(e.target.value)}

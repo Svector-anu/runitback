@@ -5,3 +5,4 @@ export * from "./capabilities";
 export * from "./ids";
 export * from "./factories";
 export * from "./definitions";
+export * from "./errors";

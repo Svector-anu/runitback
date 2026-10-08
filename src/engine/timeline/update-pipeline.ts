@@ -1,8 +1,9 @@
 import { mediaTime, roundMediaTime } from "#/engine/time";
 import { clampAnimationsToDuration } from "#/engine/animation";
 import {
-  clampRate, type ElementPatch, type ElementRef, type IdGenerator, type SceneTracks, type TimelineElement,
+  clampRate, InvalidInputError, type ElementPatch, type ElementRef, type IdGenerator, type SceneTracks, type TimelineElement,
 } from "#/engine/model";
+import { guardElementPatch } from "./input-guards";
 import { enforceMainTrackStart } from "./placement";
 import { effectiveRate, sourceSpanAtClipTime } from "./retime";
 import { elementEnd, findTrack, getElement, replaceElement } from "./tracks";
@@ -22,6 +23,21 @@ function sourceLengthOf(element: TimelineElement): number {
   if (element.sourceDuration !== undefined) return element.sourceDuration;
   const retime = "retime" in element ? element.retime : undefined;
   return element.trimStart + sourceSpanAtClipTime(element.duration, retime) + element.trimEnd;
+}
+
+/**
+ * A duration patch on trimmed media keeps `trimStart + duration * rate + trimEnd == sourceDuration` by moving the
+ * tail trim. A duration that needs more source than exists is rejected.
+ */
+function reconcileTrimWithDuration(element: TimelineElement): TimelineElement {
+  if ((element.type !== "video" && element.type !== "audio") || element.sourceDuration === undefined) return element;
+  const rate = effectiveRate(element.retime);
+  const tail = element.sourceDuration - element.trimStart - element.duration * rate;
+  if (Math.abs(tail - element.trimEnd) <= 2 + rate) return element;
+  if (tail < -(2 + rate)) {
+    throw new InvalidInputError(`duration ${element.duration} needs more media than the source has (${element.sourceDuration} ticks)`);
+  }
+  return { ...element, trimEnd: mediaTime(Math.max(0, Math.round(tail))) };
 }
 
 /** Nearest start of a following sibling on the same track, or Infinity. */
@@ -46,6 +62,7 @@ export function applyElementUpdate(input: {
 }): SceneTracks {
   const { tracks, ref, patch } = input;
   const element = getElement(tracks, ref);
+  guardElementPatch(patch);
   if (!element) return tracks;
   let next = merge(element, patch);
 
@@ -60,6 +77,10 @@ export function applyElementUpdate(input: {
       next = { ...next, trimEnd: mediaTime(Math.max(0, Math.round(total - next.trimStart - duration * rate))) };
     }
     next = { ...next, duration };
+  }
+
+  if (patch.duration !== undefined && patch.trimEnd === undefined && !("retime" in patch)) {
+    next = reconcileTrimWithDuration(next);
   }
 
   if (next.duration !== element.duration) {

@@ -106,7 +106,12 @@ export function resolveTrackPlacement(input: {
     case "explicit": {
       const track = ordered.find((t) => t.id === strategy.trackId);
       if (!track || track.type !== trackType) return null;
-      return existing(tracks, track, spans);
+      const placed = existing(tracks, track, spans);
+      const first = spans[0];
+      const checked = first && placed.kind === "existingTrack" && placed.adjustedStartTime !== undefined
+        ? [{ ...first, start: placed.adjustedStartTime }, ...spans.slice(1)]
+        : spans;
+      return canPlaceSpans(track, checked) ? placed : null;
     }
     case "firstAvailable": {
       const track = ordered.find((t) => t.type === trackType && canPlaceSpans(t, spans));

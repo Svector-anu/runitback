@@ -52,14 +52,25 @@ export function EditorHeader({ onRecording }: { onRecording: (recording: boolean
 
   const exit = async (): Promise<void> => {
     setExiting(true);
-    await services.closeProject();
+    try {
+      await services.closeProject();
+    } catch (error) {
+      setExiting(false);
+      toast.error("Could not save your latest changes", error instanceof Error ? error.message : undefined);
+      return;
+    }
     navigate("/projects");
   };
   const remove = async (): Promise<void> => {
     if (!meta) return;
     const id = meta.id;
-    await services.closeProject();
-    await services.projects.delete([id]);
+    try {
+      await services.closeProject();
+      await services.projects.delete([id]);
+    } catch (error) {
+      toast.error("Could not delete the project", error instanceof Error ? error.message : undefined);
+      return;
+    }
     navigate("/projects");
     toast.success("Project deleted");
   };

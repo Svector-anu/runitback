@@ -7,7 +7,7 @@ import {
   keyframeIdAtTime, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
   type ScalarCurvePatch,
 } from "#/engine/animation";
-import { getBaseValue, getElement, replaceElement, resolvePathValue, setBaseValue } from "#/engine/timeline";
+import { getBaseValue, requireFiniteParams, getElement, replaceElement, resolvePathValue, setBaseValue } from "#/engine/timeline";
 import { mapCurrentTracks, type Command, type CommandContext, type EditorDocument } from "./types";
 import { updateElements } from "./timeline";
 
@@ -32,6 +32,7 @@ export function upsertKeyframeCommand(input: {
   return {
     label: "Add keyframe",
     run(doc, ctx) {
+      requireFiniteParams({ value: input.value });
       return { doc: editElement(doc, ctx, input.ref, (el) => {
         const time = mediaTime(Math.min(Math.max(0, Math.round(input.time)), el.duration));
         const animations = upsertKeyframe({
@@ -162,7 +163,7 @@ export const removeClipEffect = (ref: ElementRef, effectId: string): Command =>
 export const toggleClipEffect = (ref: ElementRef, effectId: string): Command =>
   editEffects(ref, "Toggle effect", (list) => list.map((e) => (e.id === effectId ? { ...e, enabled: !e.enabled } : e)));
 export const updateClipEffectParams = (ref: ElementRef, effectId: string, params: ParamValues): Command =>
-  editEffects(ref, "Edit effect", (list) => list.map((e) => (e.id === effectId ? { ...e, params: { ...e.params, ...params } } : e)));
+  editEffects(ref, "Edit effect", (list) => (requireFiniteParams(params), list).map((e) => (e.id === effectId ? { ...e, params: { ...e.params, ...params } } : e)));
 export function reorderClipEffects(ref: ElementRef, fromIndex: number, toIndex: number): Command {
   return editEffects(ref, "Reorder effects", (list) => {
     if (fromIndex === toIndex || fromIndex < 0 || fromIndex >= list.length) return list;
@@ -190,7 +191,7 @@ export const addMask = (ref: ElementRef, type: MaskType): Command =>
 export const removeMask = (ref: ElementRef, maskId: string): Command =>
   editMasks(ref, "Remove mask", (masks) => masks.filter((m) => m.id !== maskId));
 export const updateMaskParams = (ref: ElementRef, maskId: string, params: ParamValues): Command =>
-  editMasks(ref, "Edit mask", (masks) => masks.map((m) => (m.id === maskId ? { ...m, params: { ...m.params, ...params } } : m)));
+  editMasks(ref, "Edit mask", (masks) => (requireFiniteParams(params), masks).map((m) => (m.id === maskId ? { ...m, params: { ...m.params, ...params } } : m)));
 export const toggleMaskInverted = (ref: ElementRef, maskId: string): Command =>
   editMasks(ref, "Invert mask", (masks) => masks.map((m) => (m.id === maskId ? { ...m, params: { ...m.params, inverted: m.params.inverted !== true } } : m)));
 

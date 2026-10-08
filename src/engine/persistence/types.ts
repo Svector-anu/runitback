@@ -35,3 +35,26 @@ export class ProjectFormatError extends Error {
     this.name = "ProjectFormatError";
   }
 }
+
+export interface ProjectLockHandle {
+  release(): void;
+}
+
+/** Exclusive, cross-tab ownership of a project. `tryAcquire` resolves null when another holder has it. */
+export interface ProjectLocks {
+  tryAcquire(projectId: string): Promise<ProjectLockHandle | null>;
+}
+
+export class ProjectLockedError extends Error {
+  constructor(readonly projectId: string) {
+    super("This project is open in another tab");
+    this.name = "ProjectLockedError";
+  }
+}
+
+export class SaveFailedError extends Error {
+  constructor(detail: string) {
+    super(`Your latest changes could not be saved: ${detail}`);
+    this.name = "SaveFailedError";
+  }
+}

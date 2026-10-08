@@ -9,3 +9,4 @@ import "./ui/styles/editor.css";
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing #root element");
 createRoot(root).render(<StrictMode><App /></StrictMode>);
+void import("./app/agent-bridge-wiring").then((m) => m.initAgentBridge());

@@ -32,6 +32,28 @@ export interface ParsedCaptions {
   warnings: string[];
 }
 
+/** Cues starting or ending past this are skipped: they would make the project impossible to export or navigate. */
+export const MAX_CUE_SECONDS = 24 * 3600;
+export const MAX_SUBTITLE_FILE_CHARS = 5_000_000;
+
+const withinTimeline = (startSeconds: number, endSeconds: number): boolean =>
+  Number.isFinite(endSeconds) && startSeconds >= 0 && endSeconds <= MAX_CUE_SECONDS;
+
+/** Removes `{...}` override blocks in one pass. An unclosed `{` is kept as text, like the regex it replaces. */
+export function stripOverrideBlocks(text: string): string {
+  let out = "";
+  let from = 0;
+  for (;;) {
+    const open = text.indexOf("{", from);
+    if (open < 0) break;
+    const close = text.indexOf("}", open + 1);
+    if (close < 0) break;
+    out += text.slice(from, open);
+    from = close + 1;
+  }
+  return out + text.slice(from);
+}
+
 const SRT_TIME = /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/;
 
 function srtSeconds(match: RegExpExecArray): number {
@@ -59,7 +81,7 @@ export function parseSrt(input: string): ParsedCaptions {
     if (!a || !b || !text) { skipped++; continue; }
     const start = srtSeconds(a);
     const end = srtSeconds(b);
-    if (!(end > start)) { skipped++; continue; }
+    if (!(end > start) || !withinTimeline(start, end)) { skipped++; continue; }
     cues.push({ text, startTime: mediaTimeFromSeconds(start), duration: mediaTimeFromSeconds(end - start) });
   }
   return { cues, skipped, warnings: [] };
@@ -165,9 +187,9 @@ export function parseAss(input: string): ParsedCaptions {
         const get = (name: string): string | undefined => fields[eventFormat.indexOf(name)];
         const start = assTime(get("start") ?? "");
         const end = assTime(get("end") ?? "");
-        const text = (get("text") ?? "")
-          .replace(/\{[^}]*\}/g, "").replace(/\\N|\\n/g, "\n").replace(/\\h/g, " ").trim();
-        if (start === null || end === null || !(end > start) || !text) { skipped++; continue; }
+        const text = stripOverrideBlocks(get("text") ?? "")
+          .replace(/\\N|\\n/g, "\n").replace(/\\h/g, " ").trim();
+        if (start === null || end === null || !(end > start) || !withinTimeline(start, end) || !text) { skipped++; continue; }
         if ((get("effect") ?? "") !== "") warnings.add("ASS event effects are ignored");
         const style = styles.get((get("style") ?? "Default").toLowerCase()) ?? styles.get("default");
         cues.push({ text, startTime: mediaTimeFromSeconds(start), duration: mediaTimeFromSeconds(end - start), style });
@@ -180,6 +202,7 @@ export function parseAss(input: string): ParsedCaptions {
 }
 
 export function parseSubtitleFile(input: { name: string; text: string }): ParsedCaptions {
+  if (input.text.length > MAX_SUBTITLE_FILE_CHARS) throw new Error("Subtitle file is too large to import");
   const ext = input.name.toLowerCase().split(".").pop();
   if (ext === "srt") return parseSrt(input.text);
   if (ext === "ass" || ext === "ssa") return parseAss(input.text);

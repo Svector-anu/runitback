@@ -7,6 +7,7 @@ import { collectAudioClips } from "#/engine/audio";
 import { currentScene, type EditorDocument } from "#/engine/commands";
 import { documentDuration } from "#/engine/editor";
 import { buildFramePlan } from "#/engine/render";
+import { allElements } from "#/engine/timeline";
 import { TICKS_PER_SECOND, frameRateToFloat, frameStartTime } from "#/engine/time";
 import { Compositor } from "#/render/compositor";
 import { createCanvas } from "#/render/canvas";
@@ -29,6 +30,24 @@ export class ExportCanceledError extends Error {
     super("Export canceled");
     this.name = "ExportCanceledError";
   }
+}
+
+export class MissingMediaError extends Error {
+  constructor(readonly missing: ReadonlyArray<string>) {
+    super(`Cannot export: media is missing for ${missing.join(", ")}. Remove those clips or re-import the files.`);
+    this.name = "MissingMediaError";
+  }
+}
+
+/** Names of the media files used by visible clips whose bytes are not available. */
+export function findMissingMedia(doc: EditorDocument, getBlob: (mediaId: string) => Blob | undefined): string[] {
+  const names = new Map(doc.assets.map((a) => [a.id, a.name]));
+  const missing = new Set<string>();
+  for (const { element } of allElements(currentScene(doc).tracks)) {
+    if (!("mediaId" in element) || ("hidden" in element && element.hidden === true)) continue;
+    if (!names.has(element.mediaId) || !getBlob(element.mediaId)) missing.add(names.get(element.mediaId) ?? element.mediaId);
+  }
+  return [...missing];
 }
 
 const QUALITIES: Record<ExportOptions["quality"], Quality> = {
@@ -77,6 +96,8 @@ export async function exportProject(input: {
     durationTicks: documentDuration(doc), fps: doc.settings.fps, canvas: doc.settings.canvasSize,
   });
   if (plan.frameCount === 0) throw new Error("There is nothing to export: the timeline is empty");
+  const missingMedia = findMissingMedia(doc, input.getBlob);
+  if (missingMedia.length > 0) throw new MissingMediaError(missingMedia);
 
   report("preparing", 0);
   const videoCodec = await getFirstEncodableVideoCodec(
@@ -126,6 +147,7 @@ export async function exportProject(input: {
       throwIfCanceled();
       const time = frameStartTime(i, doc.settings.fps);
       const framePlan = buildFramePlan({ tracks, canvas: canvasSize, background: doc.settings.background, assets: doc.assets, time });
+      if (framePlan.missingMedia.length > 0) throw new MissingMediaError(framePlan.missingMedia);
       await compositor.render(framePlan, sources);
       await videoSource.add(time / TICKS_PER_SECOND, plan.frameDurationSeconds);
       report("video", 0.05 + 0.93 * ((i + 1) / plan.frameCount));

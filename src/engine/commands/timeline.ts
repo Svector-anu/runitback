@@ -2,15 +2,16 @@ import { mediaTime } from "#/engine/time";
 import { isSameFrameRate } from "#/engine/time";
 import {
   canElementHaveAudio, canTrackBeHidden, canTrackHaveAudio, createTrack, buildMediaElement, isVisualElement,
-  EMPTY_SELECTION, type AudioElement, type ElementPatch, type ElementRef, type MediaAssetInfo, type SceneTracks,
+  EMPTY_SELECTION, InvalidInputError, type AudioElement, type ElementPatch, type ElementRef, type MediaAssetInfo, type SceneTracks,
   type SelectionState, type TimelineElement, type TrackType, type VideoElement,
 } from "#/engine/model";
 import { cloneAnimations } from "#/engine/animation";
 import {
-  allElements, applyElementUpdate, applyGroupMove, applyPlacement, copyElements, defaultInsertIndex, duplicateElements,
-  elementsStrictlyAt, getElement, insertTrack, mapTracks, pasteElements, removeElements, removeTrack, resolveTrackPlacement,
+  allElements, applyElementUpdate, applyGroupMove, buildResizeMembers, computeGroupResize, elementEnd, applyPlacement, copyElements, defaultInsertIndex, duplicateElements,
+  elementsStrictlyAt, getElement, requireTick, findTrack, insertTrack, mapTracks, pasteElements, removeElements, removeTrack, resolveTrackPlacement,
   splitElements, trackTypeForElement, withElements, type ClipboardItem, type GroupMovePlan, type RetainSide,
 } from "#/engine/timeline";
+import { isSaneCanvas, isSaneFrameRate } from "./limits";
 import { currentScene, mapCurrentTracks, type Command, type CommandResult, type EditorDocument } from "./types";
 
 const selectionOf = (refs: ReadonlyArray<ElementRef>): SelectionState => ({ ...EMPTY_SELECTION, elements: [...refs] });
@@ -21,11 +22,27 @@ function result(doc: EditorDocument, selection?: SelectionState): CommandResult 
 
 // ---- Tracks --------------------------------------------------------------------------------------------------
 
+function assertTrackIdFree(tracks: SceneTracks, id: string): void {
+  if (findTrack(tracks, id)) throw new InvalidInputError(`A track with id "${id}" already exists`);
+}
+
+function assertElementInsertable(tracks: SceneTracks, element: TimelineElement): void {
+  if (typeof element.id !== "string" || element.id === "") throw new InvalidInputError("Element id must be a non-empty string");
+  if (allElements(tracks).some((l) => l.element.id === element.id)) {
+    throw new InvalidInputError(`An element with id "${element.id}" already exists in this scene`);
+  }
+  requireTick("startTime", element.startTime, 0);
+  requireTick("duration", element.duration, 1);
+  requireTick("trimStart", element.trimStart, 0);
+  requireTick("trimEnd", element.trimEnd, 0);
+}
+
 export function addTrack(input: { type: TrackType; index?: number; trackId?: string }): Command {
   return {
     label: "Add track",
     run(doc, ctx) {
       const id = input.trackId ?? ctx.newId();
+      assertTrackIdFree(currentScene(doc).tracks, id);
       return result(mapCurrentTracks(doc, ctx, (tracks) =>
         insertTrack(tracks, createTrack(input.type, id), input.index ?? defaultInsertIndex(tracks, input.type))));
     },
@@ -52,6 +69,21 @@ function toggleTrackFlag(trackId: string, flag: "muted" | "hidden", label: strin
       }))),
   };
 }
+/** Sets mute/visibility to an absolute value (toggles are for UI buttons); flags a track cannot have are ignored. */
+export function setTrackFlags(input: { trackId: string; muted?: boolean; hidden?: boolean }): Command {
+  return {
+    label: "Edit track",
+    run: (doc, ctx) => result(mapCurrentTracks(doc, ctx, (tracks) =>
+      mapTracks(tracks, (track) => {
+        if (track.id !== input.trackId) return track;
+        let next = track;
+        if (input.muted !== undefined && canTrackHaveAudio(track)) next = { ...next, muted: input.muted } as typeof track;
+        if (input.hidden !== undefined && canTrackBeHidden(track)) next = { ...next, hidden: input.hidden } as typeof track;
+        return next;
+      }))),
+  };
+}
+
 export const toggleTrackMuted = (trackId: string): Command => toggleTrackFlag(trackId, "muted", "Toggle track mute");
 export const toggleTrackHidden = (trackId: string): Command => toggleTrackFlag(trackId, "hidden", "Toggle track visibility");
 
@@ -69,8 +101,9 @@ function isTimelineEmpty(tracks: SceneTracks): boolean {
 /** First visual media on an empty timeline sets the canvas (and fps for video) so the project matches its footage. */
 function adoptAssetFormat(doc: EditorDocument, asset: MediaAssetInfo | undefined): EditorDocument {
   if (!asset || asset.type === "audio" || !asset.width || !asset.height) return doc;
+  if (!isSaneCanvas(asset.width, asset.height)) return doc;
   const canvasSize = { width: asset.width, height: asset.height };
-  const fps = asset.type === "video" && asset.fps ? asset.fps : doc.settings.fps;
+  const fps = asset.type === "video" && asset.fps && isSaneFrameRate(asset.fps) ? asset.fps : doc.settings.fps;
   const sameCanvas = doc.settings.canvasSize.width === canvasSize.width && doc.settings.canvasSize.height === canvasSize.height;
   if (sameCanvas && isSameFrameRate(fps, doc.settings.fps)) return doc;
   return {
@@ -82,12 +115,21 @@ function adoptAssetFormat(doc: EditorDocument, asset: MediaAssetInfo | undefined
   };
 }
 
+function describePlacementFailure(tracks: SceneTracks, element: TimelineElement, placement: InsertPlacement): string {
+  if (placement.mode !== "explicit") return `Cannot place ${element.type} on the timeline`;
+  const track = findTrack(tracks, placement.trackId);
+  if (!track) return `No track with id "${placement.trackId}"`;
+  if (track.type !== trackTypeForElement(element.type)) return `A ${element.type} cannot go on a ${track.type} track`;
+  return `${element.type} ${element.id} would overlap another clip on track "${placement.trackId}"`;
+}
+
 export function insertElement(input: { element: TimelineElement; placement: InsertPlacement }): Command {
   return {
     label: `Add ${input.element.type}`,
     run(doc, ctx) {
       const scene = currentScene(doc);
       const element = input.element;
+      assertElementInsertable(scene.tracks, element);
       const trackType = trackTypeForElement(element.type);
       const span = { start: element.startTime, duration: element.duration };
       let tracks = scene.tracks;
@@ -96,6 +138,7 @@ export function insertElement(input: { element: TimelineElement; placement: Inse
 
       if (input.placement.mode === "newTrack") {
         const id = input.placement.trackId ?? ctx.newId();
+        assertTrackIdFree(tracks, id);
         tracks = insertTrack(tracks, withElements(createTrack(trackType, id), [element]), input.placement.index);
         landedOn = id;
       } else {
@@ -103,7 +146,7 @@ export function insertElement(input: { element: TimelineElement; placement: Inse
           tracks, trackType, spans: [span],
           strategy: input.placement.mode === "explicit" ? { kind: "explicit", trackId: input.placement.trackId } : { kind: "firstAvailable" },
         });
-        if (!placement) throw new Error(`Cannot place ${element.type} on the requested track`);
+        if (!placement) throw new InvalidInputError(describePlacementFailure(scene.tracks, element, input.placement));
         if (placement.kind === "existingTrack" && placement.adjustedStartTime !== undefined) {
           placed = { ...element, startTime: placement.adjustedStartTime } as TimelineElement;
         }
@@ -121,9 +164,56 @@ export function insertElement(input: { element: TimelineElement; placement: Inse
   };
 }
 
+/**
+ * Inserts many elements of one track type onto NEW tracks, opening an extra lane whenever a clip would overlap
+ * the ones already in the lanes (overlapping subtitle cues end up on separate text tracks). Existing tracks are
+ * never touched. Returns the new track ids through the selection (every inserted element).
+ */
+export function insertElementsOnLanes(input: { elements: ReadonlyArray<TimelineElement>; index?: number }): Command {
+  return {
+    label: "Add elements",
+    run(doc, ctx) {
+      const scene = currentScene(doc);
+      const first = input.elements[0];
+      if (!first) return result(doc);
+      const trackType = trackTypeForElement(first.type);
+      const seen = new Set<string>();
+      for (const element of input.elements) {
+        if (trackTypeForElement(element.type) !== trackType) throw new InvalidInputError("All elements must belong on the same kind of track");
+        assertElementInsertable(scene.tracks, element);
+        if (seen.has(element.id)) throw new InvalidInputError(`Duplicate element id "${element.id}" in the batch`);
+        seen.add(element.id);
+      }
+      const lanes: TimelineElement[][] = [];
+      const ordered = [...input.elements].sort((a, b) => a.startTime - b.startTime);
+      for (const element of ordered) {
+        const lane = lanes.find((l) => elementEnd(l[l.length - 1] as TimelineElement) <= element.startTime);
+        if (lane) lane.push(element);
+        else lanes.push([element]);
+      }
+      let tracks = scene.tracks;
+      const base = input.index ?? defaultInsertIndex(tracks, trackType);
+      const selection: ElementRef[] = [];
+      lanes.forEach((elements, lane) => {
+        const id = ctx.newId();
+        assertTrackIdFree(tracks, id);
+        tracks = insertTrack(tracks, withElements(createTrack(trackType, id), elements), base + lane);
+        for (const element of elements) selection.push({ trackId: id, elementId: element.id });
+      });
+      return result(mapCurrentTracks(doc, ctx, () => tracks), selectionOf(selection));
+    },
+  };
+}
+
 export function insertMediaElement(input: { asset: MediaAssetInfo; elementId: string; startTime: number; placement: InsertPlacement }): Command {
-  const element = buildMediaElement({ id: input.elementId, startTime: mediaTime(input.startTime), asset: input.asset });
-  return insertElement({ element, placement: input.placement });
+  return {
+    label: `Add ${input.asset.type}`,
+    run(doc, ctx) {
+      requireTick("startTime", input.startTime, 0);
+      const element = buildMediaElement({ id: input.elementId, startTime: mediaTime(input.startTime), asset: input.asset });
+      return insertElement({ element, placement: input.placement }).run(doc, ctx);
+    },
+  };
 }
 
 // ---- Update / delete -----------------------------------------------------------------------------------------
@@ -141,6 +231,35 @@ export function updateElements(updates: ReadonlyArray<ElementUpdate>, label = "E
   };
 }
 
+/**
+ * Moves the left and/or right edge of one element to absolute timeline times through the shared resize rules
+ * (source trim, neighbour and source-length limits, frame rounding). Limits clamp rather than fail.
+ */
+export function trimElementCommand(input: { ref: ElementRef; start?: number; end?: number }): Command {
+  return {
+    label: "Trim",
+    run(doc, ctx) {
+      if (input.start !== undefined) requireTick("start", input.start, 0);
+      if (input.end !== undefined) requireTick("end", input.end, 1);
+      const fps = doc.settings.fps;
+      const resizeEdge = (tracks: SceneTracks, side: "left" | "right", target: number): SceneTracks => {
+        const element = getElement(tracks, input.ref);
+        if (!element) return tracks;
+        const delta = side === "left" ? target - element.startTime : target - elementEnd(element);
+        const members = buildResizeMembers({ tracks, refs: [input.ref] });
+        const { patches } = computeGroupResize({ members, side, delta, fps });
+        return patches.reduce((acc, p) => applyElementUpdate({ tracks: acc, ref: p.ref, patch: p.patch, newId: ctx.newId }), tracks);
+      };
+      return result(mapCurrentTracks(doc, ctx, (tracks) => {
+        let next = tracks;
+        if (input.start !== undefined) next = resizeEdge(next, "left", input.start);
+        if (input.end !== undefined) next = resizeEdge(next, "right", input.end);
+        return next;
+      }));
+    },
+  };
+}
+
 export function deleteElements(refs: ReadonlyArray<ElementRef>): Command {
   return {
     label: refs.length > 1 ? "Delete elements" : "Delete element",
@@ -154,6 +273,7 @@ export function splitCommand(input: { refs: ReadonlyArray<ElementRef>; splitTime
   return {
     label: "Split",
     run(doc, ctx) {
+      requireTick("splitTime", input.splitTime, 0);
       const scene = currentScene(doc);
       const split = splitElements({ tracks: scene.tracks, refs: input.refs, splitTime: input.splitTime, retainSide: input.retainSide, newId: ctx.newId });
       if (!split.changed) return result(doc);
@@ -193,6 +313,7 @@ export function pasteCommand(input: { items: ReadonlyArray<ClipboardItem>; time:
   return {
     label: "Paste",
     run(doc, ctx) {
+      requireTick("time", input.time, 0);
       const out = pasteElements({ tracks: currentScene(doc).tracks, items: input.items, time: input.time, newId: ctx.newId });
       return result(mapCurrentTracks(doc, ctx, () => out.tracks), selectionOf(out.selection));
     },

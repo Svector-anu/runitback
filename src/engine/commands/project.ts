@@ -1,12 +1,19 @@
 import { mediaTime } from "#/engine/time";
-import { createScene, type Bookmark, type MediaAssetInfo, type ProjectSettings, type Scene } from "#/engine/model";
-import { allElements } from "#/engine/timeline";
+import { createScene, InvalidInputError, type Bookmark, type MediaAssetInfo, type ProjectSettings, type Scene } from "#/engine/model";
+import { allElements, requireTick } from "#/engine/timeline";
+import { isSaneCanvas, isSaneFrameRate } from "./limits";
 import { currentScene, sceneById, type Command, type EditorDocument } from "./types";
 
 export function updateSettings(patch: Partial<ProjectSettings>): Command {
   return {
     label: "Change project settings",
-    run: (doc) => ({ doc: { ...doc, settings: { ...doc.settings, ...patch } } }),
+    run(doc) {
+      if (patch.canvasSize && !isSaneCanvas(patch.canvasSize.width, patch.canvasSize.height)) {
+        throw new InvalidInputError(`Canvas size ${patch.canvasSize.width}x${patch.canvasSize.height} is outside the supported range`);
+      }
+      if (patch.fps && !isSaneFrameRate(patch.fps)) throw new InvalidInputError("Frame rate must be between 1 and 240 fps");
+      return { doc: { ...doc, settings: { ...doc.settings, ...patch } } };
+    },
   };
 }
 
@@ -28,7 +35,7 @@ export function deleteSceneCommand(sceneId: string): Command {
     run(doc) {
       const scene = sceneById(doc, sceneId);
       if (!scene) return { doc };
-      if (scene.isMain) throw new Error("Cannot delete main scene");
+      if (scene.isMain) throw new InvalidInputError("Cannot delete main scene");
       const scenes = doc.scenes.filter((s) => s.id !== sceneId);
       const main = scenes.find((s) => s.isMain) ?? scenes[0];
       if (!main) return { doc };
@@ -58,19 +65,30 @@ function editBookmarks(label: string, fn: (bookmarks: Bookmark[], scene: Scene) 
 }
 
 export const toggleBookmark = (time: number): Command =>
-  editBookmarks("Toggle bookmark", (list) =>
-    list.some((b) => b.time === time) ? list.filter((b) => b.time !== time) : [...list, { time: mediaTime(time) }]);
+  editBookmarks("Toggle bookmark", (list) => {
+    requireTick("time", time, 0);
+    return list.some((b) => b.time === time) ? list.filter((b) => b.time !== time) : [...list, { time: mediaTime(time) }];
+  });
 export const removeBookmark = (time: number): Command => editBookmarks("Remove bookmark", (list) => list.filter((b) => b.time !== time));
 export const updateBookmark = (time: number, updates: Partial<Omit<Bookmark, "time">>): Command =>
   editBookmarks("Edit bookmark", (list) => list.map((b) => (b.time === time ? { ...b, ...updates } : b)));
 export const moveBookmark = (from: number, to: number): Command =>
-  editBookmarks("Move bookmark", (list) => (list.some((b) => b.time === to) && from !== to ? list : list.map((b) => (b.time === from ? { ...b, time: mediaTime(to) } : b))));
+  editBookmarks("Move bookmark", (list) => {
+    requireTick("to", to, 0);
+    return list.some((b) => b.time === to) && from !== to ? list : list.map((b) => (b.time === from ? { ...b, time: mediaTime(to) } : b));
+  });
 
 // ---- Media assets --------------------------------------------------------------------------------------------
 
 /** Registering an asset is not undoable: the bytes are already stored. */
 export function withAsset(doc: EditorDocument, asset: MediaAssetInfo): EditorDocument {
   return { ...doc, assets: [...doc.assets.filter((a) => a.id !== asset.id), asset] };
+}
+
+/** The document with `assets` as its asset list; the same object when nothing differs, so identity checks hold. */
+export function withAssetList(doc: EditorDocument, assets: MediaAssetInfo[]): EditorDocument {
+  const same = assets.length === doc.assets.length && assets.every((a, i) => a === doc.assets[i]);
+  return same ? doc : { ...doc, assets };
 }
 
 /** Removes assets and every clip that uses them as one undoable step; stored bytes outlive the step for undo. */

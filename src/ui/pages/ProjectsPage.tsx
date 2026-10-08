@@ -83,7 +83,10 @@ export function ProjectsPage(): ReactNode {
 
   useEffect(() => {
     prefsStore.set(services.prefs.read("projects-view", prefsStore.get(), isPrefs));
-    void services.closeProject().then(load);
+    services.closeProject().then(load, (error: unknown) => {
+      toast.error("Could not save the project you just left", error instanceof Error ? error.message : undefined);
+      return load();
+    });
   }, [services, load]);
 
   const setPrefs = (patch: Partial<ViewPrefs>): void => {
