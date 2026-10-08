@@ -27,7 +27,7 @@ Why the current codebase is a good foundation: every change is a `Command`; the 
 | M4 | **In-app agent** (chat panel, Claude tool loop, vision) | Given a goal and footage, the agent produces a rough cut, then self-corrects after inspecting rendered frames | in progress |
 | M5 | **Agent eval harness** | Scripted briefs ("remove silences", "cut to the beat", "add captions") are scored automatically against ground truth; regressions block merges | done: 10 cases, 37 mutations, `pnpm eval`, docs/EVALS.md; real-model run needs an API key |
 | M6 | **Reference intelligence** | From a reference video: pacing, shot rhythm, caption style, audio energy → a reusable style profile the agent applies to new footage | engine in progress |
-| M7 | Speech: transcription + transcript-driven editing | Word-level captions; "delete this sentence" edits the timeline | next |
+| M7 | Speech: transcription + transcript-driven editing | Word-level captions; "delete this sentence" edits the timeline | engine + agent tools done (see TRANSCRIPTS.md); recognizer/UI wiring pending |
 | M7b | **Review hardening** | Independent review's P0/P1 findings closed with regression tests | P0 done; remaining P1/P2 in progress |
 | M8 | Product hardening | Virtualized timeline, crash-safe persistence, cross-browser matrix, GPU compositor, pitch-preserving speed, accessibility audit | ongoing |
 | M7c | **Temporal index** | One queryable timeline joining words, shots, faces, audio energy and embeddings per asset, so the agent searches footage instead of re-analyzing it | proposed |

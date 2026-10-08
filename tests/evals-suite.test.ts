@@ -18,7 +18,7 @@ describe("eval suite (scripted CI gate)", () => {
   });
 
   it("lists blocked cases with a reason instead of faking an oracle", () => {
-    expect(blockedCases().map((c) => c.id)).toEqual(["delete-spoken-sentence"]);
+    expect(blockedCases().map((c) => c.id)).toEqual([]);
     for (const blocked of blockedCases()) {
       expect(blocked.blocked).toMatch(/\S{10}/);
       expect(POLICIES.some((p) => p.caseId === blocked.id)).toBe(false);

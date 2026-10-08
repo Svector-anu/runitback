@@ -1,9 +1,10 @@
 import { runAgent, type AgentEvent } from "#/app/agent/loop";
 import type { ModelClient } from "#/app/agent/model-client";
-import { createAgentTools, type AgentTool } from "#/engine/agent";
+import { createAgentTools, createTranscriptTools, type AgentTool } from "#/engine/agent";
 import { Editor } from "#/engine/editor";
 import { createProject, sequentialIds, type Project } from "#/engine/model";
 import { createMapAnalysisProvider, createMemoryStyleProfileStore } from "#/engine/reference";
+import { createMemoryTranscriptStore, TRANSCRIPT_VERSION } from "#/engine/transcript";
 import { analysisFromSpec, assetInfoOf, resolveFixtures } from "./fixtures";
 import { scoreCase } from "./score";
 import { placeInitialTimeline } from "./setup";
@@ -30,6 +31,12 @@ export async function buildWorld(evalCase: EvalCase): Promise<World> {
   const tools = new Map(createAgentTools({
     reference: { store: createMemoryStyleProfileStore(), provider: createMapAnalysisProvider(analyses.values()) },
   }));
+  const transcripts = fixtures.filter((f) => f.spec.transcript !== undefined);
+  if (transcripts.length > 0) {
+    const store = createMemoryTranscriptStore();
+    for (const f of transcripts) store.save({ version: TRANSCRIPT_VERSION, assetId: f.assetId, language: "en", model: "fixture", words: f.spec.transcript ?? [] });
+    for (const tool of createTranscriptTools({ store })) tools.set(tool.name, tool);
+  }
   for (const tool of createStubPlatformTools({ editor, fixtures, analyses })) tools.set(tool.name, tool);
 
   await placeInitialTimeline({ editor, tools, fixtures });

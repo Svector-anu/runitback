@@ -9,7 +9,7 @@ EvalCase { id, brief, fixtures, budget, checks }
 ```
 
 - **brief**: the user's request, verbatim. This is the only instruction the agent gets.
-- **fixtures**: declarative synthetic media (`FixtureSpec`): a name, a duration, colour blocks (the shots) and a soundtrack (`speech` ranges, a steady `tone`, a `beat` grid, or `none`). Ground truth is exact because it is derived from the declaration, never measured. A fixture with `placeAt` starts on the timeline; the others sit in the media pool.
+- **fixtures**: declarative synthetic media (`FixtureSpec`): a name, a duration, colour blocks (the shots) and a soundtrack (`speech` ranges, a steady `tone`, a `beat` grid, or `none`) and optionally a word-level `transcript` in source seconds. Ground truth is exact because it is derived from the declaration, never measured. A fixture with `placeAt` starts on the timeline; the others sit in the media pool.
 - **budget**: `maxSteps` and `maxTokens` handed to `runAgent`.
 - **checks**: pure functions `(CheckInput) => { pass, score 0..1, detail }` over the project before the run (`initial`), right after it (`final`), after one undo (`afterUndo`), the resolved fixtures with their ground truth, and the run summary (status, final text, steps, usage).
 
@@ -33,7 +33,7 @@ Headless runs use the real `createAgentTools()`. The browser-only tools are repl
 | `match-reference-pacing` | Cut the footage in the pacing of a reference clip | `average-shot-length`: at least 6 shots, average within 20% of the reference's. `footage-only`: the reference itself is not on the timeline. |
 | `ambiguous-request` | "Make it better." | `project-unchanged` and `asks-or-declines`. |
 | `impossible-request` | Replace the voice with a French AI voice | `project-unchanged` and `asks-or-declines`. |
-| `delete-spoken-sentence` | Delete a sentence by its words | **Blocked**: no transcription tool (ROADMAP M7). It has no oracle and is skipped; the reason is printed by `pnpm eval`. |
+| `delete-spoken-sentence` | Delete the sentence where the speaker says "we should probably skip this part" | `sentence-removed`: at most 0.05 s of the sentence's words still play. `other-speech-retained`: at least 98% of the words of the other sentences still play. The fixture declares a word-level `transcript`; the case gets the transcript tools (`search_transcript`, `delete_spoken_range`, ...) backed by a store holding it. |
 
 `asks-or-declines` is a heuristic: the final answer must contain a question mark or a plain refusal ("can't", "cannot", "unable", "no tool", "not possible", "not supported", ...). `project-unchanged` compares the whole document (scenes, settings, current scene), not just the timeline, and also requires that the run left nothing to undo.
 
@@ -93,6 +93,6 @@ When a real-model run fails a case, look at the failed check ids in the report, 
 
 ## Known gaps
 
-- No transcription/transcript tool, so word-level requests (`delete-spoken-sentence`) are blocked until M7.
+- `delete-spoken-sentence` runs against a declared fixture transcript, not a real recognizer, and is not in the real-media Playwright run (the browser fixtures carry a tone, not speech). It proves the tools and the checks, not recognition quality.
 - Real-media mode covers the audio/shot structure the analyzer can measure; the reference-pacing case needs a style store and is covered headlessly only.
 - Stubbed rendering means headless runs cannot test visual judgement (is the title legible?). The checks measure timing and structure.

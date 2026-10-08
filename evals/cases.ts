@@ -1,3 +1,4 @@
+import type { TranscriptWord } from "#/engine/transcript";
 import { clamp01, documentKey, fail, graded, pass, verdict } from "./checks";
 import { mergeRanges } from "./fixtures";
 import {
@@ -440,16 +441,65 @@ const IMPOSSIBLE: EvalCase = {
   checks: [unchanged, asksOrDeclines],
 };
 
-// Blocked ---------------------------------------------------------------------------------------------------------
+// 11. Transcript-driven editing -----------------------------------------------------------------------------------
+
+const WORD_GAP_SECONDS = 0.04;
+
+/** Words spread evenly over [start, end] with a short gap between them, so every sentence has exact word timings. */
+function spoken(text: string, start: number, end: number): TranscriptWord[] {
+  const tokens = text.split(" ");
+  const slot = (end - start) / tokens.length;
+  return tokens.map((token, i) => ({ text: token, startSeconds: start + i * slot, endSeconds: start + (i + 1) * slot - WORD_GAP_SECONDS }));
+}
+
+const TARGET_SENTENCE = "We should probably skip this part.";
+const TALK_SENTENCES: ReadonlyArray<{ text: string; start: number; end: number }> = [
+  { text: "Welcome back to the channel.", start: 0.5, end: 3 },
+  { text: "Today we are looking at the new camera.", start: 3.6, end: 7.5 },
+  { text: TARGET_SENTENCE, start: 8.5, end: 11.5 },
+  { text: "Anyway the battery lasts all day.", start: 12.4, end: 16 },
+  { text: "Thanks for watching and see you next time.", start: 17, end: 21 },
+  { text: "Don't forget to subscribe.", start: 22, end: 25 },
+];
+const TALK_TRANSCRIPT: TranscriptWord[] = TALK_SENTENCES.flatMap((s) => spoken(s.text, s.start, s.end));
+const TARGET_WORDS = spoken(TARGET_SENTENCE, 8.5, 11.5);
+const OTHER_WORDS = TALK_SENTENCES.filter((s) => s.text !== TARGET_SENTENCE).flatMap((s) => spoken(s.text, s.start, s.end));
+const wordRanges = (words: ReadonlyArray<TranscriptWord>): Range[] => words.map((w) => ({ start: w.startSeconds, end: w.endSeconds }));
+/** A sliver of the sentence may survive frame snapping; more than this means it was not cut out. */
+const MAX_SURVIVING_TARGET_SECONDS = 0.05;
+const MIN_OTHER_SPEECH_KEPT = 0.98;
 
 const DELETE_SENTENCE: EvalCase = {
   id: "delete-spoken-sentence",
   title: "Delete a spoken sentence by its words",
   brief: 'Delete the sentence where the speaker says "we should probably skip this part".',
-  fixtures: [{ id: "talk", name: "talk.mp4", kind: "video", durationSeconds: 30, placeAt: 0, audio: { kind: "speech", speech: [{ start: 0, end: 30 }] } }],
+  fixtures: [{
+    id: "talk", name: "talk.mp4", kind: "video", durationSeconds: 30, placeAt: 0,
+    audio: { kind: "speech", speech: [{ start: 0, end: 30 }] }, transcript: TALK_TRANSCRIPT,
+  }],
   budget: BUDGET,
-  blocked: "No speech-to-text or transcript tool exists (ROADMAP M7), so an agent cannot locate words in time. Needs a transcribe/get_transcript tool returning word timings.",
-  checks: [],
+  checks: [
+    {
+      id: "sentence-removed",
+      description: "Almost none of the target sentence's spoken seconds still play.",
+      run(input) {
+        const talk = fixtureByName(input, "talk.mp4");
+        const total = lengthOf(wordRanges(TARGET_WORDS));
+        const kept = retainedSource(clipsOfFixture(input, talk), wordRanges(TARGET_WORDS));
+        return graded({ score: 1 - kept / total, threshold: 1 - MAX_SURVIVING_TARGET_SECONDS / total, detail: `${kept.toFixed(2)}s of the ${total.toFixed(2)}s sentence still plays` });
+      },
+    },
+    {
+      id: "other-speech-retained",
+      description: "At least 98% of the words of every other sentence still play.",
+      run(input) {
+        const talk = fixtureByName(input, "talk.mp4");
+        const total = lengthOf(wordRanges(OTHER_WORDS));
+        const ratio = retainedSource(clipsOfFixture(input, talk), wordRanges(OTHER_WORDS)) / total;
+        return graded({ score: ratio, threshold: MIN_OTHER_SPEECH_KEPT, detail: `${(ratio * 100).toFixed(1)}% of the other ${total.toFixed(1)}s of speech kept` });
+      },
+    },
+  ],
 };
 
 export const CASES: ReadonlyArray<EvalCase> = [

@@ -1,4 +1,5 @@
 import type { Project } from "#/engine/model";
+import type { TranscriptWord } from "#/engine/transcript";
 import type { AgentStatus } from "#/app/agent/loop";
 import type { TokenUsage } from "#/app/agent/model-client";
 
@@ -37,6 +38,8 @@ export interface FixtureSpec {
    * declaration order. Omit to leave the fixture in the media pool only.
    */
   placeAt?: number;
+  /** Words spoken in the fixture, in SOURCE seconds. When present the case gets the transcript tools backed by a store holding it. */
+  transcript?: TranscriptWord[];
 }
 
 /** Exact facts about a fixture, derived from its spec (or from a real measurement, see fixtures.ts). All times in seconds of the fixture's own source. */

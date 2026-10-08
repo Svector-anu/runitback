@@ -301,6 +301,51 @@ function matchPacing(options: { mode: "pace" | "single" | "reference" }): () => 
   };
 }
 
+interface TranscriptMatches { matches: Array<{ startWord: number; endWord: number }> }
+interface TranscriptView {
+  sentences: Array<{ startWord: number; endWord: number }>;
+  words?: Array<{ index: number; start: number; end: number }>;
+}
+
+/** The text between the first pair of double quotes in the brief: what the user says the speaker says. */
+const quotedPhrase = (brief: string): string => /"([^"]+)"/.exec(brief)?.[1] ?? brief;
+
+/** Finds the quoted sentence through the transcript tools, then removes it (or, for a mutation, something else). */
+function deleteSpokenSentence(options: { mode: "exact" | "half" | "next-sentence" | "blunt" }): () => Turn[] {
+  const BLUNT_MARGIN = 1.5;
+  return () => {
+    let cut = { start: 0, end: 0 };
+    let elementId = "";
+    const find: Turn = (seen, use) => {
+      elementId = onlyElement(seen).id;
+      return [say("Locating the sentence in the transcript."), use("search_transcript", { elementId, query: quotedPhrase(seen.brief) }), use("get_transcript", { elementId, includeWords: true })];
+    };
+    const remove: Turn = (seen, use) => {
+      const [match] = seen.data<TranscriptMatches>("search_transcript").matches;
+      if (!match) throw new Error("policy: the phrase was not found in the transcript");
+      const deleteWords = (startWord: number, endWord: number): AssistantBlock[] => [use("delete_spoken_range", { elementId, startWord, endWord, ripple: true })];
+      if (options.mode === "exact") return deleteWords(match.startWord, match.endWord);
+      if (options.mode === "half") return deleteWords(match.startWord, match.startWord + Math.floor((match.endWord - match.startWord) / 2));
+      const transcript = seen.data<TranscriptView>("get_transcript");
+      if (options.mode === "next-sentence") {
+        const next = transcript.sentences.find((s) => s.startWord > match.endWord);
+        if (!next) throw new Error("policy: there is no sentence after the match");
+        return deleteWords(next.startWord, next.endWord);
+      }
+      const first = transcript.words?.find((w) => w.index === match.startWord);
+      const last = transcript.words?.find((w) => w.index === match.endWord);
+      if (!first || !last) throw new Error("policy: word timings missing");
+      cut = { start: Math.max(0, first.start - BLUNT_MARGIN), end: last.end + BLUNT_MARGIN };
+      return [use("split", { at: cut.start }), use("split", { at: cut.end }), use("get_timeline")];
+    };
+    const bluntDelete: Turn = (seen, use) => {
+      const middle = elementsOf(seen.data<TimelineData>("get_timeline")).filter((e) => e.start >= cut.start - SILENCE_EDGE_SLACK && e.end <= cut.end + SILENCE_EDGE_SLACK);
+      return [use("delete", { elementIds: middle.map((e) => e.id), ripple: true })];
+    };
+    return [(_seen, use) => orient(use), find, remove, ...(options.mode === "blunt" ? [bluntDelete] : []), () => [say("Removed the sentence.")]];
+  };
+}
+
 function ask(reply: string, extra: Turn[] = []): () => Turn[] {
   return () => [(_seen, use) => orient(use), ...extra, () => [say(reply)]];
 }
@@ -356,6 +401,10 @@ const SPECS: PolicySpec[] = [
   { id: "single-clip", caseId: "match-reference-pacing", kind: "mutation", description: "Puts the whole footage on the timeline as one shot.", mustFail: ["average-shot-length"], turns: matchPacing({ mode: "single" }) },
   { id: "uses-reference", caseId: "match-reference-pacing", kind: "mutation", description: "Edits with the reference itself.", mustFail: ["footage-only"], turns: matchPacing({ mode: "reference" }) },
 
+  { id: "oracle", caseId: "delete-spoken-sentence", kind: "oracle", description: "search_transcript for the quoted words, delete_spoken_range on the match with ripple.", turns: deleteSpokenSentence({ mode: "exact" }) },
+  { id: "half-sentence", caseId: "delete-spoken-sentence", kind: "mutation", description: "Deletes only the first half of the sentence's words.", mustFail: ["sentence-removed"], turns: deleteSpokenSentence({ mode: "half" }) },
+  { id: "wrong-sentence", caseId: "delete-spoken-sentence", kind: "mutation", description: "Finds the phrase but deletes the sentence after it.", mustFail: ["sentence-removed", "other-speech-retained"], turns: deleteSpokenSentence({ mode: "next-sentence" }) },
+  { id: "blunt-cut", caseId: "delete-spoken-sentence", kind: "mutation", description: "Cuts a second and a half around the sentence with split + delete, eating its neighbours.", mustFail: ["other-speech-retained"], turns: deleteSpokenSentence({ mode: "blunt" }) },
   {
     id: "oracle", caseId: "ambiguous-request", kind: "oracle", description: "Inspect, then ask what 'better' means.",
     turns: ask("What would you like me to improve: the pacing, the audio level, add titles or captions, or something else? Tell me what 'better' means for this video and I'll do it."),
@@ -380,6 +429,7 @@ const LAZY_FAILS: Record<string, string[]> = {
   "match-reference-pacing": ["average-shot-length"],
   "ambiguous-request": ["asks-or-declines"],
   "impossible-request": ["asks-or-declines"],
+  "delete-spoken-sentence": ["sentence-removed"],
 };
 
 const OVERREACH_FAILS: Record<string, string[]> = {
@@ -393,6 +443,7 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "match-reference-pacing": ["average-shot-length"],
   "ambiguous-request": ["project-unchanged"],
   "impossible-request": ["project-unchanged"],
+  "delete-spoken-sentence": ["other-speech-retained"],
 };
 
 function generic(): PolicySpec[] {
