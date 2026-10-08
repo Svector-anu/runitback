@@ -5,7 +5,7 @@ Audit of the implementation against **both** reference repositories:
 - `OpenCut-app/OpenCut` @ `e668010` (current rewrite): a scaffold. It contributes direction (Rust core, Editor API, plugins, MCP, headless), not behavior. None of its README promises exist in code (`research/06`).
 - `OpenCut-app/opencut-classic` @ `cf5e79e`: the product. All behavior comparisons below are against it.
 
-Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (286 unit/integration tests), `pnpm build`, `pnpm e2e` (12 Playwright tests in Chromium, real decode/encode), and a clean-checkout install/test/build. Columns: **Impl** = ✅ implemented, ◐ partial, ✖ not implemented (reason).
+Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (286 unit/integration tests), `pnpm build`, `pnpm e2e` (13 Playwright tests in Chromium, real decode/encode), and a clean-checkout install/test/build. Columns: **Impl** = ✅ implemented, ◐ partial, ✖ not implemented (reason).
 
 ## 1. Feature audit
 
@@ -48,7 +48,7 @@ Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (286 unit/integration tests
 | Duplicate / copy / paste / delete | yes | Same | ✅ | `clipboard-ripple-snap`, `editor` | |
 | Ripple | per-track diff, off by default | Same, one history step | ✅ | `clipboard-ripple-snap`, `editor` | |
 | Snapping | 10 px, edges/playhead/keyframes/bookmarks, Shift, N | Same | ✅ | `clipboard-ripple-snap` | Scrub snapping ignores the toggle (as classic) |
-| Zoom (wheel, buttons ×1.7, slider, anchor, persisted) | yes | Same | ✅ | `clipboard-ripple-snap` (math), e2e ruler | Wheel/slider gestures not driven by e2e |
+| Zoom (wheel, buttons ×1.7, slider, anchor, persisted) | yes | Same | ✅ | `clipboard-ripple-snap` (math), e2e ruler | Button zoom asserted in e2e; wheel/slider gestures not driven |
 | Ruler, playhead, click-seek, scrub, auto-follow | yes | Same | ✅ | `clipboard-ripple-snap`, e2e | |
 | Track mute/hide, clip mute/hide, extract/recover audio | yes | Same | ✅ | `editor` | |
 | Bookmarks (add, drag, note, colour, duration) | yes | Same (notes are not drawn on the preview) | ◐ | `editor` | Preview note overlay not built |
@@ -64,7 +64,7 @@ Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (286 unit/integration tests
 | Source-time mapping, speed, trims | yes | yes | ✅ | `frame-plan`, `split-resize` | |
 | Play/pause/seek, frame-snapped clock, ends at duration | yes | yes | ✅ | `captions-audio-playback` (Playback), e2e play | |
 | Audio playback | WebAudio, 2 s lookahead, limiter | Same | ✅ | `audio-clips`, e2e (buffers scheduled) | A/V are not clock-locked (same as classic); no pitch preservation |
-| Canvas presets/custom, background colour/blur | yes | yes (presets 16:9, 9:16, 1:1, 4:3, custom) | ✅ | e2e (settings path partially) | Gradient backgrounds not implemented (solid colours + blur) |
+| Canvas presets/custom, background colour/blur | yes | yes (presets 16:9, 9:16, 1:1, 4:3, custom) | ✅ | e2e (aspect ratio + background colour) | Gradient backgrounds not implemented (solid colours + blur) |
 | Preview zoom/pan/fullscreen | yes | yes | ✅ | none automated | Manual only |
 | Transform handles, move, scale, rotate, snap | yes | corners, left/right/bottom, rotate handle, 8 px snap, 90° snap, Shift | ✅ | `preview-geometry` | Handle gestures not driven by e2e |
 | Text inline edit | double-click | yes | ◐ | none automated | |

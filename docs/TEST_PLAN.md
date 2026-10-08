@@ -23,7 +23,7 @@ Runner: Vitest (node env for `engine`, jsdom/happy-dom for UI units), Playwright
 | ui lib | `ui/lib.test.ts` | expression evaluator, scrub sensitivity, split clamping |
 | architecture | `architecture.test.ts` | layer imports, engine purity, localStorage ownership, no `any`/`@ts-ignore`/`console.log` |
 
-## Browser E2E (Playwright, Chromium, 12 tests)
+## Browser E2E (Playwright, Chromium, 13 tests)
 
 Media is generated inside the page with mediabunny (real VP9/Opus WebM), so the real decoder, compositor, audio scheduler and encoder run.
 

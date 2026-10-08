@@ -189,3 +189,32 @@ test("narrow viewports keep a usable editor and dark theme renders", async ({ pa
   await page.screenshot({ path: "e2e/.artifacts/narrow-dark.png" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 });
+
+test("project settings: aspect ratio and background change the composition; zoom keeps clip time", async ({ page }) => {
+  await projectWithClip(page);
+  const canvasSize = () => page.evaluate(() => {
+    const c = document.querySelector<HTMLCanvasElement>(".preview__scene canvas");
+    return [c!.width, c!.height];
+  });
+  expect(await canvasSize()).toEqual([320, 180]);
+
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.getByRole("radio", { name: /9:16/ }).click();
+  await expect.poll(canvasSize).toEqual([1080, 1920]);
+  await page.getByRole("tab", { name: "Background" }).click();
+  await page.getByRole("button", { name: "Colors" }).click();
+  await page.getByRole("button", { name: "Background #ffffff" }).click();
+  // Top-left of a portrait canvas is letterbox area around a 16:9 clip: now white.
+  await expect.poll(() => pixel(page, 5, 5)).toEqual([255, 255, 255]);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(() => pixel(page, 5, 5)).toEqual([0, 0, 0]);
+
+  // Zooming changes pixels per second but never the clip's time span.
+  const before = await clips(page).first().evaluate((el) => [el.getAttribute("data-start"), el.getAttribute("data-duration"), el.getBoundingClientRect().width]);
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  const after = await clips(page).first().evaluate((el) => [el.getAttribute("data-start"), el.getAttribute("data-duration"), el.getBoundingClientRect().width]);
+  expect(after[0]).toBe(before[0]);
+  expect(after[1]).toBe(before[1]);
+  expect(after[2] as number).toBeGreaterThan((before[2] as number) * 2);
+});
