@@ -2,7 +2,7 @@ import { batch, deleteElements, insertElementsOnLanes, splitCommand } from "#/en
 import type { TimelineElement } from "#/engine/model";
 import { allElements, elementEnd, type LocatedElement } from "#/engine/timeline";
 import {
-  groupSentences, searchTranscript, sourceRangesForWords, wordsToCaptionChunks,
+  groupSentences, mapSourceToTimeline, searchTranscript, sourceRangesForWords, wordsToCaptionChunks,
   type Transcriber, type Transcript, type TranscriptStore, type TranscriptWord,
 } from "#/engine/transcript";
 import { TICKS_PER_SECOND, floorToFrame, frameIndexAt, frameStartTime, mediaTime, type MediaTime } from "#/engine/time";
@@ -50,8 +50,9 @@ function clipsOfAsset(env: ToolEnv, assetId: string): Array<{ elementId: string;
 }
 
 function toTimelineTicks(placed: Placed, sourceSeconds: number): number {
-  const ticks = placed.startTicks + (sourceSeconds * TICKS_PER_SECOND - placed.element.trimStart) / placed.rate;
-  return Math.min(placed.endTicks, Math.max(placed.startTicks, ticks));
+  return mapSourceToTimeline({
+    source: sourceSeconds * TICKS_PER_SECOND, trimStart: placed.element.trimStart, rate: placed.rate, start: placed.startTicks, end: placed.endTicks,
+  });
 }
 
 function visibleWords(words: ReadonlyArray<TranscriptWord>, from: number, to: number): Placed["visible"] {

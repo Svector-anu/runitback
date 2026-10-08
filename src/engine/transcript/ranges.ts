@@ -45,3 +45,13 @@ export function sourceRangesForWords(input: {
   }
   return merged;
 }
+
+/**
+ * Where a source instant plays on the timeline for a placed clip, clamped to the clip's extent. All arguments must
+ * share one unit (ticks or seconds): `start`/`end` are the clip's timeline extent, `trimStart` its source offset
+ * and `rate` the source units consumed per timeline unit.
+ */
+export function mapSourceToTimeline(input: { source: number; trimStart: number; rate: number; start: number; end: number }): number {
+  const mapped = input.start + (input.source - input.trimStart) / input.rate;
+  return Math.min(input.end, Math.max(input.start, mapped));
+}

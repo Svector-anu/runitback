@@ -346,6 +346,58 @@ function deleteSpokenSentence(options: { mode: "exact" | "half" | "next-sentence
   };
 }
 
+interface FoundMoments { moments: Array<{ assetId: string; startSeconds: number; endSeconds: number }> }
+type MomentPick = { assetId: string; startSeconds: number; endSeconds: number };
+const toPicks = (found: FoundMoments): MomentPick[] => found.moments.map(({ assetId, startSeconds, endSeconds }) => ({ assetId, startSeconds, endSeconds }));
+
+/** Locates the sentences with the quoted word through find_moments, then assembles them with cut_to_moments. */
+function findAndCut(options: { mode: "keyword" | "first-only" | "all-speech" | "reversed" }): () => Turn[] {
+  return () => {
+    let assetId = "";
+    return [
+      (_seen, use) => orient(use),
+      (seen, use) => {
+        assetId = assetNamed(seen, "interview.mp4").id;
+        const query = options.mode === "all-speech" ? { speaking: true } : { text: quotedPhrase(seen.brief) };
+        return [say("Finding the moments in the footage."), use("find_moments", { assetId, ...query, sort: "time" })];
+      },
+      (seen, use) => {
+        const picks = toPicks(seen.data<FoundMoments>("find_moments"));
+        const chosen = options.mode === "first-only" ? picks.slice(0, 1) : options.mode === "reversed" ? [...picks].reverse() : picks;
+        return [say(`Assembling ${chosen.length} moment(s).`), use("cut_to_moments", { moments: chosen }), use("get_timeline")];
+      },
+      () => [say("Built the sequence from the matching moments, back to back.")],
+    ];
+  };
+}
+
+/** Reads the shots and their loudness through find_moments, then lays them out starting with the chosen one. */
+function loudestFirst(options: { lead: "loudest" | "quietest" | "none"; keepOthers: boolean }): () => Turn[] {
+  return () => {
+    let shots: MomentPick[] = [];
+    let assetId = "";
+    return [
+      (_seen, use) => orient(use),
+      (seen, use) => {
+        assetId = assetNamed(seen, "scenes.mp4").id;
+        return [use("find_moments", { assetId, sort: "time" })];
+      },
+      (seen, use) => {
+        shots = toPicks(seen.data<FoundMoments>("find_moments"));
+        return [use("find_moments", { assetId, sort: options.lead === "quietest" ? "quietest" : "loudest", limit: 1 })];
+      },
+      (seen, use) => {
+        const [lead] = toPicks(seen.data<FoundMoments>("find_moments"));
+        if (!lead) throw new Error("policy: no shot found");
+        const others = shots.filter((s) => s.startSeconds !== lead.startSeconds);
+        const order = options.lead === "none" ? shots : options.keepOthers ? [lead, ...others] : [lead];
+        return [say("Putting the chosen shot first."), use("cut_to_moments", { moments: order }), use("get_timeline")];
+      },
+      () => [say("Arranged the shots with the loudest first.")],
+    ];
+  };
+}
+
 function ask(reply: string, extra: Turn[] = []): () => Turn[] {
   return () => [(_seen, use) => orient(use), ...extra, () => [say(reply)]];
 }
@@ -405,6 +457,16 @@ const SPECS: PolicySpec[] = [
   { id: "half-sentence", caseId: "delete-spoken-sentence", kind: "mutation", description: "Deletes only the first half of the sentence's words.", mustFail: ["sentence-removed"], turns: deleteSpokenSentence({ mode: "half" }) },
   { id: "wrong-sentence", caseId: "delete-spoken-sentence", kind: "mutation", description: "Finds the phrase but deletes the sentence after it.", mustFail: ["sentence-removed", "other-speech-retained"], turns: deleteSpokenSentence({ mode: "next-sentence" }) },
   { id: "blunt-cut", caseId: "delete-spoken-sentence", kind: "mutation", description: "Cuts a second and a half around the sentence with split + delete, eating its neighbours.", mustFail: ["other-speech-retained"], turns: deleteSpokenSentence({ mode: "blunt" }) },
+
+  { id: "oracle", caseId: "find-and-cut-phrase-moments", kind: "oracle", description: "find_moments for the quoted word, cut_to_moments on the results in time order.", turns: findAndCut({ mode: "keyword" }) },
+  { id: "first-only", caseId: "find-and-cut-phrase-moments", kind: "mutation", description: "Assembles only the first matching sentence.", mustFail: ["keyword-sentences-kept"], turns: findAndCut({ mode: "first-only" }) },
+  { id: "all-speech", caseId: "find-and-cut-phrase-moments", kind: "mutation", description: "Assembles every sentence, matching or not.", mustFail: ["nothing-else-kept"], turns: findAndCut({ mode: "all-speech" }) },
+  { id: "reversed", caseId: "find-and-cut-phrase-moments", kind: "mutation", description: "Assembles the matching sentences in reverse order.", mustFail: ["spoken-order-back-to-back"], turns: findAndCut({ mode: "reversed" }) },
+
+  { id: "oracle", caseId: "loudest-shot-first", kind: "oracle", description: "find_moments sorted by time and by loudness, cut_to_moments with the loudest shot first.", turns: loudestFirst({ lead: "loudest", keepOthers: true }) },
+  { id: "original-order", caseId: "loudest-shot-first", kind: "mutation", description: "Cuts the shots but leaves them in their original order.", mustFail: ["loudest-leads"], turns: loudestFirst({ lead: "none", keepOthers: true }) },
+  { id: "quietest-first", caseId: "loudest-shot-first", kind: "mutation", description: "Leads with the quietest shot instead.", mustFail: ["loudest-leads"], turns: loudestFirst({ lead: "quietest", keepOthers: true }) },
+  { id: "loudest-only", caseId: "loudest-shot-first", kind: "mutation", description: "Keeps only the loudest shot.", mustFail: ["all-shots-kept"], turns: loudestFirst({ lead: "loudest", keepOthers: false }) },
   {
     id: "oracle", caseId: "ambiguous-request", kind: "oracle", description: "Inspect, then ask what 'better' means.",
     turns: ask("What would you like me to improve: the pacing, the audio level, add titles or captions, or something else? Tell me what 'better' means for this video and I'll do it."),
@@ -430,6 +492,8 @@ const LAZY_FAILS: Record<string, string[]> = {
   "ambiguous-request": ["asks-or-declines"],
   "impossible-request": ["asks-or-declines"],
   "delete-spoken-sentence": ["sentence-removed"],
+  "find-and-cut-phrase-moments": ["keyword-sentences-kept"],
+  "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
 };
 
 const OVERREACH_FAILS: Record<string, string[]> = {
@@ -444,6 +508,8 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "ambiguous-request": ["project-unchanged"],
   "impossible-request": ["project-unchanged"],
   "delete-spoken-sentence": ["other-speech-retained"],
+  "find-and-cut-phrase-moments": ["keyword-sentences-kept"],
+  "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
 };
 
 function generic(): PolicySpec[] {

@@ -5,4 +5,4 @@ export { groupSentences, endsSentence, DEFAULT_SENTENCE_PAUSE_SECONDS, type Tran
 export {
   wordsToCaptionChunks, DEFAULT_CAPTION_MAX_CHARS, DEFAULT_CAPTION_MAX_SECONDS, DEFAULT_CAPTION_PAUSE_SECONDS, type CaptionChunk,
 } from "./captions";
-export { sourceRangesForWords, type SourceRange, type WordRange } from "./ranges";
+export { sourceRangesForWords, mapSourceToTimeline, type SourceRange, type WordRange } from "./ranges";

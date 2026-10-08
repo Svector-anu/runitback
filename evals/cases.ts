@@ -502,8 +502,138 @@ const DELETE_SENTENCE: EvalCase = {
   ],
 };
 
+// 12. Temporal index: find moments, then assemble them -----------------------------------------------------------
+
+const KEYWORD = "budget";
+const INTERVIEW_SENTENCES: ReadonlyArray<{ text: string; start: number; end: number }> = [
+  { text: "Thanks for having me on the show.", start: 0.5, end: 3 },
+  { text: "Our budget for the launch was tiny.", start: 4.5, end: 7.5 },
+  { text: "We built the first prototype in a garage.", start: 9, end: 12.5 },
+  { text: "Every dollar of the budget went into the lenses.", start: 14, end: 18 },
+  { text: "People kept asking about the roadmap.", start: 19.5, end: 22.5 },
+  { text: "Honestly the budget was the best constraint we had.", start: 24, end: 28.5 },
+];
+const INTERVIEW_TRANSCRIPT: TranscriptWord[] = INTERVIEW_SENTENCES.flatMap((s) => spoken(s.text, s.start, s.end));
+const sentencesWith = (matches: boolean) => INTERVIEW_SENTENCES.filter((s) => s.text.toLowerCase().includes(KEYWORD) === matches);
+const sentenceRanges = (matches: boolean): Range[] => sentencesWith(matches).flatMap((s) => wordRanges(spoken(s.text, s.start, s.end)));
+const MAX_OTHER_SENTENCE_SECONDS = 0.1;
+const MIN_KEPT_SENTENCE = 0.98;
+const MAX_GAP_SECONDS = FRAME_SLACK;
+
+const mainClips = (input: CheckInput): ClipView[] => clipsOf(input.final).filter((c) => c.lane === "main" && c.type === "video").sort(byStart);
+
+/** True when the main-track clips start at 0 and touch one another, within a frame. */
+function backToBack(clips: ReadonlyArray<ClipView>): boolean {
+  let cursor = 0;
+  for (const clip of clips) {
+    if (Math.abs(clip.start - cursor) > MAX_GAP_SECONDS) return false;
+    cursor = clip.end;
+  }
+  return clips.length > 0;
+}
+
+const FIND_AND_CUT: EvalCase = {
+  id: "find-and-cut-phrase-moments",
+  title: "Assemble the sentences that mention a word",
+  brief: `Make a sequence out of interview.mp4 that contains only the sentences where the speaker says "${KEYWORD}", in the order they are said, back to back from the start of the timeline. Leave out everything else.`,
+  fixtures: [{
+    id: "interview", name: "interview.mp4", kind: "video", durationSeconds: 30,
+    blocks: [{ seconds: 10, rgb: BLUE }, { seconds: 10, rgb: GREEN }, { seconds: 10, rgb: AMBER }],
+    audio: { kind: "speech", speech: [{ start: 0, end: 30 }] }, transcript: INTERVIEW_TRANSCRIPT,
+  }],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "keyword-sentences-kept",
+      description: `At least 98% of the spoken seconds of every sentence containing "${KEYWORD}" are on the timeline.`,
+      run(input) {
+        const interview = fixtureByName(input, "interview.mp4");
+        const wanted = sentenceRanges(true);
+        const total = lengthOf(wanted);
+        const ratio = retainedSource(clipsOfFixture(input, interview), wanted) / total;
+        return graded({ score: ratio, threshold: MIN_KEPT_SENTENCE, detail: `${(ratio * 100).toFixed(1)}% of the ${total.toFixed(1)}s of matching speech is on the timeline` });
+      },
+    },
+    {
+      id: "nothing-else-kept",
+      description: `At most ${MAX_OTHER_SENTENCE_SECONDS}s of the speech of the other sentences is on the timeline.`,
+      run(input) {
+        const interview = fixtureByName(input, "interview.mp4");
+        const unwanted = sentenceRanges(false);
+        const kept = retainedSource(clipsOfFixture(input, interview), unwanted);
+        return graded({ score: 1 - kept / lengthOf(unwanted), threshold: 1 - MAX_OTHER_SENTENCE_SECONDS / lengthOf(unwanted), detail: `${kept.toFixed(2)}s of the other sentences still plays` });
+      },
+    },
+    {
+      id: "spoken-order-back-to-back",
+      description: "On the main track the clips start at 0, touch one another, and follow the order in which they are said.",
+      run(input) {
+        const clips = mainClips(input);
+        const ordered = clips.every((c, i) => i === 0 || c.trimStart >= (clips[i - 1] as ClipView).trimStart);
+        const touching = backToBack(clips);
+        return verdict(ordered && touching, `${clips.length} clip(s); ${touching ? "back to back" : "gaps or not starting at 0"}; ${ordered ? "in spoken order" : "out of order"}`);
+      },
+    },
+  ],
+};
+
+const SCENES_LEVELS = [{ seconds: 4, db: -30 }, { seconds: 4, db: -12 }, { seconds: 4, db: -22 }];
+const SCENES_SPEC: FixtureSpec = {
+  id: "scenes", name: "scenes.mp4", kind: "video", durationSeconds: 12,
+  blocks: [{ seconds: 4, rgb: RED }, { seconds: 4, rgb: GREEN }, { seconds: 4, rgb: BLUE }],
+  audio: { kind: "levels", levels: SCENES_LEVELS },
+};
+const LOUDEST_SHOT = SCENES_LEVELS.reduce((best, level, i, all) => (level.db > (all[best] as { db: number }).db ? i : best), 0);
+const MIN_SHOTS_KEPT = 0.95;
+
+const LOUDEST_FIRST: EvalCase = {
+  id: "loudest-shot-first",
+  title: "Open with the loudest shot",
+  brief: "Cut scenes.mp4 into its three shots and arrange them on the timeline so the loudest shot plays first. Keep all three shots, with the other two after it in their original order, back to back from 0.",
+  fixtures: [SCENES_SPEC],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "loudest-leads",
+      description: "The first clip on the timeline is the loudest shot, whole, and starts at 0.",
+      run(input) {
+        const scenes = fixtureByName(input, "scenes.mp4");
+        const [first] = mainClips(input);
+        const shot = scenes.truth.shots[LOUDEST_SHOT];
+        if (!first || !shot) return fail("no clip on the main track");
+        const window = sourceWindow(first);
+        const exact = Math.abs(window.start - shot.start) <= FRAME_SLACK && Math.abs(window.end - shot.end) <= FRAME_SLACK && first.start <= FRAME_SLACK;
+        return verdict(exact, `the first clip plays source ${window.start.toFixed(2)}-${window.end.toFixed(2)}s at ${first.start.toFixed(2)}s; the loudest shot is ${shot.start}-${shot.end}s`);
+      },
+    },
+    {
+      id: "all-shots-kept",
+      description: "At least 95% of every shot is still on the timeline.",
+      run(input) {
+        const scenes = fixtureByName(input, "scenes.mp4");
+        const clips = clipsOfFixture(input, scenes);
+        const ratios = scenes.truth.shots.map((shot) => retainedSource(clips, [shot]) / (shot.end - shot.start));
+        const worst = Math.min(...ratios);
+        return graded({ score: worst, threshold: MIN_SHOTS_KEPT, detail: `shots kept: ${ratios.map((r) => `${(r * 100).toFixed(0)}%`).join(", ")}` });
+      },
+    },
+    {
+      id: "rest-in-order-back-to-back",
+      description: "After the loudest shot the remaining shots follow in their original order, touching, with no gaps.",
+      run(input) {
+        const clips = mainClips(input);
+        const rest = clips.slice(1);
+        const ordered = rest.every((c, i) => i === 0 || c.trimStart >= (rest[i - 1] as ClipView).trimStart);
+        const touching = backToBack(clips);
+        return verdict(ordered && touching, `${clips.length} clip(s); ${touching ? "back to back" : "gaps or not starting at 0"}; ${ordered ? "rest in original order" : "rest out of order"}`);
+      },
+    },
+  ],
+};
+
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
+  FIND_AND_CUT, LOUDEST_FIRST,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);

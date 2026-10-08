@@ -6,6 +6,7 @@ import { DEFAULT_BRIDGE_PORT } from "#/platform/agent-bridge-protocol";
 import { BridgeStatus, type BridgeController, type BridgePhase, type BridgeView } from "#/ui/agent/BridgeStatus";
 import { createPlatformTools, sharedAnalysisStore, type PendingExport } from "./agent/platform-tools";
 import { createAnalysisProvider, getStyleProfileStore } from "./agent/reference-wiring";
+import { createAppTemporalTools } from "./agent/temporal-wiring";
 import { createAppTranscriptTools } from "./agent/transcript-wiring";
 import { getServices } from "./services";
 
@@ -32,17 +33,14 @@ export function parseBridgeRequest(loc: { search: string; hash: string }): Bridg
 
 export function createBridgeRegistry(onExport: (result: PendingExport) => void): Map<string, AgentTool> {
   const services = getServices();
-  const registry = new Map<string, AgentTool>(createAgentTools({
-    reference: {
-      store: getStyleProfileStore(),
-      provider: createAnalysisProvider({ editor: services.editor, runtime: () => getServices().runtime, analysisStore: sharedAnalysisStore }),
-    },
-  }));
+  const provider = createAnalysisProvider({ editor: services.editor, runtime: () => getServices().runtime, analysisStore: sharedAnalysisStore });
+  const registry = new Map<string, AgentTool>(createAgentTools({ reference: { store: getStyleProfileStore(), provider } }));
   const platform = createPlatformTools({
     editor: services.editor, runtime: () => getServices().runtime, analysisStore: sharedAnalysisStore, onExport,
   });
   for (const tool of platform) registry.set(tool.name, tool);
   for (const tool of createAppTranscriptTools()) registry.set(tool.name, tool);
+  for (const tool of createAppTemporalTools(provider)) registry.set(tool.name, tool);
   return registry;
 }
 

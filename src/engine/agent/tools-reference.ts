@@ -240,7 +240,7 @@ export function createReferenceTools(deps: ReferenceDeps): AgentTool[] {
   return [save, get, list, compare, plan, apply];
 }
 
-function buildPlanElements(input: {
+export function buildPlanElements(input: {
   shots: ReadonlyArray<{ assetId: string; in: number; out: number }>; startTicks: number; env: ToolEnv;
 }) {
   const { env } = input;

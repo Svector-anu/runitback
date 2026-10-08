@@ -8,6 +8,7 @@ import {
 } from "./model-client";
 import { createPlatformTools, sharedAnalysisStore, type PendingExport } from "./platform-tools";
 import { createAnalysisProvider, getStyleProfileStore } from "./reference-wiring";
+import { createAppTemporalTools } from "./temporal-wiring";
 import { createAppTranscriptTools } from "./transcript-wiring";
 
 export type ChatItem =
@@ -158,17 +159,14 @@ export class AgentSession {
     this.append({ kind: "user", text });
     this.patch({ running: true, streaming: "", step: 0, undoableDoc: null });
     const { editor, runtime } = this.deps;
-    const tools = new Map(createAgentTools({
-      reference: {
-        store: getStyleProfileStore(),
-        provider: createAnalysisProvider({ editor, runtime: () => this.deps.runtime(), analysisStore: sharedAnalysisStore, signal: () => controller.signal }),
-      },
-    }));
+    const provider = createAnalysisProvider({ editor, runtime: () => this.deps.runtime(), analysisStore: sharedAnalysisStore, signal: () => controller.signal });
+    const tools = new Map(createAgentTools({ reference: { store: getStyleProfileStore(), provider } }));
     for (const tool of createPlatformTools({
       editor, runtime, analysisStore: sharedAnalysisStore, signal: () => controller.signal,
       onExport: (file) => this.patch({ exportFile: file }),
     })) tools.set(tool.name, tool);
     for (const tool of createAppTranscriptTools()) tools.set(tool.name, tool);
+    for (const tool of createAppTemporalTools(provider)) tools.set(tool.name, tool);
 
     const toolItems = new Map<string, number>();
     const onEvent = (event: AgentEvent): void => this.handle(event, toolItems);

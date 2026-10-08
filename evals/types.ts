@@ -20,6 +20,8 @@ export type AudioSpec =
   | { kind: "tone" }
   /** Tone only inside `speech`; everything else is digital silence. */
   | { kind: "speech"; speech: Range[] }
+  /** A steady tone whose level steps through `levels` back to back; the segment lengths must add up to the duration. */
+  | { kind: "levels"; levels: Array<{ seconds: number; db: number }> }
   /** Quiet pad plus a loud click on every beat `phase + k * 60 / bpm`. */
   | { kind: "beat"; bpm: number; phase: number };
 

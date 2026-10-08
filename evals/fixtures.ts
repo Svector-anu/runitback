@@ -66,7 +66,7 @@ export function truthFromSpec(spec: FixtureSpec): FixtureTruth {
   const duration = spec.durationSeconds;
   let sound: Range[] = [];
   if (spec.audio.kind === "speech") sound = mergeRanges(spec.audio.speech.map((r) => ({ start: Math.max(0, r.start), end: Math.min(duration, r.end) })));
-  else if (spec.audio.kind === "tone" || spec.audio.kind === "beat") sound = [{ start: 0, end: duration }];
+  else if (spec.audio.kind === "tone" || spec.audio.kind === "beat" || spec.audio.kind === "levels") sound = [{ start: 0, end: duration }];
   return {
     durationSeconds: duration,
     hasAudio: hasAudio(spec),
@@ -102,9 +102,21 @@ export function assetInfoOf(spec: FixtureSpec): MediaAssetInfo {
 const hex = (n: number): string => n.toString(16).padStart(2, "0");
 export const rgbToHex = (rgb: readonly [number, number, number]): string => `#${hex(rgb[0])}${hex(rgb[1])}${hex(rgb[2])}`;
 
-function levelCurveOf(sound: ReadonlyArray<Range>, duration: number): number[] {
+/** The declared level at `seconds` of a stepped-level soundtrack (the last level holds past the end). */
+export function levelAt(levels: ReadonlyArray<{ seconds: number; db: number }>, seconds: number): number {
+  let end = 0;
+  for (const level of levels) {
+    end += level.seconds;
+    if (seconds < end) return level.db;
+  }
+  return levels[levels.length - 1]?.db ?? SILENCE_LEVEL_DB;
+}
+
+function levelCurveOf(input: { sound: ReadonlyArray<Range>; duration: number; levels?: ReadonlyArray<{ seconds: number; db: number }> }): number[] {
+  const { sound, duration } = input;
   const windows = Math.ceil(duration / LEVEL_CURVE_WINDOW_SECONDS - EPSILON);
   return Array.from({ length: windows }, (_, i) => {
+    if (input.levels) return levelAt(input.levels, i * LEVEL_CURVE_WINDOW_SECONDS + LEVEL_CURVE_WINDOW_SECONDS / 2);
     const from = i * LEVEL_CURVE_WINDOW_SECONDS;
     const to = from + LEVEL_CURVE_WINDOW_SECONDS;
     const covered = sound.reduce((sum, r) => sum + Math.max(0, Math.min(to, r.end) - Math.max(from, r.start)), 0);
@@ -135,7 +147,7 @@ export function analysisFromSpec(spec: FixtureSpec): MediaAnalysis {
     speechLikeRanges: spec.audio.kind === "speech" ? truth.sound : [],
     onsets,
     ...(spec.audio.kind === "beat" ? { tempoBpm: spec.audio.bpm, tempoConfidence: 0.95 } : {}),
-    levelCurve: audible ? { windowSeconds: LEVEL_CURVE_WINDOW_SECONDS, db: levelCurveOf(truth.sound, duration) } : null,
+    levelCurve: audible ? { windowSeconds: LEVEL_CURVE_WINDOW_SECONDS, db: levelCurveOf({ sound: truth.sound, duration, ...(spec.audio.kind === "levels" ? { levels: spec.audio.levels } : {}) }) } : null,
     sceneCuts: shots.slice(1).map((s) => ({ time: s.start, score: 0.9 })),
     shots,
     notes: ["Synthetic analysis computed from the fixture declaration."],

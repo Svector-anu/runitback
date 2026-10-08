@@ -38,7 +38,13 @@ function renderAudio(spec: FixtureSpec): AudioBuffer {
   const audio = spec.audio;
   if (audio.kind === "tone") tone(0, spec.durationSeconds, TONE_HZ, TONE_AMPLITUDE);
   else if (audio.kind === "speech") for (const range of audio.speech) tone(range.start, range.end, TONE_HZ, TONE_AMPLITUDE);
-  else if (audio.kind === "beat") {
+  else if (audio.kind === "levels") {
+    let cursor = 0;
+    for (const level of audio.levels) {
+      tone(cursor, cursor + level.seconds, TONE_HZ, 10 ** (level.db / 20) * Math.SQRT2);
+      cursor += level.seconds;
+    }
+  } else if (audio.kind === "beat") {
     tone(0, spec.durationSeconds, PAD_HZ, PAD_AMPLITUDE);
     for (let beat = audio.phase; beat < spec.durationSeconds; beat += 60 / audio.bpm) {
       const first = Math.round(beat * SAMPLE_RATE);

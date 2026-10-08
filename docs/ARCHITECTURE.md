@@ -15,6 +15,7 @@ src/
     audio/       dB/gain math, audio clip collection, gain envelopes, source windows
     persistence/ repository interfaces, serialization + migrations, SaveManager, ProjectsService, quota, in-memory fakes
     captions/    SRT/ASS parsing, transcript chunking
+    temporal/    per-asset temporal index (shots, loudness, silence, speech, rhythm on one source-time axis), `findMoments`, source-to-timeline mapping
     render/      buildFramePlan: pure description of the frame at time t (shared by preview and export)
   render/        Canvas2D Compositor, text layout/draw, graphics, masks, preview bounds/snapping, caption elements
   platform/      Browser adapters: IndexedDB, OPFS, mediabunny probe + video/audio decoding, Web Audio scheduler/engine, fonts, prefs,
