@@ -14,6 +14,7 @@ import { loadFont } from "#/platform/fonts";
 import { OpfsFileStore } from "#/platform/file-store";
 import { MediaRuntime } from "#/platform/media-runtime";
 import { PrefsStore } from "#/platform/prefs";
+import { startPlaybackClock } from "./clock";
 import { probeMedia, UnsupportedMediaError } from "#/platform/probe";
 import { IdbAssetRepository, IdbProjectRepository, openOpenCutDatabase } from "#/platform/repositories";
 
@@ -55,6 +56,7 @@ export class AppServices {
     });
     this.saveManager = new SaveManager({ editor: this.editor, repository: this.projectRepository });
     this.saveManager.start();
+    startPlaybackClock(this.editor.playback);
   }
 
   get currentProjectId(): string | null {

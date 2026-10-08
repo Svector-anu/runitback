@@ -164,7 +164,7 @@ export function startClipDrag(ctx: ControllerContext, down: PointerEvent, ref: E
 
   const up = (e: PointerEvent): void => {
     if (!dragging) {
-      if (wasSelected && selection.length > 1) editor.setSelection(selectOnly(ref));
+      editor.setSelection(selectOnly(ref));
       cleanup();
       return;
     }

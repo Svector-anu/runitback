@@ -176,7 +176,7 @@ export function MediaView(): ReactNode {
           <div className={`media-grid`} style={{ marginTop: progress ? 16 : 0 }}>
             {sorted.map((asset) => (
               <div key={asset.id} className="media-item" data-asset-id={asset.id} data-selected={selected.includes(asset.id)} data-highlight={highlight === asset.id}
-                draggable role="button" tabIndex={0} aria-label={`${asset.type} ${asset.name}`} aria-pressed={selected.includes(asset.id)}
+                draggable role="group" tabIndex={0} aria-label={`${asset.type} ${asset.name}`} aria-roledescription="media item"
                 onDragStart={(e) => beginDrag(e, { kind: "media", assetId: asset.id, mediaType: asset.type })} onDragEnd={endDrag}
                 onClick={(e) => select(e, asset.id)}
                 onKeyDown={(e) => { if (e.key === "Enter") add(asset); if (e.key === " ") { e.preventDefault(); select(e as unknown as React.MouseEvent, asset.id); } }}

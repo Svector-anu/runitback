@@ -148,7 +148,7 @@ function ClipViewImpl(props: ClipViewProps): ReactNode {
     <>
       <div
         className={className} style={style} data-selected={selected} data-hidden={hidden} data-drop-target={props.dropTarget}
-        data-clip-id={element.id} role="button" tabIndex={0} aria-pressed={selected}
+        data-clip-id={element.id} data-start={element.startTime} data-duration={element.duration} data-track-id={track.id} role="button" tabIndex={0} aria-pressed={selected}
         aria-label={`${element.type} ${element.name}${selected ? ", selected" : ""}`}
         onPointerDown={(e) => { if (e.button === 0) { e.stopPropagation(); props.onPointerDown(e, ref); } }}
         onContextMenu={(e) => props.onContextMenu(e, ref)}

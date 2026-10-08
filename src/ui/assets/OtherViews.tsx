@@ -32,7 +32,7 @@ function PayloadTile({ payload, label, children }: { payload: DragPayload; label
       onKeyDown={(e) => { if (e.key === "Enter") add(); }}>
       <div className="tile__box">
         {children}
-        <button type="button" className="media-item__add" style={{ display: "grid" }} aria-label={`Add ${label} to timeline`} onClick={add}><Icon name="plus" /></button>
+        <button type="button" className="media-item__add" aria-label={`Add ${label} to timeline`} onClick={add}><Icon name="plus" /></button>
       </div>
       <div className="tile__label">{label}</div>
     </div>
