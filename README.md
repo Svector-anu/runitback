@@ -1,4 +1,4 @@
-# OpenCut (reconstruction)
+# RunItBack
 
 A free, private, in-browser video editor: multi-track timeline, preview that renders the real composition, keyframes, text, graphics, masks, blur, captions import, undo/redo, autosave, and MP4/WebM export. Media never leaves the browser.
 

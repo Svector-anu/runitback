@@ -1,5 +1,5 @@
 {
-  "name": "opencut-rebuild",
+  "name": "runitback",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,11 +9,13 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src tests e2e tools",
+    "lint": "eslint src tests e2e tools evals",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "mcp": "tsx tools/mcp/server.ts"
+    "mcp": "tsx tools/mcp/server.ts",
+    "eval": "tsx evals/run.ts",
+    "eval:real": "tsx evals/real.ts --real"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

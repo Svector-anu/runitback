@@ -30,7 +30,7 @@ Instance: `Svector-anu/svectors-lab` (Aeon, GitHub Actions). Order 1 of 5 (pitch
 `pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm e2e`
 
 ## Known risks / open items
-- Product name: "OpenCut" is another project's name; rename pending (waiting for the owner's pick; migration of storage keys is part of the rename).
+- Product name: **RunItBack** (renamed from the working title "OpenCut", which belongs to the upstream project). Storage migrates once from the `opencut*` IndexedDB names and `opencut:` prefs (`src/platform/legacy-migration.ts`); legacy data is left in place. Old `OPENCUT_*` MCP env vars still work as fallbacks.
 - Instance's codex credential (`CODEX_AUTH`) is expired — owner action: `./aeon auth --harness codex`.
 - Aeon `chain-runner` workflow is disabled in the instance repo; used the Skill Runner directly instead.
 - Real-model evals need an Anthropic API key (owner).

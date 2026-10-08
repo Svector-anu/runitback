@@ -4,7 +4,7 @@ import { analyzeMedia, type AnalysisStore } from "#/platform/analysis";
 import { KeyValueStore, openDatabase } from "#/platform/idb";
 import type { MediaRuntime } from "#/platform/media-runtime";
 
-export const STYLE_DB_NAME = "opencut-style";
+export const STYLE_DB_NAME = "runitback-style";
 const STYLE_STORE = "profiles";
 
 /** Style profiles persist in their own database so the project database version never changes. */

@@ -14,14 +14,14 @@ function parseConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
     const i = argv.indexOf(`--${name}`);
     return i >= 0 ? argv[i + 1] : undefined;
   };
-  const port = Number(flag("port") ?? env.OPENCUT_MCP_PORT ?? DEFAULT_BRIDGE_PORT);
-  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`Invalid port '${String(flag("port") ?? env.OPENCUT_MCP_PORT)}'`);
-  const allowed = (flag("allow-origin") ?? env.OPENCUT_MCP_ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return { port, editorUrl: flag("editor-url") ?? env.OPENCUT_EDITOR_URL ?? "http://localhost:5173", allowedOrigins: allowed };
+  const port = Number(flag("port") ?? (env.RUNITBACK_MCP_PORT ?? env.OPENCUT_MCP_PORT) ?? DEFAULT_BRIDGE_PORT);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`Invalid port '${String(flag("port") ?? (env.RUNITBACK_MCP_PORT ?? env.OPENCUT_MCP_PORT))}'`);
+  const allowed = (flag("allow-origin") ?? (env.RUNITBACK_MCP_ALLOWED_ORIGINS ?? env.OPENCUT_MCP_ALLOWED_ORIGINS) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return { port, editorUrl: flag("editor-url") ?? (env.RUNITBACK_EDITOR_URL ?? env.OPENCUT_EDITOR_URL) ?? "http://localhost:5173", allowedOrigins: allowed };
 }
 
 const stderr = (line: string): void => {
-  process.stderr.write(`[opencut-mcp] ${line}\n`);
+  process.stderr.write(`[runitback-mcp] ${line}\n`);
 };
 
 async function main(): Promise<void> {

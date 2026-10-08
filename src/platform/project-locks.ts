@@ -9,7 +9,7 @@ export interface LockManagerLike {
   ): Promise<unknown>;
 }
 
-const LOCK_PREFIX = "opencut:project:";
+const LOCK_PREFIX = "runitback:project:";
 
 /**
  * Per-project exclusive ownership across tabs of one origin. The browser releases the lock when the holding

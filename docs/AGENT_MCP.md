@@ -9,7 +9,7 @@ MCP client --stdio--> tools/mcp/server.ts --ws://127.0.0.1:<port>--> editor tab 
 ## Connect from Claude Code
 
 ```sh
-claude mcp add opencut -- pnpm --dir /path/to/repo exec tsx tools/mcp/server.ts
+claude mcp add runitback -- pnpm --dir /path/to/repo exec tsx tools/mcp/server.ts
 ```
 
 Start the editor (`pnpm dev`), then in Claude Code call `editor_status`. While no editor is attached it returns a link such as
@@ -22,7 +22,7 @@ http://localhost:5173/#/projects?agent=7777&token=<random>
 
 Already inside a project? Append `?agent=<port>&token=<token>` to the hash route: `#/editor/<id>?agent=7777&token=...`, then reload. The token is removed from the address bar as soon as it is read.
 
-Options (flags or env): `--port` / `OPENCUT_MCP_PORT` (default 7777, `0` = any free port), `--editor-url` / `OPENCUT_EDITOR_URL` (default `http://localhost:5173`, only used in the printed link), `--allow-origin` / `OPENCUT_MCP_ALLOWED_ORIGINS` (comma separated extra browser origins, e.g. a self-hosted editor).
+Options (flags or env): `--port` / `RUNITBACK_MCP_PORT` (default 7777, `0` = any free port), `--editor-url` / `RUNITBACK_EDITOR_URL` (default `http://localhost:5173`, only used in the printed link), `--allow-origin` / `OPENCUT_MCP_ALLOWED_ORIGINS` (comma separated extra browser origins, e.g. a self-hosted editor).
 
 The editor page must call `initAgentBridge()` from `src/app/agent-bridge-wiring.ts` once at startup (it is a no-op without the `agent` URL parameter).
 

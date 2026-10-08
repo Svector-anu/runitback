@@ -15,7 +15,7 @@ export function Landing(): ReactNode {
   return (
     <div className="landing">
       <header className="landing__nav">
-        <div className="landing__brand"><Logo size={28} />OpenCut</div>
+        <div className="landing__brand"><Logo size={28} />RunItBack</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Button variant="ghost" size="icon-lg" label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><Icon name={theme === "dark" ? "sun" : "moon"} size={18} /></Button>
           <Button onClick={() => navigate("/projects")}>Projects<Icon name="arrow-right" /></Button>

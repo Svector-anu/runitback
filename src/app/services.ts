@@ -21,7 +21,7 @@ import { probeMedia, UnsupportedMediaError } from "#/platform/probe";
 import type { Playback } from "#/engine/editor";
 import type { AudioClip } from "#/engine/audio";
 import type { AudioSinkCache } from "#/platform/audio-scheduler";
-import { IdbAssetRepository, IdbProjectRepository, openOpenCutDatabase } from "#/platform/repositories";
+import { IdbAssetRepository, IdbProjectRepository, openAppDatabase } from "#/platform/repositories";
 
 export interface ImportOutcome {
   imported: MediaAssetInfo[];
@@ -61,7 +61,7 @@ export interface AppServicesDeps {
 }
 
 function browserDeps(): AppServicesDeps {
-  const db = openOpenCutDatabase();
+  const db = openAppDatabase();
   const files = OpfsFileStore.isSupported() ? new OpfsFileStore() : null;
   return {
     projectRepository: new IdbProjectRepository(db),

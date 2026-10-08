@@ -7,7 +7,7 @@ import { errorResult, toMcpResult, type McpToolResult } from "./result";
 export const STATUS_TOOL = "editor_status";
 
 export function connectInstructions(connectUrl: string): string {
-  return `No OpenCut editor is connected. Ask the user to open the editor in a browser tab using this link and click "Allow" in the agent chip at the bottom right: ${connectUrl}`;
+  return `No RunItBack editor is connected. Ask the user to open the editor in a browser tab using this link and click "Allow" in the agent chip at the bottom right: ${connectUrl}`;
 }
 
 function statusTool(): Tool {
@@ -32,7 +32,7 @@ function toMcpTool(tool: ToolDescriptor): Tool {
 /** MCP front end: every browser tool is re-exposed with its schema; the tool list refreshes whenever the editor reconnects. */
 export function createMcpServer(input: { bridge: BridgeServer; connectUrl: () => string }): Server {
   const { bridge } = input;
-  const server = new Server({ name: "opencut", version: "0.1.0" }, { capabilities: { tools: { listChanged: true } } });
+  const server = new Server({ name: "runitback", version: "0.1.0" }, { capabilities: { tools: { listChanged: true } } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [statusTool(), ...bridge.toolList.map(toMcpTool)] }));
 

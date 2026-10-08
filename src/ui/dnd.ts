@@ -4,7 +4,7 @@ export type DragPayload =
   | { kind: "graphic"; definitionId: string }
   | { kind: "effect"; effectType: string };
 
-export const DRAG_MIME = "application/x-opencut-drag";
+export const DRAG_MIME = "application/x-runitback-drag";
 
 let current: DragPayload | null = null;
 

@@ -3,10 +3,11 @@ import {
   StorageQuotaError, deserializeProject, isQuotaExceededError, serializeProject,
   type AssetRepository, type ProjectRepository, type StoredAsset,
 } from "#/engine/persistence";
+import { CURRENT } from "./legacy-migration";
 import { openDatabase, KeyValueStore, prefixRange } from "./idb";
 import type { FileStore } from "./file-store";
 
-const DB_NAME = "opencut";
+const DB_NAME = CURRENT.dbName;
 const DB_VERSION = 1;
 
 export interface Database {
@@ -15,7 +16,7 @@ export interface Database {
   blobs: KeyValueStore<Blob>;
 }
 
-export function openOpenCutDatabase(factory?: IDBFactory): Database {
+export function openAppDatabase(factory?: IDBFactory): Database {
   const dbPromise = openDatabase({
     name: DB_NAME, version: DB_VERSION, factory,
     stores: [{ name: "projects", keyPath: "id" }, { name: "assets", keyPath: "key" }, { name: "blobs" }],

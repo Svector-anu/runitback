@@ -1,7 +1,7 @@
 import type { MediaAnalysis } from "#/engine/analysis";
 import { KeyValueStore, openDatabase } from "#/platform/idb";
 
-export const ANALYSIS_DB_NAME = "opencut-analysis";
+export const ANALYSIS_DB_NAME = "runitback-analysis";
 export const ANALYSIS_DB_VERSION = 1;
 const ANALYSIS_STORE = "analysis";
 

@@ -116,7 +116,7 @@ describe("MCP bridge server", () => {
     await start();
     const res = await client.callTool({ name: "get_project", arguments: {} });
     expect(res.isError).toBe(true);
-    expect(text(res)).toContain("No OpenCut editor is connected");
+    expect(text(res)).toContain("No RunItBack editor is connected");
     expect(text(res)).toContain(`token=${TOKEN}`);
     const status = await client.callTool({ name: "editor_status", arguments: {} });
     expect(JSON.parse(text(status))).toMatchObject({ connected: false });
@@ -260,7 +260,7 @@ describe("MCP bridge server", () => {
     expect((await client.listTools()).tools.length).toBe(4);
     const res = await client.callTool({ name: "get_project", arguments: {} });
     expect(res.isError).toBe(true);
-    expect(text(res)).toContain("No OpenCut editor is connected");
+    expect(text(res)).toContain("No RunItBack editor is connected");
   });
 
   it("refreshes tools and notifies the MCP client when the editor reconnects", async () => {

@@ -1,4 +1,4 @@
-# OpenCut Reconstruction Specification
+# RunItBack Specification (reconstructed from OpenCut)
 
 Product-level specification derived from source archaeology of:
 
@@ -12,7 +12,7 @@ Source hierarchy followed: source code → tests → subsystem docs → current 
 
 ## A. Product overview
 
-OpenCut is a free, local-first, in-browser non-linear video editor. A user creates a **project**, imports **video / image / audio** files (never uploaded; stored in the browser), arranges them as **elements** on a multi-track **timeline**, adds **text, graphics, effects, masks, keyframe animation**, previews the composition live on a canvas, and **exports** MP4/WebM. Editing is non-destructive and undoable. The project survives refresh (IndexedDB + OPFS), autosaved.
+RunItBack is a free, local-first, in-browser non-linear video editor. A user creates a **project**, imports **video / image / audio** files (never uploaded; stored in the browser), arranges them as **elements** on a multi-track **timeline**, adds **text, graphics, effects, masks, keyframe animation**, previews the composition live on a canvas, and **exports** MP4/WebM. Editing is non-destructive and undoable. The project survives refresh (IndexedDB + OPFS), autosaved.
 
 Principles carried into the rebuild: local-first/private; engine logic is pure and UI-agnostic (classic's own migration direction: "apps are UI shells, logic is never in components"); all editor mutations are commands; time is an integer tick count.
 

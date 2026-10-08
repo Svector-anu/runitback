@@ -47,7 +47,7 @@ export class BridgeServer {
   readonly token: string;
   private readonly http: HttpServer = createServer((_req, res) => {
     res.writeHead(426, { "content-type": "text/plain" });
-    res.end("OpenCut agent bridge: WebSocket only");
+    res.end("RunItBack agent bridge: WebSocket only");
   });
   private readonly wss: WebSocketServer;
   private readonly rpc = new RpcCorrelator<Reply>();

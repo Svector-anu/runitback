@@ -162,7 +162,7 @@ export function EditorPage({ id }: { id: string }): ReactNode {
     <div className="editor">
       {!("VideoDecoder" in window) && !bannerDismissed ? (
         <div className="banner" role="status">
-          For the best experience, open OpenCut in Chrome. This browser may not support video decoding.
+          For the best experience, open RunItBack in Chrome. This browser may not support video decoding.
           <Button variant="text" label="Dismiss" onClick={() => setBannerDismissed(true)}><Icon name="x" size={14} /></Button>
         </div>
       ) : null}

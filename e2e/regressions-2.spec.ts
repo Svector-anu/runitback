@@ -39,7 +39,7 @@ test("P1-14: a damaged project opens, is repaired once and reports it with a toa
 
   await page.evaluate(async (projectId) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("opencut");
+      const request = indexedDB.open("runitback");
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });

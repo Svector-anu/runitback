@@ -15,7 +15,7 @@ async function projectWithClip(page: Page, seconds = 4): Promise<void> {
 
 const heldProjectLocks = (page: Page): Promise<string[]> => page.evaluate(async () => {
   const { held } = await navigator.locks.query();
-  return (held ?? []).map((l) => l.name ?? "").filter((n) => n.startsWith("opencut:project:"));
+  return (held ?? []).map((l) => l.name ?? "").filter((n) => n.startsWith("runitback:project:"));
 });
 
 test("P1-8: Enter on a focused toolbar button activates it and does not move the playhead", async ({ page }) => {
@@ -100,5 +100,5 @@ test("P1-2: rapid project switches leave exactly the last project open and locke
     location.hash = `#/editor/${b}`;
   }, [first, second]);
   await expect(page.getByLabel("Project name")).toBeVisible();
-  await expect.poll(() => heldProjectLocks(page)).toEqual([`opencut:project:${second}`]);
+  await expect.poll(() => heldProjectLocks(page)).toEqual([`runitback:project:${second}`]);
 });

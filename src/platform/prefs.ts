@@ -2,6 +2,8 @@
 export interface PrefsBackend {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  readonly length?: number;
+  key?(index: number): string | null;
 }
 
 const memoryBackend = (): PrefsBackend => {
@@ -11,7 +13,7 @@ const memoryBackend = (): PrefsBackend => {
 
 export function browserBackend(): PrefsBackend {
   try {
-    const probe = "__opencut_probe__";
+    const probe = "__runitback_probe__";
     localStorage.setItem(probe, "1");
     localStorage.removeItem(probe);
     return localStorage;
@@ -25,7 +27,7 @@ export class PrefsStore {
 
   read<T>(key: string, fallback: T, validate: (value: unknown) => value is T): T {
     try {
-      const raw = this.backend.getItem(`opencut:${key}`);
+      const raw = this.backend.getItem(`runitback:${key}`);
       if (raw === null) return fallback;
       const parsed: unknown = JSON.parse(raw);
       return validate(parsed) ? parsed : fallback;
@@ -36,7 +38,7 @@ export class PrefsStore {
 
   write(key: string, value: unknown): void {
     try {
-      this.backend.setItem(`opencut:${key}`, JSON.stringify(value));
+      this.backend.setItem(`runitback:${key}`, JSON.stringify(value));
     } catch (error) {
       console.warn(`Could not save preference ${key}`, error);
     }

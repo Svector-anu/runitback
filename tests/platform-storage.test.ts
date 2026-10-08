@@ -5,10 +5,10 @@ import { createProject, sequentialIds } from "#/engine/model";
 import { ProjectsService } from "#/engine/persistence";
 import { MemoryFileStore, type FileStore } from "#/platform/file-store";
 import { PrefsStore, isBoolean, isNumberArray } from "#/platform/prefs";
-import { IdbAssetRepository, IdbProjectRepository, openOpenCutDatabase } from "#/platform/repositories";
+import { IdbAssetRepository, IdbProjectRepository, openAppDatabase } from "#/platform/repositories";
 import { videoAsset } from "./helpers";
 
-const fresh = () => openOpenCutDatabase(new IDBFactory());
+const fresh = () => openAppDatabase(new IDBFactory());
 
 describe("IdbProjectRepository", () => {
   it("saves, loads, lists newest first and deletes", async () => {
@@ -88,9 +88,9 @@ describe("PrefsStore", () => {
     expect(prefs.read("snap", true, isBoolean)).toBe(true);
     prefs.write("snap", false);
     expect(prefs.read("snap", true, isBoolean)).toBe(false);
-    data.set("opencut:sizes", "[1,\"x\"]");
+    data.set("runitback:sizes", "[1,\"x\"]");
     expect(prefs.read("sizes", [25, 50, 25], isNumberArray)).toEqual([25, 50, 25]);
-    data.set("opencut:sizes", "{broken");
+    data.set("runitback:sizes", "{broken");
     expect(prefs.read("sizes", [25, 50, 25], isNumberArray)).toEqual([25, 50, 25]);
   });
 });

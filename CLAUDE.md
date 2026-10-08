@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-A local-first, in-browser video editor reconstructed from OpenCut (classic). Product spec and evidence live in `docs/` (start with `docs/RECONSTRUCTION_SPEC.md`; raw archaeology notes in `docs/research/`).
+A local-first, in-browser video editor (RunItBack) reconstructed from OpenCut (classic). Product spec and evidence live in `docs/` (start with `docs/RECONSTRUCTION_SPEC.md`; raw archaeology notes in `docs/research/`).
 
 ## Commands
 
