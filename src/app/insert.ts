@@ -1,4 +1,4 @@
-import { addClipEffect, insertElement, insertMediaElement, currentScene, type InsertPlacement } from "#/engine/commands";
+import { addClipEffect, insertElement, insertMediaElement, currentScene, type Command, type InsertPlacement } from "#/engine/commands";
 import type { Editor } from "#/engine/editor";
 import {
   buildDefaultEffect, buildEffectElement, buildGraphicElement, buildTextElement, orderedTracks, GRAPHIC_DEFINITIONS, getEffectDefinition,
@@ -31,23 +31,28 @@ export function elementForPayload(editor: Editor, payload: DragPayload, startTim
   }
 }
 
+export type InsertOutcome = { ok: true } | { ok: false; message: string };
+
+const UNSUPPORTED: InsertOutcome = { ok: false, message: "That item can no longer be added." };
+
 /** Insert a dragged or clicked asset at a drop target (timeline drag) or via automatic placement (the "+" buttons). */
-export function insertPayload(input: { editor: Editor; payload: DragPayload; startTime: number; target?: DropTarget | null }): boolean {
+export function insertPayload(input: { editor: Editor; payload: DragPayload; startTime: number; target?: DropTarget | null }): InsertOutcome {
   const { editor, payload } = input;
   const placement: InsertPlacement = input.target ? placementFromTarget(editor, input.target) : { mode: "auto" };
+  const run = (command: Command): InsertOutcome => {
+    const result = editor.tryExecute(command);
+    return result.ok ? { ok: true } : { ok: false, message: result.error.message };
+  };
 
   if (payload.kind === "effect" && input.target?.targetElement) {
-    editor.execute(addClipEffect({ ref: { trackId: input.target.targetElement.trackId, elementId: input.target.targetElement.elementId }, effectType: payload.effectType }));
-    return true;
+    return run(addClipEffect({ ref: { trackId: input.target.targetElement.trackId, elementId: input.target.targetElement.elementId }, effectType: payload.effectType }));
   }
   if (payload.kind === "media") {
     const asset: MediaAssetInfo | undefined = editor.getAsset(payload.assetId);
-    if (!asset) return false;
-    editor.execute(insertMediaElement({ asset, elementId: editor.newId(), startTime: input.startTime, placement }));
-    return true;
+    if (!asset) return UNSUPPORTED;
+    return run(insertMediaElement({ asset, elementId: editor.newId(), startTime: input.startTime, placement }));
   }
   const element = elementForPayload(editor, payload, input.startTime);
-  if (!element) return false;
-  editor.execute(insertElement({ element, placement }));
-  return true;
+  if (!element) return UNSUPPORTED;
+  return run(insertElement({ element, placement }));
 }

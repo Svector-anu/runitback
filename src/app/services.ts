@@ -1,5 +1,5 @@
 import { collectAudioClips } from "#/engine/audio";
-import { Editor } from "#/engine/editor";
+import { Editor, type ExecuteResult } from "#/engine/editor";
 import { currentScene } from "#/engine/commands";
 import { removeAssetsCommand } from "#/engine/commands";
 import { randomId, stringParam, type MediaAssetInfo, type Project } from "#/engine/model";
@@ -98,6 +98,7 @@ export class AppServices {
   private session: Session | null = null;
   private chain: Promise<unknown> = Promise.resolve();
   private readonly exports = new Set<AbortController>();
+  private pendingRepairs: { projectId: string; notes: string[] } = { projectId: "", notes: [] };
   private readonly deps: AppServicesDeps;
 
   constructor(deps: AppServicesDeps = browserDeps()) {
@@ -161,6 +162,8 @@ export class AppServices {
       }
       this.runtime = runtime;
       this.editor.load({ project, assets: available });
+      if (project.repairNotes?.length) this.pendingRepairs = { projectId: id, notes: project.repairNotes };
+      else if (this.pendingRepairs.projectId !== id) this.pendingRepairs = { projectId: id, notes: [] };
       this.session = { projectId: id, runtime, lock, accepting: true, stopAudio: this.startAudio(runtime) };
       void this.preloadFonts(project);
     } catch (error) {
@@ -169,6 +172,17 @@ export class AppServices {
     } finally {
       this.saveManager.resume();
     }
+    if (this.pendingRepairs.projectId === id && this.pendingRepairs.notes.length > 0) this.saveManager.markDirty("content");
+  }
+
+  /**
+   * Problems repaired while the current project loaded; returned once so the UI reports them a single time. The notes
+   * survive a close/reopen of the same project (React StrictMode, quick navigation) because the first open already saved the fix.
+   */
+  takeRepairNotes(): string[] {
+    const { notes } = this.pendingRepairs;
+    this.pendingRepairs = { projectId: this.pendingRepairs.projectId, notes: [] };
+    return notes;
   }
 
   /** Returns the teardown for this project's audio: its commit listener and its engine. */
@@ -307,9 +321,10 @@ export class AppServices {
   }
 
   /** Removing media is one undoable step; stored bytes stay until the project closes so undo can restore them. */
-  removeAssets(ids: ReadonlyArray<string>): void {
-    this.editor.execute(removeAssetsCommand(ids));
-    for (const id of ids) void (this.session?.runtime ?? this.runtime).video.release(id);
+  removeAssets(ids: ReadonlyArray<string>): ExecuteResult {
+    const result = this.editor.tryExecute(removeAssetsCommand(ids));
+    if (result.ok) for (const id of ids) void (this.session?.runtime ?? this.runtime).video.release(id);
+    return result;
   }
 }
 

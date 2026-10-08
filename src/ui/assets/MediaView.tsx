@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { isTypableTarget } from "#/engine/editor";
 import type { MediaAssetInfo } from "#/engine/model";
 import { TICKS_PER_SECOND } from "#/engine/time";
 import { getServices } from "#/app/services";
@@ -10,6 +11,7 @@ import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
 import { ContextMenu, DropdownMenu, type ContextMenuState } from "../primitives/Menu";
 import { toast } from "../primitives/toast";
+import { reportInsert } from "../lib/edit";
 
 export function formatDuration(ticks: number): string {
   const total = Math.round(ticks / TICKS_PER_SECOND);
@@ -85,7 +87,7 @@ export function MediaView(): ReactNode {
 
   useEffect(() => {
     const onPaste = (e: ClipboardEvent): void => {
-      if (editor.getState().hasClipboard) return;
+      if (editor.getState().hasClipboard || isTypableTarget(e.target as HTMLElement | null)) return;
       const files = [...(e.clipboardData?.files ?? [])];
       if (files.length === 0) return;
       e.preventDefault();
@@ -93,7 +95,7 @@ export function MediaView(): ReactNode {
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  });
+  }, [editor]);
 
   const run = async (files: File[]): Promise<void> => {
     setProgress({ done: 0, total: files.length });
@@ -122,11 +124,12 @@ export function MediaView(): ReactNode {
   };
 
   const add = (asset: MediaAssetInfo): void => {
-    insertPayload({ editor, payload: { kind: "media", assetId: asset.id, mediaType: asset.type }, startTime: editor.playback.getState().currentTime });
+    reportInsert(insertPayload({ editor, payload: { kind: "media", assetId: asset.id, mediaType: asset.type }, startTime: editor.playback.getState().currentTime }));
   };
 
   const removeSelected = (ids: string[]): void => {
-    services.removeAssets(ids);
+    const removed = services.removeAssets(ids);
+    if (!removed.ok) { toast.error("Could not remove that media", removed.error.message); return; }
     uiStore.set({ selectedAssetIds: [] });
   };
 

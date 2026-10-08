@@ -4,3 +4,4 @@ export * from "./memory";
 export * from "./save-manager";
 export * from "./quota";
 export * from "./projects";
+export * from "./repair";

@@ -47,3 +47,9 @@ export const isNumberArray = (v: unknown): v is number[] => Array.isArray(v) && 
 export const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
 export const isRecordOfStrings = (v: unknown): v is Record<string, string> =>
   typeof v === "object" && v !== null && !Array.isArray(v) && Object.values(v).every((x) => typeof x === "string");
+
+export const isString = (v: unknown): v is string => typeof v === "string";
+
+/** Anthropic API key for the in-app agent. Kept in this browser's localStorage only; sent only to api.anthropic.com. */
+export const AGENT_API_KEY_PREF = "agent-api-key";
+export const AGENT_MODEL_PREF = "agent-model";

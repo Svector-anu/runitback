@@ -1,7 +1,7 @@
 import { mediaTime, roundMediaTime } from "#/engine/time";
 import { clampAnimationsToDuration } from "#/engine/animation";
 import {
-  clampRate, InvalidInputError, type ElementPatch, type ElementRef, type IdGenerator, type SceneTracks, type TimelineElement,
+  clampElementParams, clampRate, InvalidInputError, type ElementPatch, type ElementRef, type IdGenerator, type SceneTracks, type TimelineElement,
 } from "#/engine/model";
 import { guardElementPatch } from "./input-guards";
 import { enforceMainTrackStart } from "./placement";
@@ -65,6 +65,7 @@ export function applyElementUpdate(input: {
   guardElementPatch(patch);
   if (!element) return tracks;
   let next = merge(element, patch);
+  if (patch.params) next = clampElementParams(next);
 
   if ("retime" in patch && (element.type === "video" || element.type === "audio")) {
     const rate = next.type === "video" || next.type === "audio" ? effectiveRate(next.retime) : 1;

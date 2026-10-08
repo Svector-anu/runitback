@@ -7,6 +7,7 @@ import { Landing } from "#/ui/pages/Landing";
 import { ProjectsPage } from "#/ui/pages/ProjectsPage";
 import { Toaster } from "#/ui/primitives/toast";
 import { Button } from "#/ui/primitives/Button";
+import { ErrorBoundary } from "#/ui/primitives/ErrorBoundary";
 
 const EditorPage = lazy(() => import("#/ui/editor/EditorPage").then((m) => ({ default: m.EditorPage })));
 
@@ -32,5 +33,14 @@ export function App(): ReactNode {
     case "not-found":
       page = <div className="loading-screen"><h1>Page not found</h1><Button onClick={() => navigate("/projects")}>Go to projects</Button></div>;
   }
-  return <>{page}<Toaster /></>;
+  const exit = { label: "Back to projects", run: () => navigate("/projects") };
+  return (
+    <>
+      <ErrorBoundary key={route.name === "editor" ? `editor:${route.id}` : route.name} scope={route.name === "editor" ? "the editor" : "this page"}
+        reloadLabel={route.name === "editor" ? "Reload project" : "Reload page"} onExit={route.name === "projects" ? undefined : exit}>
+        {page}
+      </ErrorBoundary>
+      <Toaster />
+    </>
+  );
 }

@@ -1,6 +1,7 @@
 import { mediaTime } from "#/engine/time";
 import { PROJECT_SCHEMA_VERSION, type Project } from "#/engine/model";
 import { ProjectFormatError } from "./types";
+import { repairProject } from "./repair";
 
 export interface ProjectMigration {
   from: number;
@@ -63,10 +64,16 @@ export function validateProject(raw: unknown): Project {
 }
 
 export function serializeProject(project: Project): string {
-  return JSON.stringify(project);
+  const stored: Project = { ...project };
+  delete stored.repairNotes;
+  return JSON.stringify(stored);
 }
 
-/** Parse, migrate, validate, and repair small inconsistencies (missing view state, stale scene id). */
+/**
+ * Parse, migrate, validate, and repair. A project that is already damaged on disk must still open, so anything
+ * safely repairable (negative starts, NaN params, duplicate ids, overlapping clips, ...) is fixed here and listed
+ * in `repairNotes`; only a project whose skeleton cannot be read throws `ProjectFormatError`.
+ */
 export function deserializeProject(json: string | unknown): Project {
   const raw = typeof json === "string" ? (JSON.parse(json) as unknown) : json;
   const migrated = migrateProject(requireRecord(raw, "project"));
@@ -75,11 +82,16 @@ export function deserializeProject(json: string | unknown): Project {
     ? project.currentSceneId
     : (project.scenes.find((s) => s.isMain) ?? project.scenes[0])!.id;
   const view = project.timelineViewState ?? { zoomLevel: 1, scrollLeft: 0, playheadTime: mediaTime(0) };
-  return {
+  const playhead = Number.isFinite(view.playheadTime) ? Math.round(view.playheadTime) : 0;
+  const { project: repaired, repairs } = repairProject({
     ...project,
     currentSceneId,
-    assetIds: Array.isArray(project.assetIds) ? project.assetIds : [],
-    timelineViewState: { ...view, playheadTime: mediaTime(Math.round(view.playheadTime ?? 0)) },
-    scenes: project.scenes.map((s) => ({ ...s, bookmarks: s.bookmarks ?? [] })),
-  };
+    timelineViewState: {
+      zoomLevel: Number.isFinite(view.zoomLevel) && view.zoomLevel > 0 ? view.zoomLevel : 1,
+      scrollLeft: Number.isFinite(view.scrollLeft) && view.scrollLeft >= 0 ? view.scrollLeft : 0,
+      playheadTime: mediaTime(Math.max(0, playhead)),
+    },
+  });
+  const sceneId = repaired.scenes.some((s) => s.id === repaired.currentSceneId) ? repaired.currentSceneId : (repaired.scenes.find((s) => s.isMain) ?? repaired.scenes[0])!.id;
+  return { ...repaired, currentSceneId: sceneId, ...(repairs.length > 0 ? { repairNotes: repairs } : {}) };
 }

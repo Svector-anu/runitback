@@ -3,6 +3,7 @@ import {
   defaultKeybindings, isTypableTarget, parseKeybindings, resolveAction, runAction, type ActionId, type Keybindings,
 } from "#/engine/editor";
 import { getOverlayDepth } from "#/ui/primitives/overlay-store";
+import { toast } from "#/ui/primitives/toast";
 import { getServices } from "./services";
 import { shouldYieldToFocusedControl } from "./shortcut-guard";
 import { Store } from "./store";
@@ -29,7 +30,10 @@ export function resetKeybindings(): void {
 
 export function invokeAction(action: ActionId): boolean {
   const { editor, prefs } = getServices();
-  const handled = runAction(editor, action, { nowMs: () => performance.now() });
+  const handled = runAction(editor, action, {
+    nowMs: () => performance.now(),
+    onRejected: (error) => toast.error("That change could not be applied", error.message),
+  });
   if (action === "toggle-snapping") prefs.write("snapping", editor.getState().snappingEnabled);
   if (action === "toggle-ripple-editing") prefs.write("ripple", editor.getState().rippleEnabled);
   return handled;

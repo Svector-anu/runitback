@@ -1,7 +1,7 @@
 import { mediaTime } from "#/engine/time";
 import { isSameFrameRate } from "#/engine/time";
 import {
-  canElementHaveAudio, canTrackBeHidden, canTrackHaveAudio, createTrack, buildMediaElement, isVisualElement,
+  canElementHaveAudio, canTrackBeHidden, clampElementParams, canTrackHaveAudio, createTrack, buildMediaElement, isVisualElement,
   EMPTY_SELECTION, InvalidInputError, type AudioElement, type ElementPatch, type ElementRef, type MediaAssetInfo, type SceneTracks,
   type SelectionState, type TimelineElement, type TrackType, type VideoElement,
 } from "#/engine/model";
@@ -26,9 +26,9 @@ function assertTrackIdFree(tracks: SceneTracks, id: string): void {
   if (findTrack(tracks, id)) throw new InvalidInputError(`A track with id "${id}" already exists`);
 }
 
-function assertElementInsertable(tracks: SceneTracks, element: TimelineElement): void {
+function assertElementInsertable(tracks: SceneTracks, element: TimelineElement, existingIds?: ReadonlySet<string>): void {
   if (typeof element.id !== "string" || element.id === "") throw new InvalidInputError("Element id must be a non-empty string");
-  if (allElements(tracks).some((l) => l.element.id === element.id)) {
+  if (existingIds ? existingIds.has(element.id) : allElements(tracks).some((l) => l.element.id === element.id)) {
     throw new InvalidInputError(`An element with id "${element.id}" already exists in this scene`);
   }
   requireTick("startTime", element.startTime, 0);
@@ -128,8 +128,8 @@ export function insertElement(input: { element: TimelineElement; placement: Inse
     label: `Add ${input.element.type}`,
     run(doc, ctx) {
       const scene = currentScene(doc);
-      const element = input.element;
-      assertElementInsertable(scene.tracks, element);
+      assertElementInsertable(scene.tracks, input.element);
+      const element = clampElementParams(input.element);
       const trackType = trackTypeForElement(element.type);
       const span = { start: element.startTime, duration: element.duration };
       let tracks = scene.tracks;
@@ -169,23 +169,24 @@ export function insertElement(input: { element: TimelineElement; placement: Inse
  * the ones already in the lanes (overlapping subtitle cues end up on separate text tracks). Existing tracks are
  * never touched. Returns the new track ids through the selection (every inserted element).
  */
-export function insertElementsOnLanes(input: { elements: ReadonlyArray<TimelineElement>; index?: number }): Command {
+export function insertElementsOnLanes(input: { elements: ReadonlyArray<TimelineElement>; index?: number; label?: string }): Command {
   return {
-    label: "Add elements",
+    label: input.label ?? "Add elements",
     run(doc, ctx) {
       const scene = currentScene(doc);
       const first = input.elements[0];
       if (!first) return result(doc);
       const trackType = trackTypeForElement(first.type);
       const seen = new Set<string>();
+      const existingIds = new Set(allElements(scene.tracks).map((l) => l.element.id));
       for (const element of input.elements) {
         if (trackTypeForElement(element.type) !== trackType) throw new InvalidInputError("All elements must belong on the same kind of track");
-        assertElementInsertable(scene.tracks, element);
+        assertElementInsertable(scene.tracks, element, existingIds);
         if (seen.has(element.id)) throw new InvalidInputError(`Duplicate element id "${element.id}" in the batch`);
         seen.add(element.id);
       }
       const lanes: TimelineElement[][] = [];
-      const ordered = [...input.elements].sort((a, b) => a.startTime - b.startTime);
+      const ordered = input.elements.map((e) => clampElementParams(e)).sort((a, b) => a.startTime - b.startTime);
       for (const element of ordered) {
         const lane = lanes.find((l) => elementEnd(l[l.length - 1] as TimelineElement) <= element.startTime);
         if (lane) lane.push(element);

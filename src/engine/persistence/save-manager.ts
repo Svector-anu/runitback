@@ -35,7 +35,7 @@ export class SaveManager {
   private inflight: Promise<boolean> | null = null;
   private paused = false;
   private failures = 0;
-  private unsubscribe: (() => void) | null = null;
+  private unsubscribers: Array<() => void> = [];
   private seen: { doc: unknown; meta: unknown } | null = null;
   private readonly debounceMs: number;
   private readonly viewDebounceMs: number;
@@ -65,19 +65,23 @@ export class SaveManager {
   }
 
   start(): void {
-    this.unsubscribe?.();
+    this.stop();
     this.seen = this.snapshotSeen();
-    this.unsubscribe = this.options.editor.onCommitted(() => {
-      const now = this.snapshotSeen();
-      const viewOnly = this.seen !== null && now.doc === this.seen.doc && now.meta === this.seen.meta;
-      this.seen = now;
-      this.markDirty(viewOnly ? "view" : "content");
-    });
+    const { editor } = this.options;
+    this.unsubscribers = [
+      editor.onCommitted(() => {
+        const now = this.snapshotSeen();
+        const viewOnly = this.seen !== null && now.doc === this.seen.doc && now.meta === this.seen.meta;
+        this.seen = now;
+        this.markDirty(viewOnly ? "view" : "content");
+      }),
+      editor.onViewChanged(() => this.markDirty("view")),
+    ];
   }
 
   stop(): void {
-    this.unsubscribe?.();
-    this.unsubscribe = null;
+    for (const off of this.unsubscribers) off();
+    this.unsubscribers = [];
     this.clearTimer();
   }
 

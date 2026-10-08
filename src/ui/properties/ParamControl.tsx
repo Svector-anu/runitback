@@ -12,6 +12,7 @@ import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
 import { ColorField, Field, NumberField, SelectField, Switch } from "../primitives/fields";
 import type { FieldDef } from "./defs";
+import { runEdit } from "../lib/edit";
 
 /** Value at the playhead for a field, honouring keyframes. */
 export function fieldValue(element: TimelineElement, def: FieldDef, playhead: number): ParamValue {
@@ -28,9 +29,9 @@ function KeyframeToggle({ element, refValue, def, playhead }: { element: Timelin
   const id = keyframeIdAtTime(element.animations, path, Math.round(local));
   const toggle = (): void => {
     if (id) {
-      editor.execute(removeKeyframeCommand({ ref: refValue, path, keyframeId: id, localTime: Math.round(local) }));
+      runEdit(editor, removeKeyframeCommand({ ref: refValue, path, keyframeId: id, localTime: Math.round(local) }));
     } else {
-      editor.execute(upsertKeyframeCommand({ ref: refValue, path, time: Math.round(local), value: fieldValue(element, def, playhead) }));
+      runEdit(editor, upsertKeyframeCommand({ ref: refValue, path, time: Math.round(local), value: fieldValue(element, def, playhead) }));
     }
   };
   return (
@@ -54,7 +55,7 @@ export function ParamControl({ element, refValue, def, playhead }: { element: Ti
   const apply = (next: ParamValue, mode: "preview" | "commit"): void => {
     const cmd = paramEditCommand({ element, ref: refValue, values: { [def.key]: next }, playhead, label: `Edit ${def.label.toLowerCase()}` });
     if (mode === "preview") editor.preview(cmd);
-    else editor.execute(cmd);
+    else runEdit(editor, cmd);
   };
 
   const toggle = def.keyframable ? <KeyframeToggle element={element} refValue={refValue} def={def} playhead={playhead} /> : undefined;
@@ -84,7 +85,7 @@ export function ParamControl({ element, refValue, def, playhead }: { element: Ti
       ) : (
         <>
           <input className="input" list="font-families" aria-label={label} value={fontText} onChange={(e) => setFontText(e.target.value)}
-            onBlur={() => { const family = fontText.trim(); if (family && family !== value) { void loadFont(family).then(() => apply(family, "commit")); } else setFontText(String(value)); }}
+            onBlur={() => { const family = fontText.trim(); if (family && family !== value) { apply(family, "commit"); void loadFont(family); } else setFontText(String(value)); }}
             onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
           <datalist id="font-families">{SYSTEM_FONTS_LIST.map((f) => <option key={f} value={f} />)}</datalist>
         </>

@@ -155,6 +155,8 @@ export interface Project {
   /** Media assets that belong to the project; bytes live in the AssetRepository. */
   assetIds: string[];
   version: number;
+  /** Set only on a project that was repaired while loading; never written back to storage. */
+  repairNotes?: string[];
 }
 
 export interface MediaAssetInfo {

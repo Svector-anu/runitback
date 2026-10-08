@@ -1,4 +1,5 @@
 import { Children, useCallback, useRef, useState, type ReactNode } from "react";
+import { trackPointerGesture } from "../lib/pointer-gesture";
 
 export interface PaneConstraint {
   min?: number;
@@ -48,13 +49,8 @@ export function Split({ direction, sizes, constraints, onChange, children, label
       const pos = direction === "row" ? ev.clientX : ev.clientY;
       onChange(clampPair({ sizes: startSizes, index, delta: ((pos - startPos) / total) * 100, constraints }));
     };
-    const up = (): void => {
-      setDragging(null);
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    const end = (): void => setDragging(null);
+    trackPointerGesture({ move, up: end, cancel: end });
   }, [direction, sizes, constraints, onChange]);
 
   const onKey = (index: number, e: React.KeyboardEvent): void => {

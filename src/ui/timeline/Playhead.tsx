@@ -1,6 +1,7 @@
 import { memo, useEffect, type ReactNode } from "react";
 import { TICKS_PER_SECOND } from "#/engine/time";
 import { usePlaybackState } from "#/app/hooks";
+import { getServices } from "#/app/services";
 import { interactionStore } from "./controllers";
 import type { Viewport } from "./useViewport";
 
@@ -25,7 +26,7 @@ function PlayheadImpl({ viewport, height, onKnobDown, onKey }: {
     <div className="playhead" style={{ left: x - 1, height }} data-seconds={(time / TICKS_PER_SECOND).toFixed(3)}>
       <button
         type="button" className="playhead__knob" role="slider" aria-label="Playhead" aria-valuemin={0}
-        aria-valuenow={Math.round(time / TICKS_PER_SECOND * 100) / 100} data-snapping={snapping}
+        aria-valuemax={Math.round(getServices().editor.duration() / TICKS_PER_SECOND * 100) / 100} aria-valuenow={Math.round(time / TICKS_PER_SECOND * 100) / 100} data-snapping={snapping}
         onPointerDown={onKnobDown} onKeyDown={onKey}
       />
     </div>

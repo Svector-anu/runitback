@@ -7,6 +7,7 @@ import { useEditorState, useSettings } from "#/app/hooks";
 import { Icon } from "../icons";
 import { NumberField, Section, SelectField, Tabs, ColorField } from "../primitives/fields";
 import { toast } from "../primitives/toast";
+import { runEdit } from "../lib/edit";
 
 const FPS_PRESETS = [24, 25, 30, 60, 120];
 const BLUR_PRESETS = [{ label: "Light", value: 100 }, { label: "Medium", value: 200 }, { label: "Heavy", value: 500 }];
@@ -44,7 +45,7 @@ function ProjectInfo(): ReactNode {
   const fpsOptions = [...new Set([...FPS_PRESETS, Math.round(fpsValue * 1000) / 1000])].sort((a, b) => a - b);
   const setCanvas = (w: number, h: number, mode: "preset" | "custom"): void => {
     if (w < 16 || h < 16) { toast.error("Canvas size must be at least 16 pixels"); return; }
-    editor.execute(updateSettings({ canvasSize: { width: Math.round(w), height: Math.round(h) }, canvasSizeMode: mode }));
+    runEdit(editor, updateSettings({ canvasSize: { width: Math.round(w), height: Math.round(h) }, canvasSizeMode: mode }));
   };
   return (
     <>
@@ -54,7 +55,7 @@ function ProjectInfo(): ReactNode {
         <div style={{ width: 110 }}>
           <SelectField label="Frame rate" value={String(Math.round(fpsValue * 1000) / 1000)} onChange={(v) => {
             const next: FrameRate = frameRateFromFloat(Number(v));
-            if (!isSameFrameRate(next, settings.fps)) editor.execute(updateSettings({ fps: next }));
+            if (!isSameFrameRate(next, settings.fps)) runEdit(editor, updateSettings({ fps: next }));
           }} options={fpsOptions.map((f) => ({ value: String(f), label: `${f} fps` }))} />
         </div>
       </div>
@@ -83,7 +84,7 @@ function BackgroundSettings(): ReactNode {
   const set = (background: Background, mode: "preview" | "commit"): void => {
     const cmd = updateSettings({ background });
     if (mode === "preview") editor.preview(cmd);
-    else editor.execute(cmd);
+    else runEdit(editor, cmd);
   };
   return (
     <>

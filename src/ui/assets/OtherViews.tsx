@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { batch, addTrack, insertElement } from "#/engine/commands";
+import { insertElementsOnLanes } from "#/engine/commands";
 import { parseSubtitleFile } from "#/engine/captions";
 import { EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, type GraphicDefinition } from "#/engine/model";
 import { getServices } from "#/app/services";
@@ -11,6 +11,7 @@ import { beginDrag, endDrag, type DragPayload } from "../dnd";
 import { Icon, type IconName } from "../icons";
 import { Button } from "../primitives/Button";
 import { toast } from "../primitives/toast";
+import { reportInsert, runEdit } from "../lib/edit";
 
 function ViewShell({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }): ReactNode {
   return (
@@ -24,7 +25,7 @@ function ViewShell({ title, actions, children }: { title: string; actions?: Reac
 function PayloadTile({ payload, label, children }: { payload: DragPayload; label: string; children: ReactNode }): ReactNode {
   const { editor } = getServices();
   const add = (): void => {
-    if (!insertPayload({ editor, payload, startTime: editor.playback.getState().currentTime })) toast.error("Could not add that item to the timeline");
+    reportInsert(insertPayload({ editor, payload, startTime: editor.playback.getState().currentTime }));
   };
   return (
     <div className="tile" draggable role="button" tabIndex={0} aria-label={`Add ${label}`}
@@ -97,13 +98,8 @@ export function CaptionsView(): ReactNode {
       }
       const canvas = editor.getState().doc.settings.canvasSize;
       const measure = canvasLineMeasurer(context2d(createCanvas(8, 8)));
-      const trackId = editor.newId();
-      editor.execute(batch("Import captions", [
-        addTrack({ type: "text", index: 0, trackId }),
-        ...parsed.cues.map((cue, i) => insertElement({
-          element: buildCaptionElement({ cue, index: i, id: editor.newId(), canvas, measure }), placement: { mode: "explicit", trackId },
-        })),
-      ]));
+      const elements = parsed.cues.map((cue, i) => buildCaptionElement({ cue, index: i, id: editor.newId(), canvas, measure }));
+      if (!runEdit(editor, insertElementsOnLanes({ elements, index: 0, label: "Import captions" }))) return;
       const notes = [...parsed.warnings];
       if (parsed.skipped > 0) notes.push(`${parsed.skipped} cue${parsed.skipped === 1 ? "" : "s"} could not be read and were skipped`);
       setWarnings(notes);
@@ -121,7 +117,7 @@ export function CaptionsView(): ReactNode {
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void importFile(f); }} />
       </>
     }>
-      <p className="muted" style={{ lineHeight: 1.5 }}>Import an .srt or .ass file to add one text clip per caption on a new text track at the top of the timeline.</p>
+      <p className="muted" style={{ lineHeight: 1.5 }}>Import an .srt or .ass file to add one text clip per caption on new text tracks at the top of the timeline. Overlapping captions get their own track.</p>
       {error ? <div className="alert alert--destructive" role="alert" style={{ marginTop: 12 }}>{error}</div> : null}
       {warnings.length > 0 ? (
         <div className="alert alert--caution" style={{ marginTop: 12, flexDirection: "column", gap: 4 }}>

@@ -43,7 +43,7 @@ export function NumberField(props: NumberFieldProps): ReactNode {
   const commitText = (text: string): void => {
     const parsed = evaluateExpression(text);
     setDraft(null);
-    if (parsed === null) return;
+    if (parsed === null || !Number.isFinite(parsed)) return;
     const next = clamp(parsed / displayMultiplier);
     if (next !== value) props.onCommit(next);
   };

@@ -7,6 +7,7 @@ import { paramEditCommand } from "#/app/param-edit";
 import { scaledFontSize } from "#/render/text";
 import type { ElementBounds } from "#/render/bounds";
 import { canvasToScreen, type PreviewView } from "./view";
+import { commitEdit } from "../lib/edit";
 
 /** In-place text editing: a transparent textarea over the clip; the canvas underneath shows the live result. */
 export function TextEditOverlay({ refValue, bounds, view, onDone }: { refValue: ElementRef; bounds: ElementBounds; view: PreviewView; onDone: () => void }): ReactNode {
@@ -34,7 +35,7 @@ export function TextEditOverlay({ refValue, bounds, view, onDone }: { refValue: 
   const finish = (commit: boolean): void => {
     if (finished.current) return;
     finished.current = true;
-    if (commit && editor.isPreviewing) editor.commitPreview();
+    if (commit && editor.isPreviewing) commitEdit(editor);
     else editor.discardPreview();
     onDone();
   };

@@ -1,0 +1,158 @@
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { getAgentSession, useAgentSession } from "#/app/agent/instance";
+import type { ChatItem } from "#/app/agent/session";
+import { AGENT_MODELS } from "#/app/agent/model-client";
+import { useEditorState } from "#/app/hooks";
+import { Button } from "../primitives/Button";
+
+const EXAMPLE_PROMPTS = [
+  "Build a rough cut: put my clips on the timeline in a sensible order and trim obvious dead air.",
+  "Remove every silence longer than half a second from the footage on the timeline.",
+  "Add a title card at the start that says \"Summer 2025\" for three seconds.",
+  "Check my edit: look at frames across the timeline and tell me what to fix.",
+];
+
+const WARNING = "Your API key is kept in this browser only and is sent only to Anthropic. Anyone using this browser profile can read it.";
+
+function ToolChip({ item }: { item: Extract<ChatItem, { kind: "tool" }> }): ReactNode {
+  const state = item.status === "running" ? "running..." : item.status === "ok" ? "done" : "failed";
+  return (
+    <details className={`agent-chip agent-chip--${item.status}`} data-testid="agent-tool-chip" data-tool={item.name} data-status={item.status}>
+      <summary>
+        <span className="agent-chip__name">{item.name}</span>
+        <span className="agent-chip__state">{state}</span>
+        {item.summary ? <span className="agent-chip__summary">{item.summary}</span> : null}
+      </summary>
+      <div className="agent-chip__body">
+        <div className="agent-chip__label">Arguments</div>
+        <pre>{JSON.stringify(item.args, null, 2)}</pre>
+        {item.detail ? (
+          <>
+            <div className="agent-chip__label">Result</div>
+            <pre>{item.detail}</pre>
+          </>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function Item({ item }: { item: ChatItem }): ReactNode {
+  switch (item.kind) {
+    case "user":
+      return <div className="agent-msg agent-msg--user">{item.text}</div>;
+    case "assistant":
+      return <div className="agent-msg agent-msg--assistant" data-testid="agent-assistant-text">{item.text}</div>;
+    case "tool":
+      return <ToolChip item={item} />;
+    case "image":
+      return (
+        <figure className="agent-frame">
+          <img src={`data:${item.mediaType};base64,${item.base64}`} alt={item.caption || "Rendered frame"} data-testid="agent-frame" />
+          {item.caption ? <figcaption>{item.caption}</figcaption> : null}
+        </figure>
+      );
+    case "notice":
+      return <div className={`agent-notice agent-notice--${item.tone}`} role={item.tone === "error" ? "alert" : undefined}>{item.text}</div>;
+  }
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+export function AgentPanel(): ReactNode {
+  const session = getAgentSession();
+  const state = useAgentSession();
+  const projectId = useEditorState((s) => s.meta?.id ?? null);
+  const currentDoc = useEditorState((s) => s.doc);
+  const [draft, setDraft] = useState("");
+  const logRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    session.bindProject(projectId);
+  }, [session, projectId]);
+
+  useEffect(() => {
+    const log = logRef.current;
+    if (log) log.scrollTop = log.scrollHeight;
+  }, [state.items.length, state.streaming]);
+
+  const canUndo = !state.running && state.undoableDoc !== null && state.undoableDoc === currentDoc;
+  const submit = (): void => {
+    const text = draft.trim();
+    if (!text || state.running) return;
+    setDraft("");
+    void session.send(text);
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      submit();
+    }
+  };
+
+  return (
+    <section className="agent-panel panel-box" aria-label="Agent" data-testid="agent-panel">
+      <div className="agent-settings">
+        <div className="agent-field">
+          <label className="label" htmlFor="agent-model">Model</label>
+          <select id="agent-model" className="select" value={state.model} disabled={state.running} onChange={(e) => session.setModel(e.target.value)}>
+            {AGENT_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>
+        </div>
+        <div className="agent-field">
+          <label className="label" htmlFor="agent-api-key">Anthropic API key</label>
+          <input
+            id="agent-api-key" className="input input--sm" type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-..."
+            value={state.apiKey} onChange={(e) => session.setApiKey(e.target.value)} aria-describedby="agent-key-warning"
+          />
+          <p id="agent-key-warning" className="agent-warning">{WARNING}</p>
+        </div>
+      </div>
+
+      <div ref={logRef} className="agent-log" role="log" aria-label="Agent conversation" aria-relevant="additions text">
+        {state.items.length === 0 ? (
+          <div className="agent-empty" data-testid="agent-empty">
+            <p>Describe an edit and the agent will make it on your timeline, then check its own work. One undo reverts everything it did.</p>
+            <ul className="agent-examples" aria-label="Example prompts">
+              {EXAMPLE_PROMPTS.map((prompt) => (
+                <li key={prompt}><button type="button" className="agent-example" onClick={() => setDraft(prompt)}>{prompt}</button></li>
+              ))}
+            </ul>
+          </div>
+        ) : state.items.map((item) => <Item key={item.id} item={item} />)}
+        {state.running ? (
+          <div className="agent-msg agent-msg--assistant agent-msg--streaming" data-testid="agent-streaming">
+            {state.streaming || `Working... (step ${state.step})`}
+          </div>
+        ) : null}
+      </div>
+      <div className="agent-sr-only" role="status" aria-live="polite">{state.running ? `Agent is working, step ${state.step}` : ""}</div>
+
+      <div className="agent-actions">
+        {state.running ? <Button size="sm" variant="destructive-outline" onClick={() => session.stop()}>Stop</Button> : null}
+        <Button size="sm" variant="outline" disabled={!canUndo} onClick={() => session.undoLast()}>Undo agent changes</Button>
+        {state.exportFile ? (
+          <Button size="sm" variant="outline" onClick={() => state.exportFile && downloadBlob(state.exportFile.blob, state.exportFile.fileName)}>Download export</Button>
+        ) : null}
+        <Button size="sm" variant="ghost" disabled={state.running || state.items.length === 0} onClick={() => session.reset()}>New chat</Button>
+      </div>
+      <div className="agent-compose">
+        <label className="agent-sr-only" htmlFor="agent-input">Message to the agent</label>
+        <textarea
+          id="agent-input" className="textarea" rows={3} value={draft} placeholder="What should I edit?" disabled={state.running}
+          onChange={(e) => setDraft(e.target.value)} onKeyDown={onKeyDown}
+        />
+        <Button size="sm" disabled={state.running || draft.trim() === ""} onClick={submit}>Send</Button>
+      </div>
+    </section>
+  );
+}

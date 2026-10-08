@@ -20,11 +20,12 @@ function MenuList({ entries, onClose }: MenuListProps): ReactNode {
   }, []);
 
   const onKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
     e.preventDefault();
     const items = [...(ref.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
     const index = items.indexOf(document.activeElement as HTMLButtonElement);
-    const next = e.key === "ArrowDown" ? (index + 1) % items.length : (index - 1 + items.length) % items.length;
+    const next = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1
+      : e.key === "ArrowDown" ? (index + 1) % items.length : (index - 1 + items.length) % items.length;
     items[next]?.focus();
   };
 

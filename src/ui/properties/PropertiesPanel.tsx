@@ -17,6 +17,7 @@ import { DropdownMenu } from "../primitives/Menu";
 import { ColorField, Field, NumberField, Section, SelectField, Switch } from "../primitives/fields";
 import { AUDIO_FIELDS, BLEND_FIELDS, MASK_LABELS, TEXT_FIELDS, TRANSFORM_FIELDS, type FieldDef } from "./defs";
 import { ParamControl } from "./ParamControl";
+import { runEdit } from "../lib/edit";
 
 type TabId = "text" | "transform" | "blending" | "audio" | "speed" | "masks" | "effects" | "graphic";
 
@@ -92,7 +93,7 @@ function SpeedTab({ element, refValue }: { element: TimelineElement; refValue: E
     const retime = next === 1 ? undefined : { rate: next };
     const cmd = updateElements([{ ref: refValue, patch: { retime } }], "Change speed");
     if (mode === "preview") editor.preview(cmd);
-    else editor.execute(cmd);
+    else runEdit(editor, cmd);
   };
   return (
     <Section sectionKey={`${element.id}:speed`} title="Speed" collapsible>
@@ -117,7 +118,7 @@ function MasksTab({ element, refValue }: { element: TimelineElement; refValue: E
       <div className="row-between">
         <span style={{ fontWeight: 500 }}>Masks</span>
         <DropdownMenu align="end" width={160}
-          entries={types.map((t) => ({ label: MASK_LABELS[t] ?? t, onSelect: () => editor.execute(addMask(refValue, t)) }))}
+          entries={types.map((t) => ({ label: MASK_LABELS[t] ?? t, onSelect: () => runEdit(editor, addMask(refValue, t)) }))}
           trigger={(p) => <Button {...p} variant="ghost" size="icon" label="Add mask"><Icon name="plus" /></Button>} />
       </div>
       {masks.length === 0 ? (
@@ -130,12 +131,12 @@ function MasksTab({ element, refValue }: { element: TimelineElement; refValue: E
             actions={
               <span style={{ display: "flex", gap: 4, marginLeft: "auto" }} onClick={(e) => e.stopPropagation()}>
                 <Button variant={mask.params.inverted === true ? "secondary" : "ghost"} size="icon" label="Invert mask" aria-pressed={mask.params.inverted === true}
-                  onClick={() => editor.execute(toggleMaskInverted(refValue, mask.id))}><Icon name="droplet" /></Button>
-                <Button variant="ghost" size="icon" label="Remove mask" onClick={() => editor.execute(removeMask(refValue, mask.id))}><Icon name="trash" /></Button>
+                  onClick={() => runEdit(editor, toggleMaskInverted(refValue, mask.id))}><Icon name="droplet" /></Button>
+                <Button variant="ghost" size="icon" label="Remove mask" onClick={() => runEdit(editor, removeMask(refValue, mask.id))}><Icon name="trash" /></Button>
               </span>
             }>
             <ParamFields defs={def.params.filter((p) => p.key !== "inverted")} values={mask.params}
-              onPreview={(v) => editor.preview(updateMaskParams(refValue, mask.id, v))} onCommit={(v) => editor.execute(updateMaskParams(refValue, mask.id, v))} />
+              onPreview={(v) => editor.preview(updateMaskParams(refValue, mask.id, v))} onCommit={(v) => runEdit(editor, updateMaskParams(refValue, mask.id, v))} />
           </Section>
         );
       })}
@@ -154,7 +155,7 @@ function EffectsTab({ element, refValue }: { element: TimelineElement; refValue:
       <Section sectionKey={`${element.id}:effect`} title={def.name} collapsible={false}>
         <ParamFields defs={def.params} values={element.params}
           onPreview={(v) => editor.preview(updateElements([{ ref: refValue, patch: { params: v } }]))}
-          onCommit={(v) => editor.execute(updateElements([{ ref: refValue, patch: { params: v } }], "Edit effect"))} />
+          onCommit={(v) => runEdit(editor, updateElements([{ ref: refValue, patch: { params: v } }], "Edit effect"))} />
       </Section>
     ) : null;
   }
@@ -164,7 +165,7 @@ function EffectsTab({ element, refValue }: { element: TimelineElement; refValue:
       <div className="row-between">
         <span style={{ fontWeight: 500 }}>Effects</span>
         <DropdownMenu align="end" width={160}
-          entries={Object.values(EFFECT_DEFINITIONS).map((d) => ({ label: d.name, onSelect: () => editor.execute(addClipEffect({ ref: refValue, effectType: d.type })) }))}
+          entries={Object.values(EFFECT_DEFINITIONS).map((d) => ({ label: d.name, onSelect: () => runEdit(editor, addClipEffect({ ref: refValue, effectType: d.type })) }))}
           trigger={(p) => <Button {...p} variant="ghost" size="icon" label="Add effect"><Icon name="plus" /></Button>} />
       </div>
       {effects.length === 0 ? (
@@ -181,18 +182,18 @@ function EffectsTab({ element, refValue }: { element: TimelineElement; refValue:
           <div key={effect.id} className="effect-card" data-disabled={!effect.enabled} data-dragging={dragIndex === i} data-drop={show}
             draggable onDragStart={() => setDragIndex(i)} onDragOver={(e) => { e.preventDefault(); setOverIndex(i); }}
             onDragEnd={() => { setDragIndex(null); setOverIndex(null); }}
-            onDrop={() => { if (dragIndex !== null && dragIndex !== i) editor.execute(reorderClipEffects(refValue, dragIndex, i)); setDragIndex(null); setOverIndex(null); }}>
+            onDrop={() => { if (dragIndex !== null && dragIndex !== i) runEdit(editor, reorderClipEffects(refValue, dragIndex, i)); setDragIndex(null); setOverIndex(null); }}>
             <Section sectionKey={`${element.id}:fx:${effect.id}`} title={def.name}
               actions={
                 <span style={{ display: "flex", gap: 4, marginLeft: "auto" }} onClick={(e) => e.stopPropagation()}>
                   <Button variant={effect.enabled ? "secondary" : "ghost"} size="icon" label={effect.enabled ? "Disable effect" : "Enable effect"} aria-pressed={effect.enabled}
-                    onClick={() => editor.execute(toggleClipEffect(refValue, effect.id))}><Icon name={effect.enabled ? "eye" : "eye-off"} /></Button>
-                  <Button variant="ghost" size="icon" label="Remove effect" onClick={() => editor.execute(removeClipEffect(refValue, effect.id))}><Icon name="trash" /></Button>
+                    onClick={() => runEdit(editor, toggleClipEffect(refValue, effect.id))}><Icon name={effect.enabled ? "eye" : "eye-off"} /></Button>
+                  <Button variant="ghost" size="icon" label="Remove effect" onClick={() => runEdit(editor, removeClipEffect(refValue, effect.id))}><Icon name="trash" /></Button>
                 </span>
               }>
               <ParamFields defs={def.params} values={effect.params}
                 onPreview={(v) => editor.preview(updateClipEffectParams(refValue, effect.id, v))}
-                onCommit={(v) => editor.execute(updateClipEffectParams(refValue, effect.id, v))} />
+                onCommit={(v) => runEdit(editor, updateClipEffectParams(refValue, effect.id, v))} />
             </Section>
           </div>
         );

@@ -4,10 +4,11 @@ import { ProjectLockedError } from "#/engine/persistence";
 import { navigate } from "#/app/router";
 import { useKeyboardShortcuts } from "#/app/actions";
 import { useEditorState } from "#/app/hooks";
-import { PANEL_CONSTRAINTS, setLayout, uiStore } from "#/app/ui-state";
+import { PANEL_CONSTRAINTS, setLayout, uiStore, type RightPanelTab } from "#/app/ui-state";
 import { Icon } from "../icons";
 import { Split } from "../primitives/split";
 import { toast } from "../primitives/toast";
+import { AgentPanel } from "../agent/AgentPanel";
 import { AssetsPanel } from "../assets/AssetsPanel";
 import { PreviewPanel } from "../preview/PreviewPanel";
 import { PropertiesPanel } from "../properties/PropertiesPanel";
@@ -25,23 +26,40 @@ function useNarrow(): boolean {
   return narrow;
 }
 
+function RightPanel(): ReactNode {
+  const tab = uiStore.use((s) => s.rightPanel);
+  const tabs: ReadonlyArray<{ id: RightPanelTab; label: string }> = [{ id: "properties", label: "Properties" }, { id: "agent", label: "Agent" }];
+  return (
+    <div className="right-panel">
+      <div role="tablist" aria-label="Side panel" className="right-panel__tabs">
+        {tabs.map((t) => (
+          <Button key={t.id} role="tab" aria-selected={tab === t.id} variant={tab === t.id ? "secondary" : "ghost"} size="sm" onClick={() => uiStore.set({ rightPanel: t.id })}>
+            {t.label}
+          </Button>
+        ))}
+      </div>
+      <div className="right-panel__body">{tab === "agent" ? <AgentPanel /> : <PropertiesPanel />}</div>
+    </div>
+  );
+}
+
 function Layout(): ReactNode {
   const layout = uiStore.use((s) => s.layout);
   const narrow = useNarrow();
-  const [pane, setPane] = useState<"preview" | "assets" | "properties">("preview");
+  const [pane, setPane] = useState<"preview" | "assets" | "properties" | "agent">("preview");
 
   if (narrow) {
     return (
       <Split direction="column" label="Editor" sizes={layout.vertical} constraints={PANEL_CONSTRAINTS.vertical} onChange={(vertical) => setLayout({ vertical })}>
         <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 0.5rem", gap: 4, minHeight: 0 }}>
           <div role="tablist" aria-label="Panels" style={{ display: "flex", gap: 4 }}>
-            {(["preview", "assets", "properties"] as const).map((p) => (
+            {(["preview", "assets", "properties", "agent"] as const).map((p) => (
               <Button key={p} role="tab" aria-selected={pane === p} variant={pane === p ? "secondary" : "ghost"} size="sm" onClick={() => setPane(p)}>
-                {p === "preview" ? "Preview" : p === "assets" ? "Assets" : "Properties"}
+                {p === "preview" ? "Preview" : p === "assets" ? "Assets" : p === "properties" ? "Properties" : "Agent"}
               </Button>
             ))}
           </div>
-          <div style={{ flex: 1, minHeight: 0, display: "flex" }}>{pane === "preview" ? <PreviewPanel /> : pane === "assets" ? <AssetsPanel /> : <PropertiesPanel />}</div>
+          <div style={{ flex: 1, minHeight: 0, display: "flex" }}>{pane === "preview" ? <PreviewPanel /> : pane === "assets" ? <AssetsPanel /> : pane === "properties" ? <PropertiesPanel /> : <AgentPanel />}</div>
         </div>
         <div style={{ width: "100%", padding: "0 0.75rem 0.75rem", minHeight: 0, display: "flex" }}><div className="panel-box" style={{ width: "100%" }}><Timeline /></div></div>
       </Split>
@@ -53,7 +71,7 @@ function Layout(): ReactNode {
         <Split direction="row" label="Workspace" sizes={layout.horizontal} constraints={PANEL_CONSTRAINTS.horizontal} onChange={(horizontal) => setLayout({ horizontal })}>
           <AssetsPanel />
           <PreviewPanel />
-          <PropertiesPanel />
+          <RightPanel />
         </Split>
       </div>
       <div style={{ width: "100%", padding: "0 0.75rem 0.75rem", minHeight: 0, display: "flex" }}><div className="panel-box" style={{ width: "100%" }}><Timeline /></div></div>
@@ -73,7 +91,14 @@ export function EditorPage({ id }: { id: string }): ReactNode {
   useEffect(() => {
     let canceled = false;
     setStatus("loading");
-    services.openProject(id).then(() => { if (!canceled) setStatus("ready"); }).catch(async (e: unknown) => {
+    services.openProject(id).then(() => {
+      if (canceled) return;
+      setStatus("ready");
+      const repairs = services.takeRepairNotes();
+      if (repairs.length > 0) {
+        toast.info(`Repaired ${repairs.length} ${repairs.length === 1 ? "issue" : "issues"} in this project`, repairs.slice(0, 3).join("; "));
+      }
+    }).catch(async (e: unknown) => {
       if (canceled) return;
       if (e instanceof ProjectNotFoundError) {
         const project = await services.projects.create("Untitled Project");

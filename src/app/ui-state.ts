@@ -2,6 +2,8 @@ import { Store } from "./store";
 import { getServices } from "./services";
 import { isBoolean, isNumberArray, isRecordOfStrings } from "#/platform/prefs";
 
+export type RightPanelTab = "properties" | "agent";
+
 export type AssetTab = "media" | "text" | "graphics" | "effects" | "captions" | "settings";
 
 export interface LayoutSizes {
@@ -27,6 +29,7 @@ function loadLayout(): LayoutSizes {
 export interface UiState {
   layout: LayoutSizes;
   assetTab: AssetTab;
+  rightPanel: RightPanelTab;
   mediaView: "grid" | "list";
   mediaSort: "name" | "type" | "duration" | "size";
   mediaSortDesc: boolean;
@@ -43,6 +46,7 @@ const prefersDark = typeof matchMedia === "function" && matchMedia("(prefers-col
 export const uiStore = new Store<UiState>({
   layout: DEFAULT_LAYOUT,
   assetTab: "media",
+  rightPanel: "properties",
   mediaView: "grid",
   mediaSort: "name",
   mediaSortDesc: false,

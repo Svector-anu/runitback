@@ -31,6 +31,7 @@ import { EasingPopover } from "./EasingPopover";
 import { BookmarkRow } from "./BookmarkRow";
 import { ScenesDialog } from "./ScenesDialog";
 import { useViewport } from "./useViewport";
+import { reportInsert, runEdit } from "../lib/edit";
 
 const TRACK_ICON: Record<string, IconName> = { video: "video", text: "type", audio: "music", graphic: "shapes", effect: "wand" };
 
@@ -126,19 +127,19 @@ export function Timeline(): ReactNode {
     const entries: MenuEntry[] = [
       { label: "Split", icon: "scissors", shortcut: "S", onSelect: () => invokeAction("split") },
       { label: "Copy", icon: "copy", shortcut: "Ctrl C", onSelect: () => invokeAction("copy-selected") },
-      { label: "Duplicate", icon: "copy", shortcut: "Ctrl D", onSelect: () => editor.execute(duplicateCommand(refs)) },
+      { label: "Duplicate", icon: "copy", shortcut: "Ctrl D", onSelect: () => runEdit(editor, duplicateCommand(refs)) },
     ];
     if (canElementHaveAudio(el) && (el.type === "audio" || asset?.hasAudio !== false)) {
       const audible = refs.some((r) => getElement(currentScene(state.doc).tracks, r)?.params.muted !== true);
-      entries.push({ label: audible ? "Mute" : "Unmute", icon: audible ? "volume-off" : "volume", onSelect: () => editor.execute(toggleElementsMuted(refs)) });
+      entries.push({ label: audible ? "Mute" : "Unmute", icon: audible ? "volume-off" : "volume", onSelect: () => runEdit(editor, toggleElementsMuted(refs)) });
     }
     if (!many && canToggleSourceAudio(el, state.doc.assets)) {
       const separated = el.type === "video" && el.isSourceAudioEnabled === false;
-      entries.push({ label: separated ? "Recover audio" : "Extract audio", icon: "scissors", onSelect: () => editor.execute(toggleSourceAudio(ref)) });
+      entries.push({ label: separated ? "Recover audio" : "Extract audio", icon: "scissors", onSelect: () => runEdit(editor, toggleSourceAudio(ref)) });
     }
     if (isVisualElement(el)) {
       const hidden = "hidden" in el && el.hidden === true;
-      entries.push({ label: hidden ? "Show" : "Hide", icon: hidden ? "eye" : "eye-off", onSelect: () => editor.execute(toggleElementsHidden(refs)) });
+      entries.push({ label: hidden ? "Show" : "Hide", icon: hidden ? "eye" : "eye-off", onSelect: () => runEdit(editor, toggleElementsHidden(refs)) });
     }
     if (listKeyframes(el.animations).length > 0) {
       const open = uiStore.get().expandedElements.has(el.id);
@@ -150,7 +151,7 @@ export function Timeline(): ReactNode {
     entries.push({ type: "separator" });
     entries.push({
       label: many ? `Delete ${refs.length} elements` : el.type === "text" ? "Delete text" : "Delete clip", icon: "trash", destructive: true,
-      onSelect: () => editor.execute(deleteElements(refs)),
+      onSelect: () => runEdit(editor, deleteElements(refs)),
     });
     setMenu({ state: { x: e.clientX, y: e.clientY }, entries });
   }, [editor]);
@@ -161,18 +162,18 @@ export function Timeline(): ReactNode {
     if (!track) return;
     const entries: MenuEntry[] = [
       { label: "Paste elements", icon: "copy", disabled: !editor.getState().hasClipboard,
-        onSelect: () => { const items = editor.clipboard; if (items) editor.execute(pasteCommand({ items, time: editor.playback.getState().currentTime })); } },
+        onSelect: () => { const items = editor.clipboard; if (items) runEdit(editor, pasteCommand({ items, time: editor.playback.getState().currentTime })); } },
     ];
     if (canTrackHaveAudio(track)) {
       const muted = "muted" in track && track.muted;
-      entries.push({ label: muted ? "Unmute track" : "Mute track", icon: muted ? "volume" : "volume-off", onSelect: () => editor.execute(toggleTrackMuted(trackId)) });
+      entries.push({ label: muted ? "Unmute track" : "Mute track", icon: muted ? "volume" : "volume-off", onSelect: () => runEdit(editor, toggleTrackMuted(trackId)) });
     }
     if (canTrackBeHidden(track)) {
       const hidden = "hidden" in track && track.hidden;
-      entries.push({ label: hidden ? "Show track" : "Hide track", icon: hidden ? "eye" : "eye-off", onSelect: () => editor.execute(toggleTrackHidden(trackId)) });
+      entries.push({ label: hidden ? "Show track" : "Hide track", icon: hidden ? "eye" : "eye-off", onSelect: () => runEdit(editor, toggleTrackHidden(trackId)) });
     }
     if (trackId !== tracks.main.id) {
-      entries.push({ type: "separator" }, { label: "Delete track", icon: "trash", destructive: true, onSelect: () => editor.execute(removeTrackCommand(trackId)) });
+      entries.push({ type: "separator" }, { label: "Delete track", icon: "trash", destructive: true, onSelect: () => runEdit(editor, removeTrackCommand(trackId)) });
     }
     setMenu({ state: { x: e.clientX, y: e.clientY }, entries });
   };
@@ -226,7 +227,7 @@ export function Timeline(): ReactNode {
     const payload = currentDrag();
     if (payload) {
       const time = roundToFrame(viewport.clientXToTime(e.clientX), editor.fps());
-      if (!insertPayload({ editor, payload, startTime: time, target })) toast.error("Could not add that item to the timeline");
+      reportInsert(insertPayload({ editor, payload, startTime: time, target }));
       return;
     }
     const files = [...e.dataTransfer.files];
@@ -234,7 +235,7 @@ export function Timeline(): ReactNode {
     const outcome = await services.importFiles(files);
     for (const f of outcome.failures) toast.error(f.message);
     for (const asset of outcome.imported) {
-      insertPayload({ editor, payload: { kind: "media", assetId: asset.id, mediaType: asset.type }, startTime: editor.playback.getState().currentTime, target: null });
+      reportInsert(insertPayload({ editor, payload: { kind: "media", assetId: asset.id, mediaType: asset.type }, startTime: editor.playback.getState().currentTime, target: null }));
     }
     if (outcome.imported.length > 0) toast.success(`${outcome.imported.length} media ${outcome.imported.length === 1 ? "file" : "files"} added`);
   };
@@ -262,7 +263,7 @@ export function Timeline(): ReactNode {
           <ToolbarButton icon="trash" label="Delete" shortcut="Del" disabled={selection.elements.length === 0} onClick={() => invokeAction("delete-selected")} />
           <div className="timeline__divider" />
           <ToolbarButton icon="bookmark" label={bookmarkAtPlayhead ? "Remove bookmark" : "Add bookmark"} active={bookmarkAtPlayhead}
-            onClick={() => editor.execute(toggleBookmark(editor.playback.getState().currentTime))} />
+            onClick={() => runEdit(editor, toggleBookmark(editor.playback.getState().currentTime))} />
           <EasingPopover disabled={!hasKeyframeSelection} />
         </div>
         <div className="scene-select" role="group" aria-label="Scene">
@@ -293,11 +294,11 @@ export function Timeline(): ReactNode {
                   <div className="track-label" data-selected={hasSelected} style={{ top: box.top, height: box.baseHeight }} onContextMenu={(e) => openTrackMenu(e, box.track.id)}>
                     {canTrackHaveAudio(box.track) ? (
                       <button type="button" data-off={muted} aria-label={muted ? "Unmute track" : "Mute track"} aria-pressed={muted}
-                        onClick={() => editor.execute(toggleTrackMuted(box.track.id))}><Icon name={muted ? "volume-off" : "volume"} /></button>
+                        onClick={() => runEdit(editor, toggleTrackMuted(box.track.id))}><Icon name={muted ? "volume-off" : "volume"} /></button>
                     ) : null}
                     {canTrackBeHidden(box.track) ? (
                       <button type="button" data-off={hidden} aria-label={hidden ? "Show track" : "Hide track"} aria-pressed={hidden}
-                        onClick={() => editor.execute(toggleTrackHidden(box.track.id))}><Icon name={hidden ? "eye-off" : "eye"} /></button>
+                        onClick={() => runEdit(editor, toggleTrackHidden(box.track.id))}><Icon name={hidden ? "eye-off" : "eye"} /></button>
                     ) : null}
                     <span aria-label={`${box.track.type} track`} style={{ color: "var(--muted-foreground)", display: "grid" }}><Icon name={TRACK_ICON[box.track.type] ?? "video"} /></span>
                   </div>

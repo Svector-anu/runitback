@@ -8,6 +8,7 @@ import { Popover } from "../primitives/Popover";
 import { ColorField, Field } from "../primitives/fields";
 import { interactionStore, type ControllerContext } from "./controllers";
 import type { Viewport } from "./useViewport";
+import { runEdit } from "../lib/edit";
 
 const DEFAULT_COLOR = "#009dff";
 
@@ -18,19 +19,19 @@ function BookmarkEditor({ bookmark, onClose }: { bookmark: Bookmark; onClose: ()
     <div style={{ width: 256, padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
       <Field label="Note">
         <input className="input input--sm" aria-label="Bookmark note" defaultValue={bookmark.note ?? ""}
-          onBlur={(e) => editor.execute(updateBookmark(bookmark.time, { note: e.target.value || undefined }))} />
+          onBlur={(e) => runEdit(editor, updateBookmark(bookmark.time, { note: e.target.value || undefined }))} />
       </Field>
       <Field label="Color">
-        <ColorField label="Bookmark color" value={bookmark.color ?? DEFAULT_COLOR} onChange={(c) => editor.execute(updateBookmark(bookmark.time, { color: c }))} />
+        <ColorField label="Bookmark color" value={bookmark.color ?? DEFAULT_COLOR} onChange={(c) => runEdit(editor, updateBookmark(bookmark.time, { color: c }))} />
       </Field>
       <Field label="Duration (seconds)">
         <input className="input input--sm" type="number" min={0} max={maxDuration} step={0.1} aria-label="Bookmark duration" defaultValue={(bookmark.duration ?? 0) / TICKS_PER_SECOND}
           onBlur={(e) => {
             const seconds = Math.min(maxDuration, Math.max(0, Number(e.target.value) || 0));
-            editor.execute(updateBookmark(bookmark.time, { duration: Math.round(seconds * TICKS_PER_SECOND) as never }));
+            runEdit(editor, updateBookmark(bookmark.time, { duration: Math.round(seconds * TICKS_PER_SECOND) as never }));
           }} />
       </Field>
-      <Button variant="destructive" size="sm" onClick={() => { editor.execute(removeBookmark(bookmark.time)); onClose(); }}>Delete bookmark</Button>
+      <Button variant="destructive" size="sm" onClick={() => { runEdit(editor, removeBookmark(bookmark.time)); onClose(); }}>Delete bookmark</Button>
     </div>
   );
 }
@@ -57,7 +58,7 @@ export function BookmarkRow({ viewport, bookmarks, height, ctx }: { viewport: Vi
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       interactionStore.set({ mode: "idle" });
-      if (moved && target !== bookmark.time) editor.execute(moveBookmark(bookmark.time, target));
+      if (moved && target !== bookmark.time) runEdit(editor, moveBookmark(bookmark.time, target));
       else if (!moved) editor.playback.seek(snappedSeekTime(bookmark.time, editor.duration(), editor.fps()), performance.now());
     };
     window.addEventListener("pointermove", move);

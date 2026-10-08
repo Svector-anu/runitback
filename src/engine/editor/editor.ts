@@ -1,6 +1,6 @@
 import { mediaTime, type FrameRate, type MediaTime } from "#/engine/time";
 import {
-  EMPTY_SELECTION, EngineError, type ElementRef, type IdGenerator, type MediaAssetInfo, type Project, type ProjectMetadata,
+  EMPTY_SELECTION, EngineError, PROJECT_SCHEMA_VERSION, type ElementRef, type IdGenerator, type MediaAssetInfo, type Project, type ProjectMetadata,
   type SceneTracks, type SelectionState, type TimelineViewState,
 } from "#/engine/model";
 import { allElements, assertNoNewViolations, copyElements, type ClipboardItem } from "#/engine/timeline";
@@ -74,6 +74,7 @@ export class Editor {
   private state: EditorState;
   private listeners = new Set<Listener>();
   private committedListeners = new Set<() => void>();
+  private viewListeners = new Set<() => void>();
   private history: CommandManager;
   private clipboardItems: ClipboardItem[] | null = null;
   private previewCommand: Command | null = null;
@@ -105,6 +106,12 @@ export class Editor {
   onCommitted(listener: () => void): () => void {
     this.committedListeners.add(listener);
     return () => this.committedListeners.delete(listener);
+  }
+
+  /** Fires when only the timeline view (zoom, scroll, playhead position) changed; the document is untouched. */
+  onViewChanged(listener: () => void): () => void {
+    this.viewListeners.add(listener);
+    return () => this.viewListeners.delete(listener);
   }
 
   get newId(): IdGenerator { return this.deps.newId; }
@@ -182,7 +189,7 @@ export class Editor {
       scenes: doc.scenes, currentSceneId: doc.currentSceneId, settings: doc.settings,
       timelineViewState: { ...viewState, playheadTime: this.playback.getState().currentTime },
       assetIds: this.retainedAssetIds(),
-      version: 1,
+      version: PROJECT_SCHEMA_VERSION,
     };
   }
 
@@ -206,7 +213,7 @@ export class Editor {
 
   setViewState(patch: Partial<TimelineViewState>): void {
     this.set({ viewState: { ...this.state.viewState, ...patch } });
-    for (const l of this.committedListeners) l();
+    for (const l of this.viewListeners) l();
   }
 
   // ---- Commands & history ------------------------------------------------------------------------------------
@@ -323,15 +330,22 @@ export class Editor {
     }
   }
 
-  /** Commits the active preview as one undo step. Returns false when it is no longer valid; never throws. */
-  commitPreview(): boolean {
+  /**
+   * Commits the active preview as one undo step. Returns null when there is no preview; otherwise the outcome, with
+   * the rejection as a value when the plan went stale (the editor is then left on the committed document).
+   */
+  tryCommitPreview(): ExecuteResult | null {
     const command = this.previewCommand;
-    if (!command) return false;
+    if (!command) return null;
     this.previewCommand = null;
     this.set({ preview: null });
+    return this.tryExecute(command);
+  }
+
+  /** Commits the active preview as one undo step. Returns false when there is none or it is no longer valid; never throws. */
+  commitPreview(): boolean {
     try {
-      this.execute(command);
-      return true;
+      return this.tryCommitPreview()?.ok === true;
     } catch {
       return false;
     }

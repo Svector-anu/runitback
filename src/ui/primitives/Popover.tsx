@@ -15,6 +15,7 @@ export interface PopoverProps {
 }
 
 const MARGIN = 8;
+const FOCUSABLE = 'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
 /** Positioned layer that closes on outside press and Escape, flipping to stay inside the viewport. */
 export function Popover({ open, onClose, anchor, align = "start", className, children, role = "dialog", label }: PopoverProps): ReactNode {
@@ -43,6 +44,32 @@ export function Popover({ open, onClose, anchor, align = "start", className, chi
     setStyle({ left, top, visibility: "visible" });
   }, [open, anchor, align]);
 
+  const positioned = style.visibility === "visible";
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      if (previous?.isConnected && previous !== document.body) previous.focus({ preventScroll: true });
+    };
+  }, [open]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!open || !positioned || !el || el.contains(document.activeElement)) return;
+    (el.querySelector<HTMLElement>(FOCUSABLE) ?? el).focus({ preventScroll: true });
+  }, [open, positioned]);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key !== "Tab" || role !== "dialog") return;
+    const focusable = [...e.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE)];
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) { e.preventDefault(); return; }
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+
   useEffect(() => {
     if (!open) return undefined;
     const onPointerDown = (e: PointerEvent): void => {
@@ -67,7 +94,7 @@ export function Popover({ open, onClose, anchor, align = "start", className, chi
 
   if (!open) return null;
   return createPortal(
-    <div ref={ref} role={role} aria-label={label} className={["popover", className].filter(Boolean).join(" ")} style={style}>
+    <div ref={ref} role={role} aria-label={label} tabIndex={-1} onKeyDown={onKeyDown} className={["popover", className].filter(Boolean).join(" ")} style={style}>
       {children}
     </div>,
     document.body,

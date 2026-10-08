@@ -11,6 +11,7 @@ import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
 import { Popover } from "../primitives/Popover";
 import { Tooltip } from "../primitives/Tooltip";
+import { runEdit } from "../lib/edit";
 
 interface Segment {
   channels: Array<{ component: "r" | "g" | "b" | "a" | "value"; left: ScalarKey; right: ScalarKey }>;
@@ -63,7 +64,7 @@ export function EasingPopover({ disabled }: { disabled: boolean }): ReactNode {
       commands.push(updateKeyframeCurveCommand({ ...base, keyframeId: ch.left.id, patch: { segmentToNext: patch.segmentToNext, rightHandle: patch.rightHandle } }));
       commands.push(updateKeyframeCurveCommand({ ...base, keyframeId: ch.right.id, patch: { leftHandle: patch.leftHandle } }));
     }
-    if (commands.length) editor.execute(batch("Edit easing", commands));
+    if (commands.length) runEdit(editor, batch("Edit easing", commands));
   };
 
   const unavailable = !segment;

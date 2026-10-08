@@ -10,6 +10,7 @@ import { Icon } from "../icons";
 import { getServices } from "#/app/services";
 import { THUMBNAIL_ASPECT, type TrackBox } from "./layout";
 import { Waveform } from "./Waveform";
+import { commitEdit } from "../lib/edit";
 
 export interface ClipViewProps {
   element: TimelineElement;
@@ -58,7 +59,7 @@ function VolumeLine({ element, refValue, height }: { element: TimelineElement; r
       target.removeEventListener("pointerup", up);
       target.removeEventListener("pointercancel", cancel);
       setTip(null);
-      if (last !== db) editor.commitPreview();
+      if (last !== db) commitEdit(editor);
       else editor.discardPreview();
     };
     const cancel = (): void => {
@@ -100,7 +101,7 @@ function ClipViewImpl(props: ClipViewProps): ReactNode {
     case "image": {
       className += " clip--video";
       if (asset?.thumbnail) {
-        style = { ...style, backgroundImage: `url(${asset.thumbnail})`, backgroundSize: `${height * THUMBNAIL_ASPECT}px ${height}px` };
+        style = { ...style, backgroundImage: `url(${JSON.stringify(asset.thumbnail)})`, backgroundSize: `${height * THUMBNAIL_ASPECT}px ${height}px` };
       }
       body = (
         <div className="clip__header">

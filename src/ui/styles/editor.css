@@ -208,3 +208,6 @@
 
 .project-card__open { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; }
 .project-card__open:hover { text-decoration: underline; }
+.error-screen { padding: 1.5rem; text-align: center; }
+.error-screen__details { max-width: min(48rem, 90vw); text-align: left; font-size: var(--text-xs); }
+.error-screen__details pre { max-height: 40vh; overflow: auto; white-space: pre-wrap; word-break: break-word; margin-top: 0.5rem; }

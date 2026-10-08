@@ -11,6 +11,8 @@ import { PREVIEW_SNAP_SCREEN_PX, normalizeDelta, snapPosition, snapRotation } fr
 import { Icon } from "../icons";
 import { TextEditOverlay } from "./TextEditOverlay";
 import { canvasToScreen, screenToCanvas, type PreviewView } from "./view";
+import { commitEdit } from "../lib/edit";
+import { trackPointerGesture } from "../lib/pointer-gesture";
 
 type HandleId = "nw" | "ne" | "se" | "sw" | "right" | "left" | "bottom" | "rotate";
 
@@ -75,19 +77,18 @@ export function PreviewOverlay({ renderer, view, onPan }: {
     paramEditCommand({ element, ref, values, playhead: editor.playback.getState().currentTime, label: "Transform" });
 
   const trackWindow = (finish: (committed: boolean) => void, move: (e: PointerEvent) => void): void => {
-    const onMove = (e: PointerEvent): void => move(e);
-    const cleanup = (): void => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
+    const release = (): void => {
       window.removeEventListener("keydown", onKey, true);
       setGuides({ x: null, y: null });
     };
-    const onUp = (): void => { cleanup(); finish(true); };
+    const stopTracking = trackPointerGesture({
+      move,
+      up: () => { release(); finish(true); },
+      cancel: () => { release(); finish(false); },
+    });
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") { e.stopPropagation(); cleanup(); finish(false); }
+      if (e.key === "Escape") { e.stopPropagation(); stopTracking(); release(); finish(false); }
     };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
     window.addEventListener("keydown", onKey, true);
   };
 
@@ -136,7 +137,7 @@ export function PreviewOverlay({ renderer, view, onPan }: {
         editor.discardPreview();
         return;
       }
-      if (committed && editor.isPreviewing) editor.commitPreview();
+      if (committed && editor.isPreviewing) commitEdit(editor);
       else editor.discardPreview();
     }, (ev) => {
       const v = viewRef.current;
@@ -178,7 +179,7 @@ export function PreviewOverlay({ renderer, view, onPan }: {
     const sign = (n: number): number => (n < 0 ? -1 : 1);
 
     trackWindow((committed) => {
-      if (committed && editor.isPreviewing) editor.commitPreview();
+      if (committed && editor.isPreviewing) commitEdit(editor);
       else editor.discardPreview();
     }, (ev) => {
       const p = canvasPoint(ev, host);

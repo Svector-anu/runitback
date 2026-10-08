@@ -33,7 +33,14 @@ export function planExport(input: { durationTicks: number; fps: FrameRate; canva
   };
 }
 
+const RESERVED_DEVICE_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
 export function exportFileName(projectName: string, extension: string): string {
-  const safe = projectName.trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ") || "export";
+  const cleaned = [...projectName].filter((ch) => ch.charCodeAt(0) > 31 && ch.charCodeAt(0) !== 127).join("")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/, "");
+  const safe = cleaned === "" || RESERVED_DEVICE_NAMES.test(cleaned) ? "export" : cleaned;
   return `${safe}.${extension}`;
 }

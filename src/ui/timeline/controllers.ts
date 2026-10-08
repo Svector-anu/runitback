@@ -12,6 +12,8 @@ import {
 import { Store } from "#/app/store";
 import { DRAG_THRESHOLD_PX, HEADER_HEIGHT, type TimelineGeometry } from "./layout";
 import type { Viewport } from "./useViewport";
+import { commitEdit } from "../lib/edit";
+import { trackPointerGesture } from "../lib/pointer-gesture";
 
 export interface TimelineInteraction {
   /** Active gesture kind, for cursor/overlay decisions. */
@@ -105,9 +107,7 @@ export function startClipDrag(ctx: ControllerContext, down: PointerEvent, ref: E
   let offEscape: (() => void) | null = null;
 
   const cleanup = (): void => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
-    window.removeEventListener("pointercancel", cancel);
+    stopTracking();
     stopScroll?.();
     offEscape?.();
     idle();
@@ -170,13 +170,11 @@ export function startClipDrag(ctx: ControllerContext, down: PointerEvent, ref: E
     }
     const close = Math.hypot(e.clientX - start.x, e.clientY - start.y) < DRAG_THRESHOLD_PX;
     if (close || !editor.isPreviewing) editor.discardPreview();
-    else editor.commitPreview();
+    else commitEdit(editor);
     cleanup();
   };
 
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
-  window.addEventListener("pointercancel", cancel);
+  const stopTracking = trackPointerGesture({ move, up, cancel });
 }
 
 // ---- Resize / trim -------------------------------------------------------------------------------------------
@@ -196,9 +194,7 @@ export function startResize(ctx: ControllerContext, down: PointerEvent, ref: Ele
   const stopScroll = edgeAutoScroll(ctx, () => pointer);
 
   const cleanup = (): void => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
-    window.removeEventListener("pointercancel", cancel);
+    stopTracking();
     stopScroll();
     offEscape();
     idle();
@@ -231,12 +227,10 @@ export function startResize(ctx: ControllerContext, down: PointerEvent, ref: Ele
     interactionStore.set({ snapTime });
   };
   const up = (): void => {
-    if (editor.isPreviewing) editor.commitPreview();
+    if (editor.isPreviewing) commitEdit(editor);
     cleanup();
   };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
-  window.addEventListener("pointercancel", cancel);
+  const stopTracking = trackPointerGesture({ move, up, cancel });
 }
 
 // ---- Playhead scrubbing --------------------------------------------------------------------------------------
@@ -280,17 +274,17 @@ export function startScrub(ctx: ControllerContext, down: PointerEvent, options: 
     moved = true;
     seekTo(e.clientX, true, e.shiftKey);
   };
-  const up = (e: PointerEvent): void => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
+  const finish = (): void => {
     stopScroll();
     playback.setScrubbing(false);
-    if (!moved && options.fromRuler) seekTo(e.clientX, false, true);
     editor.setViewState({ playheadTime: playback.getState().currentTime });
     idle();
   };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
+  const up = (e: PointerEvent): void => {
+    if (!moved && options.fromRuler) seekTo(e.clientX, false, true);
+    finish();
+  };
+  trackPointerGesture({ move, up, cancel: finish });
 }
 
 // ---- Track-area click and box select -------------------------------------------------------------------------
@@ -325,9 +319,12 @@ export function startBackgroundGesture(ctx: ControllerContext, down: PointerEven
     const hits = elementsInBox({ tracks: currentScene(editor.getState().doc).tracks, box, layout: ctx.geometry().layout, timeToX: vp.timeToX });
     editor.setSelection(applyBoxSelection({ current: baseSelection, hits, additive }));
   };
+  const cancel = (): void => {
+    stopScroll();
+    if (boxing) editor.setSelection(baseSelection);
+    idle();
+  };
   const up = (e: PointerEvent): void => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
     stopScroll();
     if (!boxing && performance.now() - startedAt < 500) {
       editor.setSelection(EMPTY_SELECTION);
@@ -337,8 +334,7 @@ export function startBackgroundGesture(ctx: ControllerContext, down: PointerEven
     }
     idle();
   };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
+  trackPointerGesture({ move, up, cancel });
 }
 
 // ---- Keyframe dragging ---------------------------------------------------------------------------------------
@@ -376,22 +372,18 @@ export function startKeyframeDrag(ctx: ControllerContext, down: PointerEvent, re
     }))));
   };
   const up = (): void => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
     offEscape();
-    if (moved && editor.isPreviewing) editor.commitPreview();
+    if (moved && editor.isPreviewing) commitEdit(editor);
     idle();
   };
   const cancel = (): void => {
     editor.discardPreview();
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
+    stopTracking();
     offEscape();
     idle();
   };
   const offEscape = onEscape(cancel);
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
+  const stopTracking = trackPointerGesture({ move, up, cancel });
 }
 
 export type { TimelineElement };

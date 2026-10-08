@@ -41,6 +41,7 @@ export async function makeWebm(page: Page, input: { seconds: number; hue: number
 
 /** Feeds files created by makeWebm into the media import input. */
 export async function importGenerated(page: Page): Promise<void> {
+  await page.waitForSelector('input[aria-label="Import media files"]', { state: "attached", timeout: 20_000 });
   await page.evaluate(() => {
     const input = document.querySelector<HTMLInputElement>('input[aria-label="Import media files"]');
     if (!input) throw new Error("import input not found");

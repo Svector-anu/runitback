@@ -4,12 +4,19 @@ import { INSERT_TOOLS } from "./tools-insert";
 import { PROJECT_TOOLS } from "./tools-project";
 import { PROP_TOOLS } from "./tools-props";
 import { READ_TOOLS } from "./tools-read";
+import { createReferenceTools, type ReferenceDeps } from "./tools-reference";
 import type { AgentTool, AgentToolRegistry, ToolContext, ToolResult } from "./types";
 import { didYouMean } from "./validate";
 
-/** Every tool an agent can use, keyed by name. Tools are stateless; share one registry freely. */
-export function createAgentTools(): AgentToolRegistry {
-  const all = [...READ_TOOLS, ...INSERT_TOOLS, ...EDIT_TOOLS, ...PROP_TOOLS, ...PROJECT_TOOLS];
+export interface AgentToolOptions {
+  /** Enables the reference-intelligence tools; the app supplies profile storage and the analysis source. Omitted = tools absent. */
+  reference?: ReferenceDeps;
+}
+
+/** Every tool an agent can use, keyed by name. Share one registry per session: the reference tools keep state in their injected store. */
+export function createAgentTools(options: AgentToolOptions = {}): AgentToolRegistry {
+  const reference = options.reference ? createReferenceTools(options.reference) : [];
+  const all = [...READ_TOOLS, ...INSERT_TOOLS, ...EDIT_TOOLS, ...PROP_TOOLS, ...PROJECT_TOOLS, ...reference];
   const registry = new Map<string, AgentTool>();
   for (const tool of all) {
     if (registry.has(tool.name)) throw new Error(`Duplicate agent tool name "${tool.name}"`);

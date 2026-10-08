@@ -6,6 +6,7 @@ import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
 import { Dialog } from "../primitives/Dialog";
 import { toast } from "../primitives/toast";
+import { runEdit } from "../lib/edit";
 
 export function ScenesDialog({ open, onClose, scenes, currentId }: { open: boolean; onClose: () => void; scenes: Scene[]; currentId: string }): ReactNode {
   const { editor } = getServices();
@@ -15,19 +16,19 @@ export function ScenesDialog({ open, onClose, scenes, currentId }: { open: boole
 
   const create = (): void => {
     const trimmed = name.trim() || `Scene ${scenes.length + 1}`;
-    editor.execute(createSceneCommand({ name: trimmed }));
+    runEdit(editor, createSceneCommand({ name: trimmed }));
     setName("");
   };
   const remove = (scene: Scene): void => {
     try {
-      editor.execute(deleteSceneCommand(scene.id));
+      runEdit(editor, deleteSceneCommand(scene.id));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not delete the scene");
     }
   };
   const rename = (scene: Scene): void => {
     const trimmed = renameText.trim();
-    if (trimmed && trimmed !== scene.name) editor.execute(renameSceneCommand(scene.id, trimmed));
+    if (trimmed && trimmed !== scene.name) runEdit(editor, renameSceneCommand(scene.id, trimmed));
     setRenaming(null);
   };
 
