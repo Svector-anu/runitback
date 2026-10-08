@@ -205,3 +205,6 @@
   .search input { min-width: 0; width: 100%; }
 }
 .row-between { display: flex; align-items: center; justify-content: space-between; height: 2.75rem; padding: 0 0.5rem 0 0.875rem; border-bottom: 1px solid var(--border); }
+
+.project-card__open { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; }
+.project-card__open:hover { text-decoration: underline; }

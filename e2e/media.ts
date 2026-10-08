@@ -3,8 +3,8 @@ import type { Page } from "@playwright/test";
 /** Builds a real WebM (VP9 video + Opus tone) inside the page with the same encoder stack the app exports with. */
 export async function makeWebm(page: Page, input: { seconds: number; hue: number; name: string; withAudio?: boolean }): Promise<void> {
   await page.evaluate(async ({ seconds, hue, name, withAudio }) => {
-    const mb = await import("/node_modules/.vite/deps/mediabunny.js").catch(() => import("mediabunny"));
-    const { Output, WebMOutputFormat, BufferTarget, CanvasSource, AudioBufferSource, QUALITY_MEDIUM } = mb as typeof import("mediabunny");
+    const url = "/node_modules/.vite/deps/mediabunny.js";
+    const { Output, WebMOutputFormat, BufferTarget, CanvasSource, AudioBufferSource, QUALITY_MEDIUM } = (await import(url)) as typeof import("mediabunny");
     const canvas = new OffscreenCanvas(320, 180);
     const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
     const output = new Output({ format: new WebMOutputFormat(), target: new BufferTarget() });

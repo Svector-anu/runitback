@@ -170,15 +170,13 @@ export function Section({ sectionKey, title, collapsible = true, defaultOpen = t
   const isOpen = !collapsible || open;
   return (
     <section className={["section", isOpen ? "section--open" : "section--closed"].join(" ")}>
-      {collapsible ? (
-        <button type="button" className="section__header" aria-expanded={open} onClick={toggle}>
-          <span className="section__title">{title}</span>
-          {actions}
-          <Icon name="chevron-down" className="section__chevron" />
-        </button>
-      ) : (
-        <div className="section__header"><span className="section__title section__title--static">{title}</span>{actions}</div>
-      )}
+      <div className="section__header">
+        {collapsible ? (
+          <button type="button" className="section__toggle" aria-expanded={open} onClick={toggle}><span className="section__title">{title}</span></button>
+        ) : <span className="section__title section__title--static">{title}</span>}
+        {actions}
+        {collapsible ? <button type="button" className="section__chevron-button" tabIndex={-1} aria-hidden="true" onClick={toggle}><Icon name="chevron-down" className="section__chevron" /></button> : null}
+      </div>
       {isOpen ? <div className="section__content">{children}</div> : null}
     </section>
   );

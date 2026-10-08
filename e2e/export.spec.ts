@@ -31,7 +31,8 @@ test("exported file reflects the edited timeline (not the source)", async ({ pag
   expect(bytes.length).toBeGreaterThan(1000);
 
   const info = await page.evaluate(async (data) => {
-    const { Input, BlobSource, ALL_FORMATS, CanvasSink } = await import("/node_modules/.vite/deps/mediabunny.js");
+    const url = "/node_modules/.vite/deps/mediabunny.js";
+    const { Input, BlobSource, ALL_FORMATS, CanvasSink } = (await import(url)) as typeof import("mediabunny");
     const blob = new Blob([new Uint8Array(data)], { type: "video/webm" });
     const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
     const video = await input.getPrimaryVideoTrack();
@@ -52,4 +53,24 @@ test("exported file reflects the edited timeline (not the source)", async ({ pag
   expect(info.hasAudio).toBe(true);
   // Source frame at 0.5s is hsl(10+45, 80%, 50%) => red/orange: red channel dominates blue.
   expect(info.px[0]).toBeGreaterThan(info.px[2] ?? 0);
+});
+
+test("mp4 export (H.264/AAC) when the browser can encode it", async ({ page }) => {
+  await page.goto("/#/projects");
+  const supported = await page.evaluate(async () => {
+    try {
+      const r = await VideoEncoder.isConfigSupported({ codec: "avc1.42001f", width: 320, height: 180, bitrate: 1_000_000 });
+      return r.supported === true;
+    } catch { return false; }
+  });
+  test.skip(!supported, "this Chromium build has no H.264 encoder");
+  await page.getByRole("button", { name: "Create your first project" }).click();
+  await makeWebm(page, { seconds: 2, hue: 100, name: "clip-a.webm" });
+  await importGenerated(page);
+  await page.getByRole("button", { name: "Add clip-a.webm to timeline" }).click({ force: true });
+  await page.getByRole("button", { name: "Export", exact: true }).first().click();
+  const downloadPromise = page.waitForEvent("download", { timeout: 90_000 });
+  await page.getByRole("dialog", { name: "Export project" }).getByRole("button", { name: "Export" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("New project.mp4");
 });

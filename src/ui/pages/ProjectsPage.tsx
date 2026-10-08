@@ -32,18 +32,17 @@ function ProjectCard({ project, selected, mode, onOpen, onToggle, onMenu }: {
   );
   if (mode === "list") {
     return (
-      <div className="project-row" data-selected={selected} role="button" tabIndex={0} onClick={onOpen} onContextMenu={(e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}
-        onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}>
+      <div className="project-row" data-selected={selected} role="group" aria-label={`Project ${project.name}`} onClick={onOpen} onContextMenu={(e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}>
         <input type="checkbox" className="checkbox" checked={selected} aria-label={`Select ${project.name}`} onClick={(e) => { e.stopPropagation(); onToggle(e.shiftKey); }} onChange={() => undefined} />
         <div className="project-row__thumb">{project.thumbnail ? <img src={project.thumbnail} alt="" /> : null}</div>
-        <span className="truncate" style={{ flex: 1, fontWeight: 500 }}>{project.name}</span>
+        <button type="button" className="truncate project-card__open" style={{ flex: 1, fontWeight: 500 }} onClick={(e) => { e.stopPropagation(); onOpen(); }}>{project.name}</button>
         <span className="muted mono">{formatDuration(project.duration)}</span>
         <span className="muted">{created}</span>
       </div>
     );
   }
   return (
-    <div className="project-card" data-selected={selected} role="button" tabIndex={0} onClick={onOpen} onKeyDown={(e) => { if (e.key === "Enter") onOpen(); }}
+    <div className="project-card" data-selected={selected} role="group" aria-label={`Project ${project.name}`} onClick={onOpen}
       onContextMenu={(e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}>
       <div className="project-card__thumb">
         {project.thumbnail ? <img src={project.thumbnail} alt="" /> : <Icon name="video" size={48} />}
@@ -54,7 +53,7 @@ function ProjectCard({ project, selected, mode, onOpen, onToggle, onMenu }: {
         <span className="project-card__duration">{formatDuration(project.duration)}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div className="project-card__title">{project.name}</div>
+        <button type="button" className="project-card__title project-card__open" onClick={(e) => { e.stopPropagation(); onOpen(); }}>{project.name}</button>
         <div className="project-card__meta"><Icon name="calendar" size={14} />Created {created}</div>
       </div>
     </div>

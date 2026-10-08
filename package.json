@@ -9,7 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src tests",
+    "lint": "eslint src tests e2e",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"
