@@ -1,0 +1,98 @@
+/* Design tokens reconstructed from OpenCut classic (globals.css). Panels re-map a few tokens one step off the page. */
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(0 0% 11%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(0 0% 11%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-hover: hsl(0, 0%, 96%);
+  --popover-foreground: hsl(0 0% 2%);
+  --primary: hsl(200, 90%, 52%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(204, 100%, 97%);
+  --secondary-border: hsl(204, 100%, 94%);
+  --secondary-foreground: hsl(200, 98%, 39%);
+  --muted: hsl(0 0% 85.1%);
+  --muted-foreground: hsl(0 0% 50%);
+  --accent: hsl(0, 0%, 96%);
+  --accent-foreground: hsl(0 0% 2%);
+  --destructive: hsl(0, 83%, 50%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --constructive: hsl(141, 71%, 48%);
+  --constructive-foreground: hsl(0, 0%, 100%);
+  --caution: hsl(38, 92%, 50%);
+  --caution-foreground: hsl(0, 0%, 10%);
+  --border: hsl(0 0% 91%);
+  --input: hsl(0, 0%, 100%);
+  --ring: hsl(0, 0%, 55%);
+
+  --clip-text: #5dbaa0;
+  --clip-audio: #8f5dba;
+  --clip-graphic: #ba5d7a;
+  --clip-effect: #5d93ba;
+  --bookmark: #009dff;
+
+  --radius-sm: 0.35rem;
+  --radius-md: 0.65rem;
+  --radius-lg: 0.82rem;
+  --text-xs: 0.72rem;
+  --text-sm: 0.79rem;
+  --text-base: 0.92rem;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+
+.panel {
+  --background: hsl(210, 20%, 98%);
+  --foreground: hsl(0 0% 13%);
+  --card: hsl(0, 0%, 98%);
+  --card-foreground: hsl(0 0% 13%);
+  --primary-foreground: hsl(0, 0%, 98%);
+  --secondary: hsl(204, 100%, 95%);
+  --secondary-border: hsl(204, 100%, 92%);
+  --secondary-foreground: hsl(200, 98%, 37%);
+  --muted: hsl(0 0% 83.1%);
+  --muted-foreground: hsl(0 0% 48%);
+  --accent: hsl(0, 0%, 93%);
+  --accent-foreground: hsl(0 0% 5%);
+  --border: hsl(0 0% 87%);
+  --input: hsl(0 0% 93%);
+  --ring: hsl(0, 0%, 53%);
+}
+
+:root[data-theme="dark"] {
+  --background: hsl(0, 0%, 5%);
+  --foreground: hsl(0 0% 87%);
+  --card: hsl(0, 0%, 5%);
+  --card-foreground: hsl(0 0% 87%);
+  --popover: hsl(0, 0%, 5%);
+  --popover-hover: hsl(0, 0%, 13%);
+  --popover-foreground: hsl(0 0% 95%);
+  --secondary: hsl(204, 100%, 12%);
+  --secondary-border: hsl(204, 100%, 15%);
+  --secondary-foreground: hsl(200, 98%, 61%);
+  --muted: hsl(0 0% 20%);
+  --accent: hsl(0, 0%, 14%);
+  --accent-foreground: hsl(0 0% 95%);
+  --border: hsl(0 0% 16%);
+  --input: hsl(0 0% 5%);
+  --ring: hsl(0, 0%, 50%);
+  --caution: hsl(38, 92%, 60%);
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] .panel {
+  --background: hsl(0 0% 10%);
+  --foreground: hsl(0 0% 85%);
+  --card: hsl(0, 0%, 10%);
+  --card-foreground: hsl(0 0% 85%);
+  --secondary: hsl(204, 67%, 9%);
+  --secondary-border: hsl(204, 100%, 14%);
+  --secondary-foreground: hsl(200, 98%, 63%);
+  --muted: hsl(0 0% 22%);
+  --accent: hsl(0, 0%, 15%);
+  --accent-foreground: hsl(0 0% 93%);
+  --border: hsl(0 0% 18%);
+  --input: hsl(0 0% 22%);
+  --ring: hsl(0, 0%, 52%);
+}

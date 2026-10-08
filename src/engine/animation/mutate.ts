@@ -18,8 +18,12 @@ function sortKeys<T extends { time: number }>(keys: T[]): T[] {
   return [...keys].sort((a, b) => a.time - b.time);
 }
 
+const COLOR_KEYS = new Set(["color", "fill", "stroke", "strokeColor"]);
+
+/** Colour channels are animated as linear-light RGBA; the last path segment names the parameter. */
 export function isColorPath(path: string, value: ParamValue): boolean {
-  return typeof value === "string" && (path === "color" || path.endsWith(".color")) && parseHexToLinearRgba(value) !== null;
+  const key = path.split(".").pop() ?? path;
+  return typeof value === "string" && COLOR_KEYS.has(key) && parseHexToLinearRgba(value) !== null;
 }
 
 function isEmptyBinding(binding: AnimationBinding): boolean {

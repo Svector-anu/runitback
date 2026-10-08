@@ -176,3 +176,48 @@ describe("split and clamp", () => {
     expect(resolveDiscreteAtTime(right, "background.enabled", 0, false)).toBe(true);
   });
 });
+
+import { EASING_PRESETS, curveToPatch, matchPreset, segmentToCurve } from "#/engine/animation";
+
+describe("easing presets", () => {
+  const keys = (): { left: import("#/engine/model").ScalarKey; right: import("#/engine/model").ScalarKey } => {
+    const a = numberAnim([[0, 0], [1000, 10]]);
+    const channel = (a.opacity as { channel: { keys: import("#/engine/model").ScalarKey[] } }).channel;
+    return { left: channel.keys[0]!, right: channel.keys[1]! };
+  };
+  it("linear clears handles; other presets produce monotone handles inside the segment", () => {
+    const { left, right } = keys();
+    expect(curveToPatch({ left, right, curve: [0, 0, 1, 1] })).toEqual({ segmentToNext: "linear", rightHandle: null, leftHandle: null });
+    const patch = curveToPatch({ left, right, curve: [0.4, 0, 0.2, 1] })!;
+    expect(patch.segmentToNext).toBe("bezier");
+    expect(patch.rightHandle).toEqual({ dt: 400, dv: 0 });
+    expect(patch.leftHandle).toEqual({ dt: -800, dv: 0 });
+  });
+  it("round-trips through segmentToCurve and matches the named preset", () => {
+    const { left, right } = keys();
+    for (const preset of EASING_PRESETS) {
+      const patch = curveToPatch({ left, right, curve: preset.curve })!;
+      const curve = segmentToCurve({
+        left: { ...left, segmentToNext: patch.segmentToNext, ...(patch.rightHandle ? { rightHandle: patch.rightHandle } : {}) },
+        right: { ...right, ...(patch.leftHandle ? { leftHandle: patch.leftHandle } : {}) },
+      })!;
+      expect(matchPreset(curve)?.id).toBe(preset.id);
+    }
+  });
+  it("flat spans and hold segments cannot be eased", () => {
+    const flat = numberAnim([[0, 5], [1000, 5]]);
+    const channel = (flat.opacity as { channel: { keys: import("#/engine/model").ScalarKey[] } }).channel;
+    expect(curveToPatch({ left: channel.keys[0]!, right: channel.keys[1]!, curve: [0.4, 0, 0.2, 1] })).toBeNull();
+    const hold = numberAnim([[0, 0], [1000, 10]], "hold");
+    const hk = (hold.opacity as { channel: { keys: import("#/engine/model").ScalarKey[] } }).channel.keys;
+    expect(segmentToCurve({ left: hk[0]!, right: hk[1]! })).toBeNull();
+  });
+  it("applied bezier preset really eases the evaluated value", () => {
+    const { left, right } = keys();
+    const patch = curveToPatch({ left, right, curve: [0.8, 0, 1, 1] })!;
+    const eased = { ...left, segmentToNext: patch.segmentToNext, rightHandle: patch.rightHandle! };
+    const channel = { kind: "scalar" as const, keys: [eased, { ...right, leftHandle: patch.leftHandle! }] };
+    expect(evaluateScalarChannel(channel, 500, 0)).toBeLessThan(2);
+    expect(evaluateScalarChannel(channel, 1000, 0)).toBe(10);
+  });
+});

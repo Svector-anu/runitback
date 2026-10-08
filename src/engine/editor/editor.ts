@@ -213,6 +213,14 @@ export class Editor {
 
   get isPreviewing(): boolean { return this.state.preview !== null; }
 
+  /** Switching scene is navigation, not an edit: it is not undoable but it is saved. */
+  switchScene(sceneId: string): void {
+    const doc = this.state.doc;
+    if (doc.currentSceneId === sceneId || !doc.scenes.some((s) => s.id === sceneId)) return;
+    this.discardPreview();
+    this.commit({ doc: { ...doc, currentSceneId: sceneId }, selection: EMPTY_SELECTION });
+  }
+
   // ---- Assets ------------------------------------------------------------------------------------------------
 
   registerAsset(asset: MediaAssetInfo): void {
