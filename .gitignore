@@ -4,3 +4,7 @@ dist
 e2e/.artifacts
 test-results
 playwright-report
+
+# Eval reports are generated; only the README is committed
+evals/reports/*
+!evals/reports/README.md
