@@ -1,5 +1,7 @@
 # Feature Matrix
 
+> Implementation status of every row below is tracked in `IMPLEMENTATION_AUDIT.md`.
+
 Status: **CORE** (must ship, editor unusable without) · **ADVANCED** (ship, depends on core) · **OPTIONAL** (ship if time permits) · **LEGACY** (classic only, not rebuilt; reason given) · **PLANNED** (current-repo intent only) · **UNIMPLEMENTED** (exists nowhere; will not be faked) · **UNKNOWN** (source unclear).
 Source column: **C** = opencut-classic, **N** = current OpenCut. Paths are under `apps/web/src/` of classic. Evidence for each row is in `docs/research/` (file noted in last column). "Impl" is updated in `IMPLEMENTATION_AUDIT.md`.
 
