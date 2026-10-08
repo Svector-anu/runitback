@@ -88,12 +88,17 @@ function ParamFields({ defs, values, onPreview, onCommit }: {
 
 function SpeedTab({ element, refValue }: { element: TimelineElement; refValue: ElementRef }): ReactNode {
   const { editor } = getServices();
-  const rate = "retime" in element ? (element.retime?.rate ?? 1) : 1;
+  const retime = "retime" in element ? element.retime : undefined;
+  const rate = retime?.rate ?? 1;
+  const maintainPitch = retime?.maintainPitch === true;
   const apply = (next: number, mode: "preview" | "commit"): void => {
-    const retime = next === 1 ? undefined : { rate: next };
-    const cmd = updateElements([{ ref: refValue, patch: { retime } }], "Change speed");
+    const nextRetime = next === 1 ? undefined : { rate: next, ...(maintainPitch ? { maintainPitch } : {}) };
+    const cmd = updateElements([{ ref: refValue, patch: { retime: nextRetime } }], "Change speed");
     if (mode === "preview") editor.preview(cmd);
     else runEdit(editor, cmd);
+  };
+  const setChangePitch = (changePitch: boolean): void => {
+    runEdit(editor, updateElements([{ ref: refValue, patch: { retime: { rate, maintainPitch: !changePitch } } }], "Change pitch handling"));
   };
   return (
     <Section sectionKey={`${element.id}:speed`} title="Speed" collapsible>
@@ -103,6 +108,11 @@ function SpeedTab({ element, refValue }: { element: TimelineElement; refValue: E
             scrub={{ pxPerUnit: 48, ranges: [{ upTo: 1, pxPerUnit: 160 }] }}
             onPreview={(v) => apply(v, "preview")} onCommit={(v) => apply(v, "commit")} onCancel={() => editor.discardPreview()} />
         </Field>
+        <div className="row-between">
+          <span className="label">Change pitch</span>
+          <Switch label="Change pitch" checked={!maintainPitch} disabled={rate === 1} onChange={setChangePitch} />
+        </div>
+        <p className="muted">Off keeps the original pitch when speed changes. Only applies when speed is not 1x.</p>
         <p className="muted">Changing speed changes the clip&apos;s length on the timeline; trims stay in source time.</p>
       </div>
     </Section>

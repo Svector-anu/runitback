@@ -113,3 +113,30 @@ test.describe("editor flow", () => {
     expect(restored?.duration).toBe(original.duration);
   });
 });
+
+test("speed tab: Change pitch switch stores maintainPitch and survives reload", async ({ page }) => {
+  await newProjectWithClips(page);
+  await page.getByRole("button", { name: "Add clip-a.webm to timeline" }).click({ force: true });
+  await expect(clips(page)).toHaveCount(1);
+  await clips(page).first().click();
+  await page.getByRole("tab", { name: "Speed" }).click();
+
+  const changePitch = page.getByRole("switch", { name: "Change pitch" });
+  await expect(changePitch).toBeDisabled();
+
+  const speed = page.getByRole("textbox", { name: "Speed" });
+  await speed.fill("2");
+  await speed.press("Enter");
+  await expect(changePitch).toBeEnabled();
+  await expect(changePitch).toHaveAttribute("aria-checked", "true");
+
+  await changePitch.click();
+  await expect(changePitch).toHaveAttribute("aria-checked", "false");
+
+  await page.waitForTimeout(1500);
+  await page.reload();
+  await expect(clips(page)).toHaveCount(1, { timeout: 20_000 });
+  await clips(page).first().click();
+  await page.getByRole("tab", { name: "Speed" }).click();
+  await expect(page.getByRole("switch", { name: "Change pitch" })).toHaveAttribute("aria-checked", "false");
+});
