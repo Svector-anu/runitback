@@ -5,7 +5,7 @@ import type {
 } from "#/engine/model";
 import { solveParameterForX, subdivideCubic } from "./bezier";
 import { formatLinearRgba, parseHexToLinearRgba } from "./color";
-import { evaluateDiscreteChannel, evaluateScalarChannel, isScalarChannel, segmentControlPoints } from "./evaluate";
+import { evaluateScalarChannel, isScalarChannel, segmentControlPoints } from "./evaluate";
 
 const COLOR_COMPONENTS = ["r", "g", "b", "a"] as const;
 type ColorComponent = (typeof COLOR_COMPONENTS)[number];
@@ -130,7 +130,8 @@ export function removeKeyframe(input: { animations: ElementAnimations | undefine
 
 export function removePathAnimation(animations: ElementAnimations | undefined, path: string): ElementAnimations | undefined {
   if (!animations) return undefined;
-  const { [path]: _removed, ...rest } = animations;
+  const rest = { ...animations };
+  delete rest[path];
   return dropEmpty(rest);
 }
 

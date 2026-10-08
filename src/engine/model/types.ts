@@ -180,3 +180,19 @@ export interface SelectionState {
 }
 
 export const EMPTY_SELECTION: SelectionState = { elements: [], keyframes: [], keyframeAnchor: null };
+
+/** Fields a command may change on any element; applied through the update pipeline. */
+export interface ElementPatch {
+  name?: string;
+  startTime?: MediaTime;
+  duration?: MediaTime;
+  trimStart?: MediaTime;
+  trimEnd?: MediaTime;
+  params?: ParamValues;
+  animations?: ElementAnimations | undefined;
+  retime?: RetimeConfig | undefined;
+  hidden?: boolean;
+  effects?: Effect[] | undefined;
+  masks?: Mask[] | undefined;
+  isSourceAudioEnabled?: boolean;
+}
