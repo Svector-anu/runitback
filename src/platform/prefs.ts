@@ -1,0 +1,49 @@
+/** The only module that touches localStorage. Reads are validated so corrupt values fall back to defaults. */
+export interface PrefsBackend {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
+
+const memoryBackend = (): PrefsBackend => {
+  const map = new Map<string, string>();
+  return { getItem: (k) => map.get(k) ?? null, setItem: (k, v) => void map.set(k, v) };
+};
+
+export function browserBackend(): PrefsBackend {
+  try {
+    const probe = "__opencut_probe__";
+    localStorage.setItem(probe, "1");
+    localStorage.removeItem(probe);
+    return localStorage;
+  } catch {
+    return memoryBackend();
+  }
+}
+
+export class PrefsStore {
+  constructor(private readonly backend: PrefsBackend = browserBackend()) {}
+
+  read<T>(key: string, fallback: T, validate: (value: unknown) => value is T): T {
+    try {
+      const raw = this.backend.getItem(`opencut:${key}`);
+      if (raw === null) return fallback;
+      const parsed: unknown = JSON.parse(raw);
+      return validate(parsed) ? parsed : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  write(key: string, value: unknown): void {
+    try {
+      this.backend.setItem(`opencut:${key}`, JSON.stringify(value));
+    } catch (error) {
+      console.warn(`Could not save preference ${key}`, error);
+    }
+  }
+}
+
+export const isNumberArray = (v: unknown): v is number[] => Array.isArray(v) && v.every((n) => typeof n === "number");
+export const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
+export const isRecordOfStrings = (v: unknown): v is Record<string, string> =>
+  typeof v === "object" && v !== null && !Array.isArray(v) && Object.values(v).every((x) => typeof x === "string");

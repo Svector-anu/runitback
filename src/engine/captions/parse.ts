@@ -40,7 +40,7 @@ function srtSeconds(match: RegExpExecArray): number {
 }
 
 export function parseSrt(input: string): ParsedCaptions {
-  const blocks = input.replace(/^﻿/, "").replace(/\r\n?/g, "\n").split(/\n{2,}/);
+  const blocks = input.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").split(/\n{2,}/);
   const cues: CaptionCue[] = [];
   let skipped = 0;
   for (const block of blocks) {
@@ -108,7 +108,7 @@ function splitFields(line: string, count: number): string[] {
 }
 
 export function parseAss(input: string): ParsedCaptions {
-  const lines = input.replace(/^﻿/, "").replace(/\r\n?/g, "\n").split("\n");
+  const lines = input.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").split("\n");
   const warnings = new Set<string>();
   let section = "";
   let playX = 384, playY = 288;
