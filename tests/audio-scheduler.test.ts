@@ -179,4 +179,21 @@ describe("scheduleClipWindow — maintainPitch", () => {
     expect(frequency).toBeGreaterThan(440 * 0.98);
     expect(frequency).toBeLessThan(440 * 1.02);
   });
+
+  it("late start with chunked input: only the head is skipped and the stretched node starts now, with no gap in the joined signal", async () => {
+    const { ctx, nodes } = fakeCtx();
+    (ctx as unknown as { currentTime: number }).currentTime = 0.1;
+    const source = new FakeAudioBuffer([sineWave(440, sampleRate, 1)], sampleRate);
+    const clip = makeClip({ rate: 2, duration: 0.5, maintainPitch: true });
+    const scheduled = createClipGain(ctx, {} as never);
+
+    await scheduleClipWindow({
+      ctx, scheduled, clip, sink: chunkedSink(source, 0.02) as never, from: 0, to: 0.5, toContext: (t) => t,
+    });
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]!.startArgs).toEqual([0.1]);
+    const expectedSourceSeconds = 1 - 0.1 * 2;
+    expect(nodes[0]!.buffer!.length).toBeCloseTo((expectedSourceSeconds * sampleRate) / 2, -2);
+  });
 });

@@ -86,7 +86,8 @@ export async function scheduleClipWindow(input: {
     if (sourceTo <= sourceFrom) continue;
 
     let when = input.toContext(clip.start + (sourceFrom - clip.trimStart) / clip.rate);
-    if (when < ctx.currentTime) {
+    const joinsExistingStretch = stretching && pieceSlices.length > 0;
+    if (!joinsExistingStretch && when < ctx.currentTime) {
       const lateSource = (ctx.currentTime - when) * clip.rate;
       sourceFrom += lateSource;
       when = ctx.currentTime;
