@@ -152,6 +152,8 @@ export interface Project {
   currentSceneId: string;
   settings: ProjectSettings;
   timelineViewState: TimelineViewState;
+  /** Media assets that belong to the project; bytes live in the AssetRepository. */
+  assetIds: string[];
   version: number;
 }
 

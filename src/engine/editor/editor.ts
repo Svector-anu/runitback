@@ -150,6 +150,7 @@ export class Editor {
       metadata: { ...meta, duration: projectDuration(doc), updatedAt: this.deps.now() },
       scenes: doc.scenes, currentSceneId: doc.currentSceneId, settings: doc.settings,
       timelineViewState: { ...viewState, playheadTime: this.playback.getState().currentTime },
+      assetIds: doc.assets.map((a) => a.id),
       version: 1,
     };
   }

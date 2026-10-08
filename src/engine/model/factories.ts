@@ -68,6 +68,7 @@ export function createProject(input: { id: string; name: string; ids: IdGenerato
       background: { type: "color", color: "#000000" },
     },
     timelineViewState: { zoomLevel: 1, scrollLeft: 0, playheadTime: mediaTime(0) },
+    assetIds: [],
     version: PROJECT_SCHEMA_VERSION,
   };
 }
