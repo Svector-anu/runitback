@@ -6,7 +6,7 @@ _Updated at the end of every milestone. Read this first when resuming._
 An agent-native video editor: an agent that can see footage, understand references, edit the real project through typed tools, and verify its own work. See `ROADMAP.md`.
 
 ## Current milestone
-**M4 in-app agent**, **M6 reference intelligence (engine)** and **review hardening (remaining P1/P2)** in parallel. Next: M5 eval harness (needs M4's scripted/real model client), then M7 speech.
+**M4 in-app agent**, **M6 reference intelligence (engine)** and **review hardening (remaining P1/P2)** in parallel. M5 eval harness is done (`docs/EVALS.md`). Next: M7 speech (transcript tool unblocks the last eval case), then the temporal index.
 
 ## Completed (evidence)
 - M0 reconstruction: editor works end to end (`IMPLEMENTATION_AUDIT.md`).
@@ -24,7 +24,7 @@ An agent-native video editor: an agent that can see footage, understand referenc
 | K reference | `src/engine/reference`, `agent/tools-reference.ts` | style profiles, planner, compare/apply tools |
 
 ## Epoch on Aeon (real runs)
-Instance: `Svector-anu/svectors-lab` (Aeon, GitHub Actions). Order 1 of 5 (pitch-preserving time-stretch) was handed over as issue #1 on this repo; Aeon `feature` (claude harness override, because the instance's codex credential is expired) opened **PR #2**; Aeon `pr-review` is the independent review. See `AEON_EPOCH.md`.
+Instance: `Svector-anu/svectors-lab` (Aeon, GitHub Actions). Pitch-preserving speed (5 orders) is complete: #2 WSOLA module, #6 live playback (Aeon review caught a per-chunk reset bug; fixed and re-reviewed approve-ready), #7 export-mix verification, and the Speed-tab "Change pitch" switch (built directly after Aeon providers ran out of credit). Remaining gap: a Playwright test that measures pitch on real browser audio. See `AEON_EPOCH.md`.
 
 ## Gates (must be green before any milestone is called done)
 `pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm e2e`
