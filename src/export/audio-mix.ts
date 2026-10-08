@@ -5,7 +5,12 @@ import {
 
 export const EXPORT_SAMPLE_RATE = 44100;
 
-/** Renders every clip through the same master limiter used in playback into one stereo buffer. */
+/**
+ * Renders every clip through the same master limiter used in playback into one stereo buffer.
+ * Pitch preservation (`clip.maintainPitch` + WSOLA time-stretch) is not re-implemented here: it
+ * lives entirely in `scheduleClipWindow`, which this function calls unchanged, so export and live
+ * playback share one code path and can't drift. See tests/audio-mix.test.ts.
+ */
 export async function mixTimelineAudio(input: {
   clips: AudioClip[]; durationSeconds: number; sinks: AudioSinkCache; sampleRate?: number; signal?: AbortSignal;
 }): Promise<AudioBuffer | null> {
