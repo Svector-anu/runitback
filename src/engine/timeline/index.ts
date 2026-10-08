@@ -13,3 +13,4 @@ export * from "./track-factory";
 export * from "./clipboard-ops";
 export * from "./ripple";
 export * from "./selection";
+export * from "./animation-targets";

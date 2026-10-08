@@ -43,3 +43,15 @@ export function mustTrack(tracks: SceneTracks, id: string): TimelineTrack {
   return found;
 }
 export const zeroTime = mediaTime(0);
+
+import { Editor } from "#/engine/editor";
+import { createProject, type Project } from "#/engine/model";
+
+export function makeEditor(options: { assets?: MediaAssetInfo[] } = {}): { editor: Editor; project: Project; clock: { now: number } } {
+  const newId = sequentialIds("e");
+  const clock = { now: 0 };
+  const editor = new Editor({ newId, now: () => "2026-01-01T00:00:00.000Z" });
+  const project = createProject({ id: "p1", name: "Test", ids: newId, now: "2026-01-01T00:00:00.000Z" });
+  editor.load({ project, assets: options.assets ?? [] });
+  return { editor, project, clock };
+}

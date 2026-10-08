@@ -4,3 +4,4 @@ export * from "./params";
 export * from "./capabilities";
 export * from "./ids";
 export * from "./factories";
+export * from "./definitions";
