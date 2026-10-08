@@ -88,6 +88,19 @@ function fakeSink(buffer: FakeAudioBuffer, timestamp = 0): { buffers: (start: nu
   };
 }
 
+function chunkedSink(source: FakeAudioBuffer, chunkSeconds: number): { buffers: () => AsyncGenerator<{ timestamp: number; duration: number; buffer: FakeAudioBuffer }> } {
+  return {
+    async *buffers() {
+      const step = Math.round(chunkSeconds * source.sampleRate);
+      for (let at = 0; at < source.length; at += step) {
+        const data = source.getChannelData(0).slice(at, at + step);
+        const buffer = new FakeAudioBuffer([data], source.sampleRate);
+        yield { timestamp: at / source.sampleRate, duration: buffer.duration, buffer };
+      }
+    },
+  };
+}
+
 describe("scheduleClipWindow — maintainPitch", () => {
   const sampleRate = 44100;
 
@@ -146,5 +159,24 @@ describe("scheduleClipWindow — maintainPitch", () => {
     expect(node.playbackRate.value).toBe(1);
     expect(node.buffer).toBe(source);
     expect(node.startArgs).toEqual([0, 0, 1]);
+  });
+
+  it("codec-frame-sized chunks are stretched as one continuous signal: one node, pitch intact across chunk boundaries", async () => {
+    const { ctx, nodes } = fakeCtx();
+    const source = new FakeAudioBuffer([sineWave(440, sampleRate, 1)], sampleRate);
+    const clip = makeClip({ rate: 2, duration: 0.5, maintainPitch: true });
+    const scheduled = createClipGain(ctx, {} as never);
+
+    await scheduleClipWindow({
+      ctx, scheduled, clip, sink: chunkedSink(source, 0.02) as never, from: 0, to: 0.5, toContext: (t) => t,
+    });
+
+    expect(nodes).toHaveLength(1);
+    const buffer = nodes[0]!.buffer!;
+    expect(buffer.length).toBe(Math.round(source.length / 2));
+    const middle = buffer.getChannelData(0).subarray(Math.floor(buffer.length * 0.2), Math.floor(buffer.length * 0.8));
+    const frequency = estimateFrequency(middle, sampleRate);
+    expect(frequency).toBeGreaterThan(440 * 0.98);
+    expect(frequency).toBeLessThan(440 * 1.02);
   });
 });

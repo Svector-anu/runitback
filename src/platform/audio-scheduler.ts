@@ -73,6 +73,10 @@ export async function scheduleClipWindow(input: {
     else scheduled.gain.gain.linearRampToValueAtTime(point.gain, when);
   });
 
+  const stretching = clip.maintainPitch && clip.rate !== 1;
+  const pieceSlices: Array<{ buffer: AudioBuffer; from: number; to: number }> = [];
+  let stretchStart = 0;
+
   for await (const wrapped of input.sink.buffers(window.start, window.end)) {
     if (input.shouldStop?.()) return;
     const bufferStart = wrapped.timestamp;
@@ -88,40 +92,64 @@ export async function scheduleClipWindow(input: {
       when = ctx.currentTime;
       if (sourceTo - sourceFrom <= 0.001) continue;
     }
-    const node = ctx.createBufferSource();
-    node.connect(scheduled.gain);
-    scheduled.sources.add(node);
-    node.onended = () => {
-      scheduled.sources.delete(node);
-      node.disconnect();
-    };
-    if (clip.maintainPitch && clip.rate !== 1) {
-      node.buffer = stretchedSlice({ ctx, buffer: wrapped.buffer, from: sourceFrom - bufferStart, to: sourceTo - bufferStart, rate: clip.rate });
-      node.playbackRate.value = 1;
-      node.start(when);
-    } else {
-      node.buffer = wrapped.buffer;
-      node.playbackRate.value = clip.rate;
-      node.start(when, sourceFrom - bufferStart, sourceTo - sourceFrom);
+    if (stretching) {
+      if (pieceSlices.length === 0) stretchStart = when;
+      pieceSlices.push({ buffer: wrapped.buffer, from: sourceFrom - bufferStart, to: sourceTo - bufferStart });
+      continue;
     }
+    const node = createTrackedSource({ ctx, scheduled });
+    node.buffer = wrapped.buffer;
+    node.playbackRate.value = clip.rate;
+    node.start(when, sourceFrom - bufferStart, sourceTo - sourceFrom);
   }
+
+  if (pieceSlices.length === 0) return;
+  const node = createTrackedSource({ ctx, scheduled });
+  node.buffer = stretchedSlices({ ctx, slices: pieceSlices, rate: clip.rate });
+  node.playbackRate.value = 1;
+  node.start(stretchStart);
+}
+
+function createTrackedSource(input: { ctx: AudioContextLike; scheduled: ScheduledClip }): AudioBufferSourceNode {
+  const node = input.ctx.createBufferSource();
+  node.connect(input.scheduled.gain);
+  input.scheduled.sources.add(node);
+  node.onended = () => {
+    input.scheduled.sources.delete(node);
+    node.disconnect();
+  };
+  return node;
 }
 
 /**
- * WSOLA-stretches the `[from, to)` slice (source seconds relative to `buffer`'s own start) of a
- * decoded buffer to `rate`, so it can be played back at `playbackRate = 1` with pitch intact. Runs
- * on the main-thread scheduling tick (2 s lookahead, see `AudioEngine`), not the audio-rendering
- * thread, so this synchronous pass only has to keep pace with the lookahead window, not real time.
+ * Joins the decoded chunks covering the window into one continuous signal and WSOLA-stretches it in a
+ * single pass, so alignment state runs across codec-frame boundaries instead of resetting per chunk.
+ * Runs on the main-thread scheduling tick (2 s lookahead, see `AudioEngine`), not the audio thread.
  */
-function stretchedSlice(input: { ctx: AudioContextLike; buffer: AudioBuffer; from: number; to: number; rate: number }): AudioBuffer {
-  const { ctx, buffer, rate } = input;
-  const startSample = Math.max(0, Math.round(input.from * buffer.sampleRate));
-  const endSample = Math.min(buffer.length, Math.round(input.to * buffer.sampleRate));
-  const channels: Float32Array[] = [];
-  for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c).slice(startSample, endSample));
-  const stretched = stretch({ channels, rate, sampleRate: buffer.sampleRate });
+function stretchedSlices(input: { ctx: AudioContextLike; slices: Array<{ buffer: AudioBuffer; from: number; to: number }>; rate: number }): AudioBuffer {
+  const first = input.slices[0];
+  if (!first) throw new Error("stretchedSlices needs at least one slice");
+  const { sampleRate, numberOfChannels } = first.buffer;
+  const parts: Float32Array[][] = Array.from({ length: numberOfChannels }, () => []);
+  let total = 0;
+  for (const slice of input.slices) {
+    const startSample = Math.max(0, Math.round(slice.from * sampleRate));
+    const endSample = Math.min(slice.buffer.length, Math.round(slice.to * sampleRate));
+    for (let c = 0; c < numberOfChannels; c++) parts[c]?.push(slice.buffer.getChannelData(c).slice(startSample, endSample));
+    total += Math.max(0, endSample - startSample);
+  }
+  const channels = parts.map((chunks) => {
+    const joined = new Float32Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      joined.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return joined;
+  });
+  const stretched = stretch({ channels, rate: input.rate, sampleRate });
   const length = Math.max(1, stretched[0]?.length ?? 1);
-  const out = ctx.createBuffer(buffer.numberOfChannels, length, buffer.sampleRate);
+  const out = input.ctx.createBuffer(numberOfChannels, length, sampleRate);
   // stretch() declares its return as the ambient (ArrayBufferLike-backed) Float32Array type, but every
   // array it returns is a fresh `new Float32Array(n)` — concretely ArrayBuffer-backed, same as copyToChannel requires.
   stretched.forEach((channel, c) => out.copyToChannel(channel as Float32Array<ArrayBuffer>, c));
