@@ -11,34 +11,47 @@ function hannWindow(length: number): Float32Array {
   return w;
 }
 
-/** Normalized cross-correlation of two equal-length windows into the same array; 1 is a perfect match. */
-function normalizedCorrelation(input: { samples: Float32Array; aOffset: number; bOffset: number; length: number }): number {
-  const { samples, aOffset, bOffset, length } = input;
-  let dot = 0;
-  let energyA = 0;
-  let energyB = 0;
-  for (let i = 0; i < length; i++) {
-    const a = samples[aOffset + i] ?? 0;
-    const b = samples[bOffset + i] ?? 0;
-    dot += a * b;
-    energyA += a * a;
-    energyB += b * b;
-  }
-  return dot / Math.sqrt(energyA * energyB + 1e-9);
-}
-
-/** Position within [minPos, maxPos] near `idealPos` whose overlap region best matches the one at `targetOffset`. */
+/**
+ * Position within [minPos, maxPos] near `idealPos` whose overlap region best matches the one at
+ * `targetOffset`, scored by normalized cross-correlation (1 is a perfect match). `targetOffset` is
+ * fixed for the whole search, so its energy is computed once; the candidate's energy is tracked
+ * with a sliding window instead of re-summing `overlapLength` samples per candidate — this search
+ * runs once per output frame, so re-scanning from scratch per candidate (as a naive per-candidate
+ * correlation call would) measurably stalls on multi-track timelines.
+ */
 function bestAlignedOffset(input: {
   reference: Float32Array; targetOffset: number; idealPos: number; tolerance: number; overlapLength: number; minPos: number; maxPos: number;
 }): number {
   const { reference, targetOffset, idealPos, tolerance, overlapLength, minPos, maxPos } = input;
   const clampedIdeal = Math.min(Math.max(idealPos, minPos), maxPos);
-  let bestPos = clampedIdeal;
-  let bestScore = -Infinity;
   const from = Math.max(minPos, clampedIdeal - tolerance);
   const to = Math.min(maxPos, clampedIdeal + tolerance);
+
+  let energyB = 0;
+  for (let i = 0; i < overlapLength; i++) {
+    const b = reference[targetOffset + i] ?? 0;
+    energyB += b * b;
+  }
+
+  let energyA = 0;
+  for (let i = 0; i < overlapLength; i++) {
+    const a = reference[from + i] ?? 0;
+    energyA += a * a;
+  }
+
+  let bestPos = clampedIdeal;
+  let bestScore = -Infinity;
   for (let pos = from; pos <= to; pos++) {
-    const score = normalizedCorrelation({ samples: reference, aOffset: pos, bOffset: targetOffset, length: overlapLength });
+    if (pos > from) {
+      const leaving = reference[pos - 1] ?? 0;
+      const entering = reference[pos + overlapLength - 1] ?? 0;
+      energyA += entering * entering - leaving * leaving;
+    }
+    let dot = 0;
+    for (let i = 0; i < overlapLength; i++) {
+      dot += (reference[pos + i] ?? 0) * (reference[targetOffset + i] ?? 0);
+    }
+    const score = dot / Math.sqrt(energyA * energyB + 1e-9);
     if (score > bestScore) {
       bestScore = score;
       bestPos = pos;
