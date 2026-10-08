@@ -17,7 +17,8 @@ src/
     captions/    SRT/ASS parsing, transcript chunking
     render/      buildFramePlan: pure description of the frame at time t (shared by preview and export)
   render/        Canvas2D Compositor, text layout/draw, graphics, masks, preview bounds/snapping, caption elements
-  platform/      Browser adapters: IndexedDB, OPFS, mediabunny probe + video/audio decoding, Web Audio scheduler/engine, fonts, prefs
+  platform/      Browser adapters: IndexedDB, OPFS, mediabunny probe + video/audio decoding, Web Audio scheduler/engine, fonts, prefs,
+                 transcribe/ (on-device Whisper in a module worker; transcript store)
   export/        planExport, offline audio mix, exportProject (mediabunny encode + mux)
   app/           Composition root (AppServices), hooks, router, shortcuts wiring, PreviewRenderer, param edit, insert helpers
   ui/            React components + CSS (editor, timeline, preview, assets, properties, pages, primitives)
@@ -40,9 +41,15 @@ Allowed imports (`engine <- render <- platform <- export <- app <- ui`): a layer
 
 pointerdown on a clip → `startClipDrag` (ui/timeline/controllers) → each move: `computeDropTarget` + `resolveGroupMove` (engine, pure) → `editor.preview(moveElements(plan))` → only affected clips re-render → pointerup: `commitPreview()` executes `moveElements` → history entry, reactors → `SaveManager.markDirty` → 800 ms debounce → `ProjectRepository.save`. Escape or a refused plan calls `discardPreview()`.
 
+## Speech-to-text (local-first)
+
+`platform/transcribe` implements the engine's `Transcriber`: mediabunny decodes the asset's audio to 16 kHz mono blocks, `ChunkAssembler` cuts 30 s windows (20 s core + 5 s context each side, so memory stays bounded), a dedicated module worker runs `@huggingface/transformers` Whisper (`onnx-community/whisper-tiny.en_timestamped`, word timestamps, WebGPU else WASM), and `mergeChunkWords` keeps each word in the window whose core holds its midpoint. Aborting terminates the worker. The `_timestamped` export is required: the plain `whisper-tiny.en` export has no cross-attention outputs, so word timestamps fail. Transcripts persist in IndexedDB `runitback-transcripts` (`IdbTranscriptStore`). transformers.js is imported only inside the worker, so the main bundle is unaffected; the ONNX runtime wasm is served from this origin (`onnxruntime-web` is a direct dependency pinned to the version transformers.js expects) instead of the library's default CDN.
+
+The model files come from Hugging Face on first use; that is the only network access and audio never leaves the device. `app/transcribe-service.ts` owns the consent gate: the Transcribe action (assets panel) shows a confirm dialog (model, approximate size, audio stays on device) and records consent in prefs; the agent's `transcribe_asset` goes through the same `gatedTranscriber` and fails with an "ask the user to press Transcribe" error until the model is cached or consent is given. E2E replaces the recogniser through the dev-only `window.__transcriber` hook; no model is downloaded in tests.
+
 ## Dependencies (minimal)
 
-Runtime: react, react-dom, mediabunny (probing, decoding, encoding, muxing). Dev: vite, vitest, typescript 5.9 (typescript-eslint does not yet support TS 7), eslint, fake-indexeddb, happy-dom, Playwright. No UI kit, state library or router library (own primitives, external-store hooks, hash router).
+Runtime: react, react-dom, mediabunny (probing, decoding, encoding, muxing), @huggingface/transformers + onnxruntime-web (lazy, worker-only; local Whisper). Dev: vite, vitest, typescript 5.9 (typescript-eslint does not yet support TS 7), eslint, fake-indexeddb, happy-dom, Playwright. No UI kit, state library or router library (own primitives, external-store hooks, hash router).
 
 ## Decisions that differ from classic
 

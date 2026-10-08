@@ -6,12 +6,15 @@ import { getServices } from "#/app/services";
 import { insertPayload } from "#/app/insert";
 import { useAssets } from "#/app/hooks";
 import { uiStore } from "#/app/ui-state";
+import { getTranscribeService } from "#/app/transcribe-service";
 import { beginDrag, endDrag, hasFiles } from "../dnd";
 import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
 import { ContextMenu, DropdownMenu, type ContextMenuState } from "../primitives/Menu";
 import { toast } from "../primitives/toast";
 import { reportInsert } from "../lib/edit";
+import { TranscribeDialog } from "./TranscribeDialog";
+import { transcribeWithToast } from "./transcribe-action";
 
 export function formatDuration(ticks: number): string {
   const total = Math.round(ticks / TICKS_PER_SECOND);
@@ -63,6 +66,9 @@ export function MediaView(): ReactNode {
   const [dragOver, setDragOver] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
+  const [consentFor, setConsentFor] = useState<MediaAssetInfo | null>(null);
+  const transcribeService = getTranscribeService();
+  const transcribeJobs = transcribeService.state.use((s) => s.jobs);
   const input = useRef<HTMLInputElement>(null);
   const anchor = useRef<string | null>(null);
   const depth = useRef(0);
@@ -127,6 +133,19 @@ export function MediaView(): ReactNode {
     reportInsert(insertPayload({ editor, payload: { kind: "media", assetId: asset.id, mediaType: asset.type }, startTime: editor.playback.getState().currentTime }));
   };
 
+  const transcribe = (asset: MediaAssetInfo): void => {
+    if (asset.id in transcribeJobs) { transcribeService.cancel(asset.id); return; }
+    void transcribeWithToast({ assetId: asset.id, assetName: asset.name }).then((status) => { if (status === "needs-consent") setConsentFor(asset); });
+  };
+
+  const confirmDownload = (): void => {
+    const asset = consentFor;
+    setConsentFor(null);
+    if (!asset) return;
+    transcribeService.grantConsent();
+    void transcribeWithToast({ assetId: asset.id, assetName: asset.name });
+  };
+
   const removeSelected = (ids: string[]): void => {
     const removed = services.removeAssets(ids);
     if (!removed.ok) { toast.error("Could not remove that media", removed.error.message); return; }
@@ -186,6 +205,13 @@ export function MediaView(): ReactNode {
                 onContextMenu={(e) => { e.preventDefault(); if (!selected.includes(asset.id)) uiStore.set({ selectedAssetIds: [asset.id] }); setMenu({ x: e.clientX, y: e.clientY }); }}>
                 <div className="media-item__tile">
                   <Tile asset={asset} />
+                  {asset.type !== "image" ? (
+                    <button type="button" className="media-item__transcribe" data-busy={asset.id in transcribeJobs}
+                      aria-label={asset.id in transcribeJobs ? `Cancel transcription of ${asset.name}` : `Transcribe ${asset.name}`}
+                      onClick={(e) => { e.stopPropagation(); transcribe(asset); }}>
+                      {asset.id in transcribeJobs ? `${Math.round((transcribeJobs[asset.id] ?? 0) * 100)}%` : <Icon name="captions" />}
+                    </button>
+                  ) : null}
                   <button type="button" className="media-item__add" aria-label={`Add ${asset.name} to timeline`} onClick={(e) => { e.stopPropagation(); add(asset); }}><Icon name="plus" /></button>
                 </div>
                 <div className="media-item__name truncate" title={asset.name}>{shortName(asset.name)}</div>
@@ -211,9 +237,13 @@ export function MediaView(): ReactNode {
         entries={[
           { label: selected.length > 1 ? `Add ${selected.length} items to timeline` : "Add to timeline", icon: "plus",
             onSelect: () => { for (const id of selected) { const a = assets.find((x) => x.id === id); if (a) add(a); } } },
+          ...(selected.length === 1 && assets.find((a) => a.id === selected[0])?.type !== "image"
+            ? [{ label: "Transcribe", icon: "captions" as const, onSelect: () => { const a = assets.find((x) => x.id === selected[0]); if (a) transcribe(a); } }]
+            : []),
           { type: "separator" },
           { label: selected.length > 1 ? `Delete ${selected.length} items` : "Delete", icon: "trash", destructive: true, onSelect: () => removeSelected(selected) },
         ]} />
+      <TranscribeDialog assetName={consentFor?.name ?? null} onConfirm={confirmDownload} onClose={() => setConsentFor(null)} />
     </div>
   );
 }

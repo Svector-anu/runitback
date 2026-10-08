@@ -149,7 +149,11 @@ export function createTranscriptTools(deps: TranscriptDeps): AgentTool[] {
             try {
               transcript = await (deps.transcriber as Transcriber).transcribe({ assetId: input.assetId, ...(input.language === undefined ? {} : { language: input.language }) });
             } catch (error) {
-              throw new ToolError(`Transcription failed: ${error instanceof Error ? error.message : String(error)}`, "Retry once; if it keeps failing, tell the user speech recognition is unavailable.");
+              const needsConsent = error instanceof Error && error.name === "ConsentRequiredError";
+              throw new ToolError(
+                needsConsent ? (error as Error).message : `Transcription failed: ${error instanceof Error ? error.message : String(error)}`,
+                needsConsent ? "Do not retry until the user confirms the download; then call transcribe_asset again." : "Retry once; if it keeps failing, tell the user speech recognition is unavailable.",
+              );
             }
             await deps.store.save(transcript);
           }
