@@ -78,7 +78,7 @@ export interface TemporalIndex {
   version: typeof TEMPORAL_INDEX_VERSION;
   assetId: string;
   durationSeconds: number;
-  sources: { analysis: boolean; transcript: boolean; audio: boolean };
+  sources: { analysis: boolean; transcript: boolean; audio: boolean; visual?: boolean };
   shots: IndexShot[];
   tracks: TemporalTracks;
   /** Transcript words (empty without a transcript); phrase queries search these. */

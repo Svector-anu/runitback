@@ -42,6 +42,16 @@ export interface FixtureSpec {
   placeAt?: number;
   /** Words spoken in the fixture, in SOURCE seconds. When present the case gets the transcript tools backed by a store holding it. */
   transcript?: TranscriptWord[];
+  /**
+   * What is on screen when, in SOURCE seconds. The case gets the visual search tools over embeddings built from this
+   * declaration (see visual.ts), so no image model is involved and the ground truth is exact.
+   */
+  visual?: VisualShowing[];
+}
+
+export interface VisualShowing extends Range {
+  /** Short description of the picture, e.g. "dog". A query containing the word matches the frames showing it. */
+  shows: string;
 }
 
 /** Exact facts about a fixture, derived from its spec (or from a real measurement, see fixtures.ts). All times in seconds of the fixture's own source. */

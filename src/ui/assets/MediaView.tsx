@@ -7,6 +7,7 @@ import { insertPayload } from "#/app/insert";
 import { useAssets } from "#/app/hooks";
 import { uiStore } from "#/app/ui-state";
 import { getTranscribeService } from "#/app/transcribe-service";
+import { getVisualService } from "#/app/visual-service";
 import { beginDrag, endDrag, hasFiles } from "../dnd";
 import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
@@ -15,6 +16,8 @@ import { toast } from "../primitives/toast";
 import { reportInsert } from "../lib/edit";
 import { TranscribeDialog } from "./TranscribeDialog";
 import { transcribeWithToast } from "./transcribe-action";
+import { VisualDialog } from "./VisualDialog";
+import { indexVisualsWithToast } from "./visual-action";
 
 export function formatDuration(ticks: number): string {
   const total = Math.round(ticks / TICKS_PER_SECOND);
@@ -67,8 +70,11 @@ export function MediaView(): ReactNode {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [consentFor, setConsentFor] = useState<MediaAssetInfo | null>(null);
+  const [visualConsentFor, setVisualConsentFor] = useState<MediaAssetInfo | null>(null);
   const transcribeService = getTranscribeService();
   const transcribeJobs = transcribeService.state.use((s) => s.jobs);
+  const visualService = getVisualService();
+  const visualJobs = visualService.state.use((s) => s.jobs);
   const input = useRef<HTMLInputElement>(null);
   const anchor = useRef<string | null>(null);
   const depth = useRef(0);
@@ -146,6 +152,19 @@ export function MediaView(): ReactNode {
     void transcribeWithToast({ assetId: asset.id, assetName: asset.name });
   };
 
+  const indexVisuals = (asset: MediaAssetInfo): void => {
+    if (asset.id in visualJobs) { visualService.cancel(asset.id); return; }
+    void indexVisualsWithToast({ assetId: asset.id, assetName: asset.name }).then((status) => { if (status === "needs-consent") setVisualConsentFor(asset); });
+  };
+
+  const confirmVisualDownload = (): void => {
+    const asset = visualConsentFor;
+    setVisualConsentFor(null);
+    if (!asset) return;
+    visualService.grantConsent();
+    void indexVisualsWithToast({ assetId: asset.id, assetName: asset.name });
+  };
+
   const removeSelected = (ids: string[]): void => {
     const removed = services.removeAssets(ids);
     if (!removed.ok) { toast.error("Could not remove that media", removed.error.message); return; }
@@ -212,6 +231,13 @@ export function MediaView(): ReactNode {
                       {asset.id in transcribeJobs ? `${Math.round((transcribeJobs[asset.id] ?? 0) * 100)}%` : <Icon name="captions" />}
                     </button>
                   ) : null}
+                  {asset.type === "video" ? (
+                    <button type="button" className="media-item__visual" data-busy={asset.id in visualJobs}
+                      aria-label={asset.id in visualJobs ? `Cancel visual indexing of ${asset.name}` : `Index visuals of ${asset.name}`}
+                      onClick={(e) => { e.stopPropagation(); indexVisuals(asset); }}>
+                      {asset.id in visualJobs ? `${Math.round((visualJobs[asset.id] ?? 0) * 100)}%` : <Icon name="search" />}
+                    </button>
+                  ) : null}
                   <button type="button" className="media-item__add" aria-label={`Add ${asset.name} to timeline`} onClick={(e) => { e.stopPropagation(); add(asset); }}><Icon name="plus" /></button>
                 </div>
                 <div className="media-item__name truncate" title={asset.name}>{shortName(asset.name)}</div>
@@ -240,10 +266,14 @@ export function MediaView(): ReactNode {
           ...(selected.length === 1 && assets.find((a) => a.id === selected[0])?.type !== "image"
             ? [{ label: "Transcribe", icon: "captions" as const, onSelect: () => { const a = assets.find((x) => x.id === selected[0]); if (a) transcribe(a); } }]
             : []),
+          ...(selected.length === 1 && assets.find((a) => a.id === selected[0])?.type === "video"
+            ? [{ label: "Index visuals", icon: "search" as const, onSelect: () => { const a = assets.find((x) => x.id === selected[0]); if (a) indexVisuals(a); } }]
+            : []),
           { type: "separator" },
           { label: selected.length > 1 ? `Delete ${selected.length} items` : "Delete", icon: "trash", destructive: true, onSelect: () => removeSelected(selected) },
         ]} />
       <TranscribeDialog assetName={consentFor?.name ?? null} onConfirm={confirmDownload} onClose={() => setConsentFor(null)} />
+      <VisualDialog assetName={visualConsentFor?.name ?? null} onConfirm={confirmVisualDownload} onClose={() => setVisualConsentFor(null)} />
     </div>
   );
 }

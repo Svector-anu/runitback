@@ -30,9 +30,13 @@ Opt-in like the transcript and reference tools: exported from `#/engine/agent`, 
 | `find_moments` | The query above for one `assetId` or `allAssets:true` (assets with nothing indexed are reported in `skipped`). Each result has source seconds and, for every clip of the asset that plays it, `timeline: [{ elementId, startSeconds, endSeconds }]`. Read-only. |
 | `cut_to_moments` | Video moments in the order given become clips back to back on the main track, from the end of the main track (or `startSeconds`). Built with the same clip builder as `apply_cut_plan`, inserted in one transaction (one undo step); rolls back if any clip would not land where planned. |
 
+## Visual track
+
+`buildTemporalIndex({ ..., visual: { embeddings, query? } })` adds `tracks.visual` and `sources.visual: true` (both absent otherwise, so existing consumers and tests are unchanged). Without `query`: one unlabelled event per sampled frame, covering the span that frame stands for. With `query: { label, embedding, minScore? }`: the matching stretches, merged, with `label` and `score`. The agent tools search the embeddings directly (`find_visual_moments`, see `docs/VISUAL_SEARCH.md`); `find_moments` has no visual filter.
+
 ## Not built
 
-Faces, visual embeddings and any model-backed track. `findMoments` has no `track` filter yet; add one when the first non-core producer exists.
+Faces and any other model-backed track. `findMoments` has no `track` filter yet; add one when the first non-core producer exists.
 
 ## Tests
 

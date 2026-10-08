@@ -631,9 +631,68 @@ const LOUDEST_FIRST: EvalCase = {
   ],
 };
 
+// 13. Visual search: find footage by what it shows, then assemble it ---------------------------------------------
+
+const SUBJECT = "a dog";
+const PETS_SHOWING: ReadonlyArray<{ start: number; end: number; shows: string }> = [
+  { start: 0, end: 4, shows: "person" },
+  { start: 4, end: 10, shows: "dog" },
+  { start: 10, end: 12, shows: "person" },
+  { start: 12, end: 18, shows: "whiteboard" },
+  { start: 18, end: 20, shows: "person" },
+  { start: 20, end: 26, shows: "dog" },
+  { start: 26, end: 30, shows: "laugh" },
+];
+const DOG_RANGES: Range[] = PETS_SHOWING.filter((s) => s.shows === "dog").map(({ start, end }) => ({ start, end }));
+const NOT_DOG_RANGES: Range[] = PETS_SHOWING.filter((s) => s.shows !== "dog").map(({ start, end }) => ({ start, end }));
+const MIN_DOG_KEPT = 0.95;
+const MAX_NOT_DOG_SECONDS = 0.5;
+
+const FIND_VISUAL: EvalCase = {
+  id: "find-visual-moment",
+  title: "Assemble the parts that show a subject",
+  brief: `Make a sequence out of pets.mp4 that contains only the parts that show "${SUBJECT}", in the order they appear, back to back from the start of the timeline. Leave out everything else.`,
+  fixtures: [{
+    id: "pets", name: "pets.mp4", kind: "video", durationSeconds: 30,
+    blocks: [{ seconds: 10, rgb: BLUE }, { seconds: 10, rgb: GREEN }, { seconds: 10, rgb: AMBER }],
+    audio: { kind: "tone" }, visual: [...PETS_SHOWING],
+  }],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "subject-footage-kept",
+      description: `At least ${MIN_DOG_KEPT * 100}% of the seconds that show the subject are on the timeline.`,
+      run(input) {
+        const pets = fixtureByName(input, "pets.mp4");
+        const ratio = retainedSource(clipsOfFixture(input, pets), DOG_RANGES) / lengthOf(DOG_RANGES);
+        return graded({ score: ratio, threshold: MIN_DOG_KEPT, detail: `${(ratio * 100).toFixed(1)}% of the ${lengthOf(DOG_RANGES).toFixed(1)}s showing the subject is on the timeline` });
+      },
+    },
+    {
+      id: "nothing-else-kept",
+      description: `At most ${MAX_NOT_DOG_SECONDS}s of footage that does not show the subject is on the timeline.`,
+      run(input) {
+        const pets = fixtureByName(input, "pets.mp4");
+        const kept = retainedSource(clipsOfFixture(input, pets), NOT_DOG_RANGES);
+        return graded({ score: 1 - kept / lengthOf(NOT_DOG_RANGES), threshold: 1 - MAX_NOT_DOG_SECONDS / lengthOf(NOT_DOG_RANGES), detail: `${kept.toFixed(2)}s of other footage still plays` });
+      },
+    },
+    {
+      id: "appearance-order-back-to-back",
+      description: "On the main track the clips start at 0, touch one another, and follow the order the footage appears in.",
+      run(input) {
+        const clips = mainClips(input);
+        const ordered = clips.every((c, i) => i === 0 || c.trimStart >= (clips[i - 1] as ClipView).trimStart);
+        const touching = backToBack(clips);
+        return verdict(ordered && touching, `${clips.length} clip(s); ${touching ? "back to back" : "gaps or not starting at 0"}; ${ordered ? "in source order" : "out of order"}`);
+      },
+    },
+  ],
+};
+
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
-  FIND_AND_CUT, LOUDEST_FIRST,
+  FIND_AND_CUT, LOUDEST_FIRST, FIND_VISUAL,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);

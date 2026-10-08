@@ -1,6 +1,7 @@
 import type { Transcriber, Transcript, TranscriptStore } from "#/engine/transcript/types";
 import { DEFAULT_WHISPER_MODEL, IdbTranscriptStore, createWhisperTranscriber, isModelCached } from "#/platform/transcribe";
-import { isString, type PrefsStore } from "#/platform/prefs";
+import type { PrefsStore } from "#/platform/prefs";
+import { ModelConsent } from "./model-consent";
 import { getServices } from "./services";
 import { Store } from "./store";
 
@@ -45,10 +46,13 @@ const isAbort = (error: unknown): boolean => error instanceof DOMException && er
 export class TranscribeService {
   readonly state = new Store<TranscribeState>({ jobs: {} });
   private readonly controllers = new Map<string, AbortController>();
-  private readonly model: string;
+  private readonly consent: ModelConsent;
 
   constructor(private readonly deps: TranscribeServiceDeps) {
-    this.model = deps.model ?? DEFAULT_WHISPER_MODEL;
+    this.consent = new ModelConsent({
+      prefs: deps.prefs, pref: TRANSCRIBE_CONSENT_PREF, model: deps.model ?? DEFAULT_WHISPER_MODEL,
+      isCached: (model) => (deps.isModelCached ?? isModelCached)(model),
+    });
   }
 
   get store(): TranscriptStore {
@@ -56,16 +60,15 @@ export class TranscribeService {
   }
 
   hasConsent(): boolean {
-    return this.deps.prefs.read(TRANSCRIBE_CONSENT_PREF, "", isString) === this.model;
+    return this.consent.has();
   }
 
   grantConsent(): void {
-    this.deps.prefs.write(TRANSCRIBE_CONSENT_PREF, this.model);
+    this.consent.grant();
   }
 
-  async needsConsent(): Promise<boolean> {
-    if (this.hasConsent()) return false;
-    return !(await (this.deps.isModelCached ?? isModelCached)(this.model));
+  needsConsent(): Promise<boolean> {
+    return this.consent.needed();
   }
 
   private setProgress(assetId: string, fraction: number | null): void {

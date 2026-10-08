@@ -8,6 +8,7 @@ import { createMemoryTranscriptStore, TRANSCRIPT_VERSION } from "#/engine/transc
 import { analysisFromSpec, assetInfoOf, resolveFixtures } from "./fixtures";
 import { scoreCase } from "./score";
 import { placeInitialTimeline } from "./setup";
+import { visualToolsFor } from "./visual";
 import { createStubPlatformTools } from "./stub-tools";
 import type { CaseResult, EvalCase, ResolvedFixture, RunSummary } from "./types";
 
@@ -35,6 +36,7 @@ export async function buildWorld(evalCase: EvalCase): Promise<World> {
   for (const f of transcripts) store.save({ version: TRANSCRIPT_VERSION, assetId: f.assetId, language: "en", model: "fixture", words: f.spec.transcript ?? [] });
   if (transcripts.length > 0) for (const tool of createTranscriptTools({ store })) tools.set(tool.name, tool);
   for (const tool of createTemporalTools({ analysis: provider, transcripts: store })) tools.set(tool.name, tool);
+  for (const tool of visualToolsFor(fixtures)) tools.set(tool.name, tool);
   for (const tool of createStubPlatformTools({ editor, fixtures, analyses })) tools.set(tool.name, tool);
 
   await placeInitialTimeline({ editor, tools, fixtures });

@@ -16,10 +16,12 @@ src/
     persistence/ repository interfaces, serialization + migrations, SaveManager, ProjectsService, quota, in-memory fakes
     captions/    SRT/ASS parsing, transcript chunking
     temporal/    per-asset temporal index (shots, loudness, silence, speech, rhythm on one source-time axis), `findMoments`, source-to-timeline mapping
+    visual/      frame-embedding records, cosine ranking, frame spans and moment merging, frame sampling plan (no model code)
     render/      buildFramePlan: pure description of the frame at time t (shared by preview and export)
   render/        Canvas2D Compositor, text layout/draw, graphics, masks, preview bounds/snapping, caption elements
   platform/      Browser adapters: IndexedDB, OPFS, mediabunny probe + video/audio decoding, Web Audio scheduler/engine, fonts, prefs,
-                 transcribe/ (on-device Whisper in a module worker; transcript store)
+                 transcribe/ (on-device Whisper in a module worker; transcript store),
+                 visual/ (on-device CLIP image+text encoders in a module worker; frame sampling via VideoFrameCache; embedding store)
   export/        planExport, offline audio mix, exportProject (mediabunny encode + mux)
   app/           Composition root (AppServices), hooks, router, shortcuts wiring, PreviewRenderer, param edit, insert helpers
   ui/            React components + CSS (editor, timeline, preview, assets, properties, pages, primitives)
@@ -55,3 +57,7 @@ Runtime: react, react-dom, mediabunny (probing, decoding, encoding, muxing), @hu
 ## Decisions that differ from classic
 
 See `docs/RECONSTRUCTION_SPEC.md` §D table. In addition: whole-document undo snapshots (not per-scene tracks); asset ids are persisted on the project; preview/commit uses the same command that is later executed, so redo and commit cannot diverge; the rendering seam is `Compositor`/`FramePlan` rather than a wgpu descriptor, so a WASM compositor can replace Canvas2D without touching the engine.
+
+## Visual search (local-first)
+
+`platform/visual` implements the engine's `VisualIndexer` and `VisualSearcher` with the same shape as speech: a module worker runs `@huggingface/transformers` CLIP (`Xenova/clip-vit-base-patch32`, int8, WASM, ONNX runtime self-hosted), `planFrameTimes` (engine) picks one frame per shot midpoint plus one every 2 s, `VideoFrameCache` decodes them, and normalised Float32 embeddings persist in IndexedDB `runitback-visual`. `app/visual-service.ts` owns the consent gate (shared `ModelConsent` with the transcribe service) and the Index visuals action; the agent's `index_visuals` / `find_visual_moments` use the same gated indexer and searcher. E2E replaces the models through the dev-only `window.__visual` hook. Details, model sizes, licence and score calibration: `docs/VISUAL_SEARCH.md`.

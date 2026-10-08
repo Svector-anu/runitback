@@ -2,6 +2,7 @@ import type { MediaAnalysis } from "#/engine/analysis";
 import { beatTimes } from "#/engine/reference";
 import { groupSentences, type Transcript } from "#/engine/transcript";
 import { coverageRatio, levelStats, shotIndexAt } from "./measure";
+import { visualEvents, type VisualTrackInput } from "./visual";
 import {
   TEMPORAL_INDEX_VERSION, type BeatGrid, type IndexShot, type OnsetEvent, type RhythmSummary, type SilenceSpan, type SpeechSegment, type TemporalIndex,
 } from "./types";
@@ -38,9 +39,10 @@ function rhythmOf(analysis: MediaAnalysis): RhythmSummary | null {
 /**
  * Joins what is known about one asset on its source-time axis: shots (from scene cuts), loudness and silence per
  * shot, speech sentences, silences and rhythm. Missing inputs leave their parts empty and `sources` says which
- * inputs were present, so a consumer can tell "no speech" from "never transcribed".
+ * inputs were present, so a consumer can tell "no speech" from "never transcribed". Visual embeddings, when given, add
+ * `tracks.visual` (see `visualEvents`).
  */
-export function buildTemporalIndex(input: { assetId: string; duration: number; analysis?: MediaAnalysis; transcript?: Transcript }): TemporalIndex {
+export function buildTemporalIndex(input: { assetId: string; duration: number; analysis?: MediaAnalysis; transcript?: Transcript; visual?: VisualTrackInput }): TemporalIndex {
   const { analysis, transcript } = input;
   const duration = Math.max(0, input.duration);
   const words = transcript?.words ?? [];
@@ -84,9 +86,9 @@ export function buildTemporalIndex(input: { assetId: string; duration: number; a
     version: TEMPORAL_INDEX_VERSION,
     assetId: input.assetId,
     durationSeconds: duration,
-    sources: { analysis: analysis !== undefined, transcript: transcript !== undefined, audio: hasAudio },
+    sources: { analysis: analysis !== undefined, transcript: transcript !== undefined, audio: hasAudio, ...(input.visual ? { visual: true } : {}) },
     shots,
-    tracks: { speech, speechLike, silence, onset },
+    tracks: { speech, speechLike, silence, onset, ...(input.visual ? { visual: visualEvents(input.visual) } : {}) },
     words,
     levels,
     rhythm: analysis ? rhythmOf(analysis) : null,

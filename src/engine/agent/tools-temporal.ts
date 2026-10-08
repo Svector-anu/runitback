@@ -29,12 +29,12 @@ const SORTS: MomentSort[] = ["relevance", "time", "loudest", "quietest", "longes
 
 type TaggedMoment = Moment & { assetId: string };
 
-interface Placed {
+export interface Placed {
   elementId: string;
   placement: ClipPlacement;
 }
 
-function placedClips(env: ToolEnv, assetId: string): Placed[] {
+export function placedClips(env: ToolEnv, assetId: string): Placed[] {
   return [...env.tracks.overlay, env.tracks.main, ...env.tracks.audio].flatMap((track) =>
     (track.elements as TimelineElement[]).flatMap((e): Placed[] => {
       if ((e.type !== "video" && e.type !== "audio") || e.mediaId !== assetId) return [];

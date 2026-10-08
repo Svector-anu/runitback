@@ -398,6 +398,27 @@ function loudestFirst(options: { lead: "loudest" | "quietest" | "none"; keepOthe
   };
 }
 
+/** Searches the footage by what it shows through find_visual_moments, then assembles the moments with cut_to_moments. */
+function findVisual(options: { mode: "subject" | "first-only" | "wrong-subject" }): () => Turn[] {
+  return () => {
+    let assetId = "";
+    return [
+      (_seen, use) => orient(use),
+      (seen, use) => {
+        assetId = assetNamed(seen, "pets.mp4").id;
+        const query = options.mode === "wrong-subject" ? "whiteboard" : quotedPhrase(seen.brief);
+        return [say("Searching the footage by what it shows."), use("find_visual_moments", { assetId, query, sort: "time" })];
+      },
+      (seen, use) => {
+        const picks = toPicks(seen.data<FoundMoments>("find_visual_moments"));
+        const chosen = options.mode === "first-only" ? picks.slice(0, 1) : picks;
+        return [say(`Assembling ${chosen.length} moment(s).`), use("cut_to_moments", { moments: chosen }), use("get_timeline")];
+      },
+      () => [say("Built the sequence from the moments that show it, back to back.")],
+    ];
+  };
+}
+
 function ask(reply: string, extra: Turn[] = []): () => Turn[] {
   return () => [(_seen, use) => orient(use), ...extra, () => [say(reply)]];
 }
@@ -467,6 +488,9 @@ const SPECS: PolicySpec[] = [
   { id: "original-order", caseId: "loudest-shot-first", kind: "mutation", description: "Cuts the shots but leaves them in their original order.", mustFail: ["loudest-leads"], turns: loudestFirst({ lead: "none", keepOthers: true }) },
   { id: "quietest-first", caseId: "loudest-shot-first", kind: "mutation", description: "Leads with the quietest shot instead.", mustFail: ["loudest-leads"], turns: loudestFirst({ lead: "quietest", keepOthers: true }) },
   { id: "loudest-only", caseId: "loudest-shot-first", kind: "mutation", description: "Keeps only the loudest shot.", mustFail: ["all-shots-kept"], turns: loudestFirst({ lead: "loudest", keepOthers: false }) },
+  { id: "oracle", caseId: "find-visual-moment", kind: "oracle", description: "find_visual_moments for the quoted subject, cut_to_moments on the results in time order.", turns: findVisual({ mode: "subject" }) },
+  { id: "first-only", caseId: "find-visual-moment", kind: "mutation", description: "Assembles only the first moment that shows the subject.", mustFail: ["subject-footage-kept"], turns: findVisual({ mode: "first-only" }) },
+  { id: "wrong-subject", caseId: "find-visual-moment", kind: "mutation", description: "Searches for a different subject and assembles that.", mustFail: ["subject-footage-kept", "nothing-else-kept"], turns: findVisual({ mode: "wrong-subject" }) },
   {
     id: "oracle", caseId: "ambiguous-request", kind: "oracle", description: "Inspect, then ask what 'better' means.",
     turns: ask("What would you like me to improve: the pacing, the audio level, add titles or captions, or something else? Tell me what 'better' means for this video and I'll do it."),
@@ -494,6 +518,7 @@ const LAZY_FAILS: Record<string, string[]> = {
   "delete-spoken-sentence": ["sentence-removed"],
   "find-and-cut-phrase-moments": ["keyword-sentences-kept"],
   "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
+  "find-visual-moment": ["subject-footage-kept"],
 };
 
 const OVERREACH_FAILS: Record<string, string[]> = {
@@ -510,6 +535,7 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "delete-spoken-sentence": ["other-speech-retained"],
   "find-and-cut-phrase-moments": ["keyword-sentences-kept"],
   "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
+  "find-visual-moment": ["subject-footage-kept"],
 };
 
 function generic(): PolicySpec[] {
