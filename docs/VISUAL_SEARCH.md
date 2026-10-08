@@ -77,3 +77,20 @@ No test downloads a model except the opt-in one.
 ## Not built
 
 Faces (MediaPipe, the other adopt-for-next item in the audit), text-to-image re-ranking with more than one prompt template, searching by example image, using the index to pick thumbnails, and cleaning embeddings when an asset is removed (transcripts have the same gap).
+
+## Measured on real footage (2026-10-08)
+
+Real CLIP (`Xenova/clip-vit-base-patch32`, int8) through the real worker and decoder, two local screen-capture / product-promo videos (a 201 s screen recording of a 3D village then terminal windows, and an 83 s app promo). Ground-truth ranges were checked by viewing frames. Reproduce with `FOOTAGE_CASES=<json> pnpm exec playwright test e2e/visual-footage.spec.ts` (see the spec header for the JSON shape). Frames are sampled every 2 s, so a short target has only 1-2 frames.
+
+| Query | Top hit inside truth? | Notes |
+|---|---|---|
+| 3D village with red-roofed houses | yes (top 3 all inside, AUC 0.97) | scene-level content works |
+| terminal with white text on black | yes (top 3 all inside, AUC 0.98) | |
+| credit card payment, Allow / Deny | yes (top 2 inside) | |
+| confetti | yes (top 1) | other frames within 0.03 |
+| blue circles with check marks | yes (top 1) | only 1 of 2 truth frames in top 3 |
+| phone form with name/email fields | no (found at rank 3) | a frame at 75 s outranks it |
+| browser showing JSON text | no | reading text is not what CLIP does |
+| black screen / black frame | no | absence queries fail; use luminance from analysis instead |
+
+Summary: top-1 landed inside the checked range for 5 of 9 queries. Scores for real hits were 0.25-0.31 against 0.18-0.24 background, but false positives reached 0.28, so `DEFAULT_MIN_SCORE = 0.22` removes almost nothing on UI footage and a score alone cannot separate a hit from a miss. Conclusions: CLIP B/32 is useful for scene-level queries on natural or screen-recorded content, weak for text-in-UI and for "nothing here" queries. Next experiments, in order of cost: prompt templates ("a screenshot of ..."), SigLIP-base (Apache-2.0, about 205 MB), combining visual hits with transcript and the black-frame/silence tracks in `find_moments`.
