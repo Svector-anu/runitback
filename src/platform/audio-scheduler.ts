@@ -1,5 +1,5 @@
 import { ALL_FORMATS, AudioBufferSink, BlobSource, Input } from "mediabunny";
-import { gainEnvelope, sourceWindow, type AudioClip } from "#/engine/audio";
+import { gainEnvelope, sourceWindow, stretch, type AudioClip } from "#/engine/audio";
 
 export type AudioContextLike = BaseAudioContext;
 
@@ -89,16 +89,43 @@ export async function scheduleClipWindow(input: {
       if (sourceTo - sourceFrom <= 0.001) continue;
     }
     const node = ctx.createBufferSource();
-    node.buffer = wrapped.buffer;
-    node.playbackRate.value = clip.rate;
     node.connect(scheduled.gain);
     scheduled.sources.add(node);
     node.onended = () => {
       scheduled.sources.delete(node);
       node.disconnect();
     };
-    node.start(when, sourceFrom - bufferStart, sourceTo - sourceFrom);
+    if (clip.maintainPitch && clip.rate !== 1) {
+      node.buffer = stretchedSlice({ ctx, buffer: wrapped.buffer, from: sourceFrom - bufferStart, to: sourceTo - bufferStart, rate: clip.rate });
+      node.playbackRate.value = 1;
+      node.start(when);
+    } else {
+      node.buffer = wrapped.buffer;
+      node.playbackRate.value = clip.rate;
+      node.start(when, sourceFrom - bufferStart, sourceTo - sourceFrom);
+    }
   }
+}
+
+/**
+ * WSOLA-stretches the `[from, to)` slice (source seconds relative to `buffer`'s own start) of a
+ * decoded buffer to `rate`, so it can be played back at `playbackRate = 1` with pitch intact. Runs
+ * on the main-thread scheduling tick (2 s lookahead, see `AudioEngine`), not the audio-rendering
+ * thread, so this synchronous pass only has to keep pace with the lookahead window, not real time.
+ */
+function stretchedSlice(input: { ctx: AudioContextLike; buffer: AudioBuffer; from: number; to: number; rate: number }): AudioBuffer {
+  const { ctx, buffer, rate } = input;
+  const startSample = Math.max(0, Math.round(input.from * buffer.sampleRate));
+  const endSample = Math.min(buffer.length, Math.round(input.to * buffer.sampleRate));
+  const channels: Float32Array[] = [];
+  for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c).slice(startSample, endSample));
+  const stretched = stretch({ channels, rate, sampleRate: buffer.sampleRate });
+  const length = Math.max(1, stretched[0]?.length ?? 1);
+  const out = ctx.createBuffer(buffer.numberOfChannels, length, buffer.sampleRate);
+  // stretch() declares its return as the ambient (ArrayBufferLike-backed) Float32Array type, but every
+  // array it returns is a fresh `new Float32Array(n)` — concretely ArrayBuffer-backed, same as copyToChannel requires.
+  stretched.forEach((channel, c) => out.copyToChannel(channel as Float32Array<ArrayBuffer>, c));
+  return out;
 }
 
 export function stopClip(scheduled: ScheduledClip): void {
