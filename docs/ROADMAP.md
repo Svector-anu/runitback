@@ -21,13 +21,14 @@ Why the current codebase is a good foundation: every change is a `Command`; the 
 | # | Milestone | Claim that must be provable | Status |
 |---|---|---|---|
 | M0 | Editor reconstruction | Import → edit → play → persist → export works; 286 unit + 13 e2e green | done |
-| M1 | **Agent tool surface** (`engine/agent`) | Every core edit is available as a validated tool; a scripted tool sequence builds the same project as human commands; one turn = one undo step; errors are model-readable | in progress |
-| M2 | **Perception** (`engine/analysis`, `platform/analysis`) | Silence, scene cuts, loudness, onsets and pacing are measured from real media and match known ground truth; contact sheets render | in progress |
-| M3 | **Bridge + MCP server** (`tools/mcp`) | An external MCP client can list tools, edit the live editor, render a frame image and export, over a local socket | in progress |
-| M4 | **In-app agent** (chat panel, Claude tool loop, vision) | Given a goal and footage, the agent produces a rough cut, then self-corrects after inspecting rendered frames | next |
+| M1 | **Agent tool surface** (`engine/agent`) | Every core edit is available as a validated tool; a scripted tool sequence builds the same project as human commands; one turn = one undo step; errors are model-readable | done: 33 tools, transactions, 152 tests |
+| M2 | **Perception** (`engine/analysis`, `platform/analysis`) | Silence, scene cuts, loudness, onsets and pacing are measured from real media and match known ground truth; contact sheets render | done: analysis tests + real-media e2e |
+| M3 | **Bridge + MCP server** (`tools/mcp`) | An external MCP client can list tools, edit the live editor, render a frame image and export, over a local socket | done: token handshake, `render_frame`, `export_project`, 3 e2e |
+| M4 | **In-app agent** (chat panel, Claude tool loop, vision) | Given a goal and footage, the agent produces a rough cut, then self-corrects after inspecting rendered frames | in progress |
 | M5 | **Agent eval harness** | Scripted briefs ("remove silences", "cut to the beat", "add captions") are scored automatically against ground truth; regressions block merges | next |
-| M6 | **Reference intelligence** | From a reference video: pacing, shot rhythm, caption style, audio energy → a reusable style profile the agent applies to new footage | next |
+| M6 | **Reference intelligence** | From a reference video: pacing, shot rhythm, caption style, audio energy → a reusable style profile the agent applies to new footage | engine in progress |
 | M7 | Speech: transcription + transcript-driven editing | Word-level captions; "delete this sentence" edits the timeline | next |
+| M7b | **Review hardening** | Independent review's P0/P1 findings closed with regression tests | P0 done; remaining P1/P2 in progress |
 | M8 | Product hardening | Virtualized timeline, crash-safe persistence, cross-browser matrix, GPU compositor, pitch-preserving speed, accessibility audit | ongoing |
 | M9 | Ship | Hosted static build, onboarding, privacy statement, telemetry-free error reporting | later |
 

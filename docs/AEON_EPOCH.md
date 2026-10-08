@@ -28,3 +28,10 @@ Findings from inspecting the local installs (not assumptions).
 
 Epoch's builder/reviewer/watcher operate on **GitHub pull requests**; they need (1) this project on a GitHub repository, (2) a MiniAeon workspace with the epoch skills enabled, (3) model/provider quota for autonomous runs, and (4) `miniaeon approve` as the human go/no-go. None of those exist for this project yet. Until they do, the Epoch discipline is applied manually (table above) with independent reviewer agents standing in for `epoch-review`. See `docs/PROJECT_STATE.md` → "Blocked on the owner".
 - Epoch workspace needs git origin == target repo (grant targets match origin); run with --no-git so workspace state is never pushed.
+
+
+## What actually worked (2026-10-08)
+
+- **MiniAeon route** (`~/Desktop/coding/opencut-epoch`): `epoch-spec` worked and produced a spec + 5 work orders (pitch-preserving speed). `epoch-build` was blocked: repo grants match the workspace's git `origin`; fixed by giving the workspace the target origin and running with `--no-git`. Superseded by the Aeon route at the owner's request.
+- **Aeon route** (instance `Svector-anu/svectors-lab`): Epoch-style loop = issue (the order) → `feature external:<owner/repo>#<N>` builds one PR → `pr-review <owner/repo>#<PR>` reviews it → human merges. Dispatch with `gh workflow run aeon.yml -R Svector-anu/svectors-lab -f skill=... -f var=... -f harness=claude`. The first attempt failed on an expired Codex credential; the per-run `harness=claude` override fixed it without editing the instance config.
+- The instance also has an `Epoch intake` workflow (issue label `epoch` or `/epoch` comment) and `Epoch verify`; they act on that instance's own issues.
