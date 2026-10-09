@@ -115,3 +115,15 @@ All three templates reduced the margin on every one of the four queries versus t
 **Why this may not generalise**: the proxy's frames are uniform-color screens, about as context-free as an image gets; "a photo of red" or "a screenshot of red" describes a different thing (a physical object, a captured UI) than a solid color fill, so the mismatch may be specific to this degenerate test case rather than to templates in general. The original 9-query baseline this order was meant to beat is scene-level content (a 3D village, a terminal, a credit card dialog) where a caption-shaped prompt could plausibly still help, per CLIP's training distribution — that remains untested.
 
 **Conclusion (per this order's ACCEPTANCE criterion for a non-improving result): no template is shipped, the default stays an unwrapped bare query, and `src/platform/visual/searcher.ts` is unchanged.** Re-attempting this with the actual 9-query real-footage harness (two representative local videos, supplied via `FOOTAGE_CASES`) rather than the solid-color proxy is the right next step before concluding templates don't help this repo's real use case; absent that, the next cheapest unexplored experiment from the list above is SigLIP-base.
+
+### Prompt templates on the real-footage set (2026-10-09)
+
+The experiment above used solid-colour frames because the footage was not available to the cloud run. The same templates were then run locally on the 9-query real-footage set (`QUERY_TEMPLATE` env var on `e2e/visual-footage.spec.ts`):
+
+| Template | Top-1 inside truth | Mean AUC |
+|---|---|---|
+| none (bare query) | 5 / 9 | 0.66 |
+| `a photo of {query}` | 5 / 9 | 0.66 |
+| `a screenshot of {query}` | 5 / 9 | 0.69 |
+
+No template changes which queries succeed. `a screenshot of` lifts the phone-form query's AUC from 0.83 to 0.96 and slightly lowers "JSON text", but the gain is within noise for 9 queries, so the bare query stays the default. The conclusion matches the colour experiment: wording is not the bottleneck, model capacity and the nature of UI footage are. Next candidate: SigLIP-base.
