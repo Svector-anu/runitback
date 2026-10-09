@@ -115,6 +115,9 @@ export function AgentPanel(): ReactNode {
             value={state.apiKey} onChange={(e) => session.setApiKey(e.target.value)} aria-describedby="agent-key-warning"
           />
           <p id="agent-key-warning" className="agent-warning">{WARNING}</p>
+          {state.apiKey === "" ? (
+            <p className="agent-warning agent-warning--required" role="status" data-testid="agent-key-hint">An Anthropic API key is required. Paste yours above to use the agent.</p>
+          ) : null}
         </div>
       </div>
 

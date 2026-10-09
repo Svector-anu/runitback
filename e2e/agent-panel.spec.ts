@@ -78,6 +78,11 @@ test("without a key and without a test model the panel asks for the key and edit
   await expect(page).toHaveURL(/#\/editor\//);
   await page.getByRole("tab", { name: "Agent" }).click();
   const panel = page.getByTestId("agent-panel");
+  await expect(panel.getByTestId("agent-key-hint")).toContainText("API key is required");
+  await panel.getByLabel("Anthropic API key").fill("sk-ant-test");
+  await expect(panel.getByTestId("agent-key-hint")).toHaveCount(0);
+  await panel.getByLabel("Anthropic API key").fill("");
+  await expect(panel.getByTestId("agent-key-hint")).toBeVisible();
   await panel.getByLabel("Message to the agent").fill("hello");
   await panel.getByRole("button", { name: "Send" }).click();
   await expect(panel.getByRole("alert")).toContainText("API key");
