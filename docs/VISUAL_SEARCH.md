@@ -93,4 +93,25 @@ Real CLIP (`Xenova/clip-vit-base-patch32`, int8) through the real worker and dec
 | browser showing JSON text | no | reading text is not what CLIP does |
 | black screen / black frame | no | absence queries fail; use luminance from analysis instead |
 
-Summary: top-1 landed inside the checked range for 5 of 9 queries. Scores for real hits were 0.25-0.31 against 0.18-0.24 background, but false positives reached 0.28, so `DEFAULT_MIN_SCORE = 0.22` removes almost nothing on UI footage and a score alone cannot separate a hit from a miss. Conclusions: CLIP B/32 is useful for scene-level queries on natural or screen-recorded content, weak for text-in-UI and for "nothing here" queries. Next experiments, in order of cost: prompt templates ("a screenshot of ..."), SigLIP-base (Apache-2.0, about 205 MB), combining visual hits with transcript and the black-frame/silence tracks in `find_moments`.
+Summary: top-1 landed inside the checked range for 5 of 9 queries. Scores for real hits were 0.25-0.31 against 0.18-0.24 background, but false positives reached 0.28, so `DEFAULT_MIN_SCORE = 0.22` removes almost nothing on UI footage and a score alone cannot separate a hit from a miss. Conclusions: CLIP B/32 is useful for scene-level queries on natural or screen-recorded content, weak for text-in-UI and for "nothing here" queries. Next experiments, in order of cost: SigLIP-base (Apache-2.0, about 205 MB), combining visual hits with transcript and the black-frame/silence tracks in `find_moments`. Prompt templates were tried next (below) and dropped from this list — they did not help.
+
+## Prompt templates (tried 2026-10-09, not adopted)
+
+Tried wrapping the text query before it reaches `CLIPTextModelWithProjection` (the call site is `createClipSearcher`'s `embedText` in `src/platform/visual/searcher.ts`, which is the only place a bare query turns into a text embedding) to see if a caption-shaped prompt scores better than a bare query, per CLIP's own training distribution.
+
+**Harness substitution.** The two local screen-capture videos used for the "Measured on real footage" table above are local files from whoever ran that analysis and are not present in this environment or committed to the repo (confirmed: no `.mp4`/`.webm` fixtures exist in the repo, and `e2e/media.ts` only generates synthetic video in-browser). `FOOTAGE_CASES` could not be reproduced, so this attempt fell back to the repo's other opt-in real-model harness, `e2e/visual-real.spec.ts`: solid red and solid blue 1-second blocks, indexed and scored for the queries `red`, `blue`, `a red screen`, `a blue screen`. This is a materially different (and weaker) test than the original 9-query natural/screen-content harness — it only measures whether red frames score the query "red" above blue frames, not top-1-inside-truth over descriptive scenes — so its result bounds confidence in either direction but is not the number this order was scoped to produce.
+
+Three templates tried, each run against the real model (`Xenova/clip-vit-base-patch32`, `REAL_CLIP=1`), reporting the margin (mean score on the correct-color frames minus mean score on the wrong-color frames) per query:
+
+| Query | No template (baseline) | `a photo of {query}` | `a screenshot of {query}` | `an image of {query}` |
+|---|---|---|---|---|
+| red | 0.040 | 0.026 | 0.003 | 0.020 |
+| blue | 0.053 | 0.046 | 0.050 | 0.047 |
+| a red screen | 0.011 | 0.006 | **-0.005 (flips)** | 0.005 |
+| a blue screen | 0.060 | 0.058 | 0.058 | 0.059 |
+
+All three templates reduced the margin on every one of the four queries versus the bare query, and `a screenshot of {query}` flipped the sign for "a red screen" — on a solid red screen, "a screenshot of a red screen" scored the blue frames higher, a real regression, not just a smaller margin. No template beat the baseline on this proxy.
+
+**Why this may not generalise**: the proxy's frames are uniform-color screens, about as context-free as an image gets; "a photo of red" or "a screenshot of red" describes a different thing (a physical object, a captured UI) than a solid color fill, so the mismatch may be specific to this degenerate test case rather than to templates in general. The original 9-query baseline this order was meant to beat is scene-level content (a 3D village, a terminal, a credit card dialog) where a caption-shaped prompt could plausibly still help, per CLIP's training distribution — that remains untested.
+
+**Conclusion (per this order's ACCEPTANCE criterion for a non-improving result): no template is shipped, the default stays an unwrapped bare query, and `src/platform/visual/searcher.ts` is unchanged.** Re-attempting this with the actual 9-query real-footage harness (two representative local videos, supplied via `FOOTAGE_CASES`) rather than the solid-color proxy is the right next step before concluding templates don't help this repo's real use case; absent that, the next cheapest unexplored experiment from the list above is SigLIP-base.
