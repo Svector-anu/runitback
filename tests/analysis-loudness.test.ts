@@ -130,4 +130,27 @@ describe("K-weighted integrated loudness (true LUFS)", () => {
     const expectedLufs = stats.integratedApproxDb + powerGainDb + BS1770_LUFS_OFFSET_DB;
     expect(stats.integratedLufs as number).toBeCloseTo(expectedLufs, 1);
   });
+
+  it("sums channel power per BS.1770: identical stereo channels read 3.01 LU above the same signal in mono", () => {
+    const samples = tone({ seconds: 3, amplitude: amplitudeForLufs(-23, 1000), hz: 1000 });
+    const lufsFor = (channels: Float32Array[]): number => {
+      const accumulator = new IntegratedLoudnessAccumulator();
+      accumulator.push({ channels, sampleRate: SAMPLE_RATE, startSeconds: 0 });
+      const k = accumulator.finish();
+      return loudnessStats(computeRmsWindows({ samples, sampleRate: SAMPLE_RATE }), k).integratedLufs as number;
+    };
+    const mono = lufsFor([samples]);
+    const stereo = lufsFor([samples, samples]);
+    expect(stereo - mono).toBeCloseTo(10 * Math.log10(2), 1);
+  });
+
+  it("a channel that is silent contributes nothing", () => {
+    const samples = tone({ seconds: 3, amplitude: amplitudeForLufs(-23, 1000), hz: 1000 });
+    const lufsFor = (channels: Float32Array[]): number => {
+      const accumulator = new IntegratedLoudnessAccumulator();
+      accumulator.push({ channels, sampleRate: SAMPLE_RATE, startSeconds: 0 });
+      return loudnessStats(computeRmsWindows({ samples, sampleRate: SAMPLE_RATE }), accumulator.finish()).integratedLufs as number;
+    };
+    expect(lufsFor([samples, new Float32Array(samples.length)])).toBeCloseTo(lufsFor([samples]), 2);
+  });
 });

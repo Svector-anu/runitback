@@ -160,14 +160,15 @@ export const powerToLufs = (power: number): number =>
   power > 0 ? Math.max(SILENCE_FLOOR_DB, BS1770_LUFS_OFFSET_DB + 10 * Math.log10(power)) : SILENCE_FLOOR_DB;
 
 /**
- * Streaming accumulator for the BS.1770 integrated-loudness figure: mixes channels to mono exactly like
- * `RmsAccumulator`, runs the mono stream through the K-weighting filter sample-by-sample (filter state persists
- * across `push` calls, so chunking doesn't introduce boundary artifacts), then windows the filtered signal with
- * an inner `RmsAccumulator` so block-gating in `loudnessStats` stays identical to the unweighted path.
+ * Streaming accumulator for the BS.1770 integrated-loudness figure. Each channel runs through its own K-weighting
+ * filter (state persists across `push` calls, so chunking adds no boundary artifacts). BS.1770 sums the channels'
+ * K-weighted mean-square POWER (unit weights), so the filtered channels are folded into one signal whose
+ * instantaneous value is sqrt(sum of squares): its mean square equals the sum of the per-channel mean squares.
+ * An inner `RmsAccumulator` then windows it so block-gating in `loudnessStats` matches the unweighted path.
  */
 export class IntegratedLoudnessAccumulator {
   private readonly inner: RmsAccumulator;
-  private filter: KWeightingFilter | null = null;
+  private filters: KWeightingFilter[] = [];
 
   constructor(readonly windowSeconds: number = RMS_WINDOW_SECONDS) {
     this.inner = new RmsAccumulator(windowSeconds);
@@ -176,17 +177,18 @@ export class IntegratedLoudnessAccumulator {
   push(input: { channels: ReadonlyArray<Float32Array>; sampleRate: number; startSeconds: number }): void {
     const { channels, sampleRate, startSeconds } = input;
     const length = channels[0]?.length ?? 0;
-    const channelCount = channels.length;
-    if (channelCount === 0) return;
-    this.filter ??= new KWeightingFilter(sampleRate);
-    const filtered = new Float32Array(length);
-    for (let i = 0; i < length; i++) {
-      let mono = 0;
-      for (const channel of channels) mono += channel[i] ?? 0;
-      mono /= channelCount;
-      filtered[i] = this.filter.process(mono);
-    }
-    this.inner.push({ channels: [filtered], sampleRate, startSeconds });
+    if (channels.length === 0) return;
+    while (this.filters.length < channels.length) this.filters.push(new KWeightingFilter(sampleRate));
+    const power = new Float32Array(length);
+    channels.forEach((channel, c) => {
+      const filter = this.filters[c] as KWeightingFilter;
+      for (let i = 0; i < length; i++) {
+        const y = filter.process(channel[i] ?? 0);
+        power[i] = (power[i] as number) + y * y;
+      }
+    });
+    for (let i = 0; i < length; i++) power[i] = Math.sqrt(power[i] as number);
+    this.inner.push({ channels: [power], sampleRate, startSeconds });
   }
 
   finish(): RmsWindows {
