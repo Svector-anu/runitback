@@ -162,10 +162,23 @@ export const powerToLufs = (power: number): number =>
 /**
  * Streaming accumulator for the BS.1770 integrated-loudness figure. Each channel runs through its own K-weighting
  * filter (state persists across `push` calls, so chunking adds no boundary artifacts). BS.1770 sums the channels'
- * K-weighted mean-square POWER (unit weights), so the filtered channels are folded into one signal whose
+ * K-weighted mean-square POWER with the channel weights from `bs1770ChannelWeights`, so the filtered channels are folded into one signal whose
  * instantaneous value is sqrt(sum of squares): its mean square equals the sum of the per-channel mean squares.
  * An inner `RmsAccumulator` then windows it so block-gating in `loudnessStats` matches the unweighted path.
  */
+const SURROUND_CHANNEL_WEIGHT = 1.41;
+
+/**
+ * BS.1770 channel weights. Mono and stereo use unit weights. Six channels are read as the standard 5.1 order
+ * (L R C LFE Ls Rs): LFE is excluded and the surrounds weigh 1.41. Any other layout is unknown, so only the first
+ * two channels (front L/R) count rather than guessing at weights.
+ */
+export function bs1770ChannelWeights(channelCount: number): number[] {
+  if (channelCount <= 2) return Array.from({ length: channelCount }, () => 1);
+  if (channelCount === 6) return [1, 1, 1, 0, SURROUND_CHANNEL_WEIGHT, SURROUND_CHANNEL_WEIGHT];
+  return Array.from({ length: channelCount }, (_, i) => (i < 2 ? 1 : 0));
+}
+
 export class IntegratedLoudnessAccumulator {
   private readonly inner: RmsAccumulator;
   private filters: KWeightingFilter[] = [];
@@ -180,11 +193,13 @@ export class IntegratedLoudnessAccumulator {
     if (channels.length === 0) return;
     while (this.filters.length < channels.length) this.filters.push(new KWeightingFilter(sampleRate));
     const power = new Float32Array(length);
+    const weights = bs1770ChannelWeights(channels.length);
     channels.forEach((channel, c) => {
       const filter = this.filters[c] as KWeightingFilter;
+      const weight = weights[c] as number;
       for (let i = 0; i < length; i++) {
         const y = filter.process(channel[i] ?? 0);
-        power[i] = (power[i] as number) + y * y;
+        power[i] = (power[i] as number) + weight * y * y;
       }
     });
     for (let i = 0; i < length; i++) power[i] = Math.sqrt(power[i] as number);

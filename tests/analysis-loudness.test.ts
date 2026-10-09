@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  BS1770_LUFS_OFFSET_DB, IntegratedLoudnessAccumulator, SILENCE_FLOOR_DB, computeKWeightedWindows, computeRmsWindows, loudnessStats,
+  BS1770_LUFS_OFFSET_DB, IntegratedLoudnessAccumulator, bs1770ChannelWeights, SILENCE_FLOOR_DB, computeKWeightedWindows, computeRmsWindows, loudnessStats,
 } from "#/engine/analysis";
 
 const SAMPLE_RATE = 16_000;
@@ -152,5 +152,25 @@ describe("K-weighted integrated loudness (true LUFS)", () => {
       return loudnessStats(computeRmsWindows({ samples, sampleRate: SAMPLE_RATE }), accumulator.finish()).integratedLufs as number;
     };
     expect(lufsFor([samples, new Float32Array(samples.length)])).toBeCloseTo(lufsFor([samples]), 2);
+  });
+
+  it("uses BS.1770 channel weights: 5.1 drops the LFE and weighs surrounds 1.41; unknown layouts count only front L/R", () => {
+    expect(bs1770ChannelWeights(1)).toEqual([1]);
+    expect(bs1770ChannelWeights(2)).toEqual([1, 1]);
+    expect(bs1770ChannelWeights(6)).toEqual([1, 1, 1, 0, 1.41, 1.41]);
+    expect(bs1770ChannelWeights(4)).toEqual([1, 1, 0, 0]);
+  });
+
+  it("a 5.1 signal with only a surround channel active reads 10*log10(1.41) (about 1.5 LU) above the same signal on a front channel", () => {
+    const samples = tone({ seconds: 3, amplitude: amplitudeForLufs(-30, 1000), hz: 1000 });
+    const silent = new Float32Array(samples.length);
+    const lufsFor = (channels: Float32Array[]): number => {
+      const accumulator = new IntegratedLoudnessAccumulator();
+      accumulator.push({ channels, sampleRate: SAMPLE_RATE, startSeconds: 0 });
+      return loudnessStats(computeRmsWindows({ samples, sampleRate: SAMPLE_RATE }), accumulator.finish()).integratedLufs as number;
+    };
+    const front = lufsFor([samples, silent, silent, silent, silent, silent]);
+    const surround = lufsFor([silent, silent, silent, silent, samples, silent]);
+    expect(surround - front).toBeCloseTo(10 * Math.log10(1.41), 1);
   });
 });
