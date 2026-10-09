@@ -118,7 +118,9 @@ function isAbortError(error: unknown): boolean {
 function describeFailure(error: unknown, apiKey: string): ModelError {
   if (error instanceof Anthropic.APIError) {
     const status = error.status;
-    if (status === 401 || status === 403) return new ModelError("Anthropic rejected the API key. Check the key in the Agent panel.", status);
+    if (status === 401 || status === 403) {
+      return new ModelError(`The API key was rejected (HTTP ${status}): ${redactSecrets(error.message, apiKey)}. Check the key in the Agent panel, and the endpoint if you use a gateway.`, status);
+    }
     if (status === 429) return new ModelError("Anthropic rate limit reached. Wait a moment and try again.", status);
     if (status === 529 || (status !== undefined && status >= 500)) return new ModelError("Anthropic is temporarily unavailable. Try again shortly.", status);
     return new ModelError(`Anthropic request failed${status ? ` (${status})` : ""}: ${redactSecrets(error.message, apiKey)}`, status);
