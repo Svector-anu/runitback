@@ -5,3 +5,7 @@ export { createClipIndexer, DEFAULT_CLIP_MODEL, FRAME_BATCH_SIZE, NoVideoError, 
 export { isClipModelCached } from "./model-cache";
 export { createClipSearcher, SEARCHER_IDLE_MS, type ClipSearcher, type ClipSearcherOptions } from "./searcher";
 export { IdbVisualStore, VISUAL_DB_NAME } from "./store";
+export type { FaceBackend, FrameInput } from "./face-protocol";
+export { createFaceEngine, toFractionBox, type FaceEngineDeps, type FrameDetector, type PixelBox } from "./face-engine";
+export { createFaceIndexer, DEFAULT_FACE_MODEL, FACE_FRAME_BATCH_SIZE, type FaceIndexerOptions } from "./face-indexer";
+export { IdbFaceStore, FACE_DB_NAME } from "./face-store";
