@@ -19,6 +19,12 @@ export interface LoudnessStats {
   rmsDb: number;
   /** Gated, unweighted approximation of integrated loudness (BS.1770 gating without K-weighting), dBFS. Not LUFS. */
   integratedApproxDb: number;
+  /**
+   * True integrated loudness: BS.1770 K-weighted and gated, LUFS. Only present when `loudnessStats` is given
+   * K-weighted windows (see `IntegratedLoudnessAccumulator` / `computeKWeightedWindows`); additive alongside
+   * `integratedApproxDb` rather than a rename, since existing callers only have the unweighted windows today.
+   */
+  integratedLufs?: number;
 }
 
 export interface Onset {
