@@ -79,6 +79,127 @@ export function computeRmsWindows(input: { samples: Float32Array; sampleRate: nu
   return accumulator.finish();
 }
 
+/**
+ * ITU-R BS.1770 K-weighting: a high-shelf pre-filter (+4 dB above ~1.68 kHz) cascaded with an RLB high-pass
+ * (~38 Hz), each a biquad designed with the standard cookbook equations
+ * (https://www.w3.org/papers/Audio-EQ-Cookbook.txt) from the BS.1770 Annex 1 f0/Q/gain values, so the design is
+ * correct at any sample rate rather than only the 48 kHz coefficients the standard tabulates.
+ */
+const K_WEIGHT_PRE_FILTER_HZ = 1681.9744509555612;
+const K_WEIGHT_PRE_FILTER_GAIN_DB = 3.99984385397;
+const K_WEIGHT_PRE_FILTER_Q = 0.7071752369554193;
+const K_WEIGHT_RLB_HZ = 38.13547087613982;
+const K_WEIGHT_RLB_Q = 0.5003270373253953;
+/** BS.1770 integrated-loudness normalisation constant: LUFS = offset + 10*log10(gated mean K-weighted power). */
+export const BS1770_LUFS_OFFSET_DB = -0.691;
+
+interface BiquadCoeffs { b0: number; b1: number; b2: number; a1: number; a2: number }
+
+function highShelfCoeffs(sampleRate: number, f0: number, gainDb: number, q: number): BiquadCoeffs {
+  const a = 10 ** (gainDb / 40);
+  const w0 = (2 * Math.PI * f0) / sampleRate;
+  const cosW0 = Math.cos(w0);
+  const alpha = Math.sin(w0) / (2 * q);
+  const sqrtA = Math.sqrt(a);
+  const a0 = a + 1 - (a - 1) * cosW0 + 2 * sqrtA * alpha;
+  return {
+    b0: (a * (a + 1 + (a - 1) * cosW0 + 2 * sqrtA * alpha)) / a0,
+    b1: (-2 * a * (a - 1 + (a + 1) * cosW0)) / a0,
+    b2: (a * (a + 1 + (a - 1) * cosW0 - 2 * sqrtA * alpha)) / a0,
+    a1: (2 * (a - 1 - (a + 1) * cosW0)) / a0,
+    a2: (a + 1 - (a - 1) * cosW0 - 2 * sqrtA * alpha) / a0,
+  };
+}
+
+function highPassCoeffs(sampleRate: number, f0: number, q: number): BiquadCoeffs {
+  const w0 = (2 * Math.PI * f0) / sampleRate;
+  const cosW0 = Math.cos(w0);
+  const alpha = Math.sin(w0) / (2 * q);
+  const a0 = 1 + alpha;
+  return {
+    b0: (1 + cosW0) / 2 / a0,
+    b1: (-(1 + cosW0)) / a0,
+    b2: (1 + cosW0) / 2 / a0,
+    a1: (-2 * cosW0) / a0,
+    a2: (1 - alpha) / a0,
+  };
+}
+
+/** Direct-form-I biquad with its own state; `process` must be called once per sample, in stream order. */
+class Biquad {
+  private x1 = 0;
+  private x2 = 0;
+  private y1 = 0;
+  private y2 = 0;
+  constructor(private readonly c: BiquadCoeffs) {}
+  process(x: number): number {
+    const y = this.c.b0 * x + this.c.b1 * this.x1 + this.c.b2 * this.x2 - this.c.a1 * this.y1 - this.c.a2 * this.y2;
+    this.x2 = this.x1;
+    this.x1 = x;
+    this.y2 = this.y1;
+    this.y1 = y;
+    return y;
+  }
+}
+
+/** Cascaded high-shelf + RLB high-pass K-weighting filter, stateful across an entire stream at one sample rate. */
+class KWeightingFilter {
+  private readonly shelf: Biquad;
+  private readonly highPass: Biquad;
+  constructor(sampleRate: number) {
+    this.shelf = new Biquad(highShelfCoeffs(sampleRate, K_WEIGHT_PRE_FILTER_HZ, K_WEIGHT_PRE_FILTER_GAIN_DB, K_WEIGHT_PRE_FILTER_Q));
+    this.highPass = new Biquad(highPassCoeffs(sampleRate, K_WEIGHT_RLB_HZ, K_WEIGHT_RLB_Q));
+  }
+  process(x: number): number {
+    return this.highPass.process(this.shelf.process(x));
+  }
+}
+
+/** `power` is a K-weighted mean-square value; applies the fixed BS.1770 LUFS normalisation constant. */
+export const powerToLufs = (power: number): number =>
+  power > 0 ? Math.max(SILENCE_FLOOR_DB, BS1770_LUFS_OFFSET_DB + 10 * Math.log10(power)) : SILENCE_FLOOR_DB;
+
+/**
+ * Streaming accumulator for the BS.1770 integrated-loudness figure: mixes channels to mono exactly like
+ * `RmsAccumulator`, runs the mono stream through the K-weighting filter sample-by-sample (filter state persists
+ * across `push` calls, so chunking doesn't introduce boundary artifacts), then windows the filtered signal with
+ * an inner `RmsAccumulator` so block-gating in `loudnessStats` stays identical to the unweighted path.
+ */
+export class IntegratedLoudnessAccumulator {
+  private readonly inner: RmsAccumulator;
+  private filter: KWeightingFilter | null = null;
+
+  constructor(readonly windowSeconds: number = RMS_WINDOW_SECONDS) {
+    this.inner = new RmsAccumulator(windowSeconds);
+  }
+
+  push(input: { channels: ReadonlyArray<Float32Array>; sampleRate: number; startSeconds: number }): void {
+    const { channels, sampleRate, startSeconds } = input;
+    const length = channels[0]?.length ?? 0;
+    const channelCount = channels.length;
+    if (channelCount === 0) return;
+    this.filter ??= new KWeightingFilter(sampleRate);
+    const filtered = new Float32Array(length);
+    for (let i = 0; i < length; i++) {
+      let mono = 0;
+      for (const channel of channels) mono += channel[i] ?? 0;
+      mono /= channelCount;
+      filtered[i] = this.filter.process(mono);
+    }
+    this.inner.push({ channels: [filtered], sampleRate, startSeconds });
+  }
+
+  finish(): RmsWindows {
+    return this.inner.finish();
+  }
+}
+
+export function computeKWeightedWindows(input: { samples: Float32Array; sampleRate: number; windowSeconds?: number }): RmsWindows {
+  const accumulator = new IntegratedLoudnessAccumulator(input.windowSeconds);
+  accumulator.push({ channels: [input.samples], sampleRate: input.sampleRate, startSeconds: 0 });
+  return accumulator.finish();
+}
+
 export function windowLevelsDb(windows: RmsWindows): Float32Array {
   const out = new Float32Array(windows.meanSquare.length);
   for (let i = 0; i < out.length; i++) out[i] = powerToDb(windows.meanSquare[i] as number);
@@ -122,16 +243,9 @@ export function detectSilence(input: SilenceInput): SilenceRange[] {
   return out;
 }
 
-export function loudnessStats(windows: RmsWindows): LoudnessStats {
+/** BS.1770 400 ms block-gating (absolute gate, then relative gate 10 dB below the ungated mean), generic over the dB/LU scale `toDb` maps power onto. */
+function gatedBlockMeanDb(windows: RmsWindows, toDb: (power: number) => number): number {
   const n = windows.meanSquare.length;
-  let total = 0;
-  let peak = 0;
-  for (let i = 0; i < n; i++) {
-    total += windows.meanSquare[i] as number;
-    peak = Math.max(peak, windows.peak[i] as number);
-  }
-  const rmsDb = n > 0 ? powerToDb(total / n) : SILENCE_FLOOR_DB;
-
   const blockWindows = Math.max(1, Math.round(INTEGRATED_BLOCK_SECONDS / windows.windowSeconds));
   const hop = Math.max(1, Math.floor(blockWindows / 4));
   const blocks: number[] = [];
@@ -140,14 +254,29 @@ export function loudnessStats(windows: RmsWindows): LoudnessStats {
     for (let j = i; j < i + blockWindows; j++) sum += windows.meanSquare[j] as number;
     blocks.push(sum / blockWindows);
   }
-  const absolute = blocks.filter((b) => powerToDb(b) > INTEGRATED_ABSOLUTE_GATE_DB);
-  let integratedApproxDb = SILENCE_FLOOR_DB;
-  if (absolute.length > 0) {
-    const ungatedDb = powerToDb(absolute.reduce((a, b) => a + b, 0) / absolute.length);
-    const relative = absolute.filter((b) => powerToDb(b) > ungatedDb + INTEGRATED_RELATIVE_GATE_DB);
-    integratedApproxDb = powerToDb(relative.reduce((a, b) => a + b, 0) / Math.max(1, relative.length));
+  const absolute = blocks.filter((b) => toDb(b) > INTEGRATED_ABSOLUTE_GATE_DB);
+  if (absolute.length === 0) return SILENCE_FLOOR_DB;
+  const ungatedDb = toDb(absolute.reduce((a, b) => a + b, 0) / absolute.length);
+  const relative = absolute.filter((b) => toDb(b) > ungatedDb + INTEGRATED_RELATIVE_GATE_DB);
+  return toDb(relative.reduce((a, b) => a + b, 0) / Math.max(1, relative.length));
+}
+
+/**
+ * `kWeightedWindows` (see `IntegratedLoudnessAccumulator`/`computeKWeightedWindows`) feeds a real BS.1770
+ * `integratedLufs`. Omit it to get the legacy unweighted `integratedApproxDb` only, unchanged.
+ */
+export function loudnessStats(windows: RmsWindows, kWeightedWindows?: RmsWindows): LoudnessStats {
+  const n = windows.meanSquare.length;
+  let total = 0;
+  let peak = 0;
+  for (let i = 0; i < n; i++) {
+    total += windows.meanSquare[i] as number;
+    peak = Math.max(peak, windows.peak[i] as number);
   }
-  return { peakDb: amplitudeToDb(peak), rmsDb, integratedApproxDb };
+  const rmsDb = n > 0 ? powerToDb(total / n) : SILENCE_FLOOR_DB;
+  const integratedApproxDb = gatedBlockMeanDb(windows, powerToDb);
+  const integratedLufs = kWeightedWindows ? gatedBlockMeanDb(kWeightedWindows, powerToLufs) : undefined;
+  return { peakDb: amplitudeToDb(peak), rmsDb, integratedApproxDb, ...(integratedLufs !== undefined ? { integratedLufs } : {}) };
 }
 
 /** Coarse level curve (mean-square averaged per window) so timeline loudness needs no re-decode. */
