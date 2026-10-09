@@ -103,7 +103,7 @@ export class ModelError extends Error {
   }
 }
 
-const KEY_PATTERN = /sk-ant-[A-Za-z0-9_-]+/g;
+const KEY_PATTERN = /(?:sk-ant-|inf_(?:admin_)?)[A-Za-z0-9_-]+/g;
 
 /** Removes anything that looks like an Anthropic key, plus the exact configured key, from text shown to users or logged. */
 export function redactSecrets(text: string, apiKey?: string): string {
@@ -167,6 +167,8 @@ function toStopReason(reason: string | null): StopReason {
 
 export interface AnthropicClientOptions {
   apiKey: string;
+  /** Anthropic-compatible endpoint root (the SDK appends /v1/messages), e.g. a gateway. Defaults to api.anthropic.com. */
+  baseUrl?: string;
   /** Overrides the SDK's fetch; used by tests so no real network is touched. */
   fetch?: typeof fetch;
 }
@@ -179,7 +181,7 @@ export class AnthropicModelClient implements ModelClient {
   private readonly client: Anthropic;
 
   constructor(private readonly options: AnthropicClientOptions) {
-    this.client = new Anthropic({ apiKey: options.apiKey, dangerouslyAllowBrowser: true, fetch: options.fetch, maxRetries: 2 });
+    this.client = new Anthropic({ apiKey: options.apiKey, ...(options.baseUrl ? { baseURL: options.baseUrl } : {}), dangerouslyAllowBrowser: true, fetch: options.fetch, maxRetries: 2 });
   }
 
   async complete(request: ModelRequest): Promise<ModelResponse> {

@@ -9,7 +9,7 @@ import type { CaseResult } from "./types";
 
 const USAGE = `Real-model evals (periodic report, not a CI gate).
 
-  ANTHROPIC_API_KEY=... pnpm eval:real [--trials N] [--case ID]... [--model ID]
+  ANTHROPIC_API_KEY=... [ANTHROPIC_BASE_URL=https://api.surplusintelligence.ai/anthropic] pnpm eval:real [--trials N] [--case ID]... [--model ID]
 
 Model calls only happen when ANTHROPIC_API_KEY is set AND --real is passed (pnpm eval:real passes it).
 Model: --model, else EVAL_MODEL, else ${DEFAULT_AGENT_MODEL}. Price overrides (USD per million tokens): EVAL_PRICE_INPUT, EVAL_PRICE_OUTPUT.
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
 
   const pricing = pricingFromEnv(process.env);
   const startedAt = new Date().toISOString();
-  const client = new AnthropicModelClient({ apiKey });
+  const client = new AnthropicModelClient({ apiKey, ...(process.env["ANTHROPIC_BASE_URL"] ? { baseUrl: process.env["ANTHROPIC_BASE_URL"] } : {}) });
   const results: Array<{ caseId: string; title: string; trials: CaseResult[] }> = [];
   for (const evalCase of cases) {
     const caseTrials: CaseResult[] = [];

@@ -99,3 +99,15 @@ When a real-model run fails a case, look at the failed check ids in the report, 
 - `delete-spoken-sentence` runs against a declared fixture transcript, not a real recognizer, and is not in the real-media Playwright run (the browser fixtures carry a tone, not speech). It proves the tools and the checks, not recognition quality.
 - Real-media mode covers the audio/shot structure the analyzer can measure; the reference-pacing case needs a style store and is covered headlessly only.
 - Stubbed rendering means headless runs cannot test visual judgement (is the title legible?). The checks measure timing and structure.
+
+## Running the real-model eval through a gateway
+
+`pnpm eval:real` talks to any Anthropic-compatible endpoint. To use Surplus Intelligence (marketplace of sellers, `inf_` keys), keep the key in your shell and never in the repo:
+
+```sh
+export ANTHROPIC_API_KEY=inf_...        # buyer key
+export ANTHROPIC_BASE_URL=https://api.surplusintelligence.ai/anthropic
+pnpm eval:real --trials 1 --model claude-opus-4.8
+```
+
+Only the synthetic fixtures' tool results (numbers and ids) leave the machine in this mode. Do not point the in-app agent at a gateway for real footage: requests are routed to third-party sellers and the docs do not say who can see them. Browser (CORS) access to the gateway is unverified, so the in-app agent has no base-URL setting. Model ids are the gateway's (`claude-opus-4.8`, `claude-sonnet-4-5-20250929`, ...), not Anthropic's.
