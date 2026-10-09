@@ -3,9 +3,10 @@ import type { TimelineElement } from "#/engine/model";
 import { allElements, elementEnd, type LocatedElement } from "#/engine/timeline";
 import {
   groupSentences, mapSourceToTimeline, searchTranscript, sourceRangesForWords, wordsToCaptionChunks,
-  type Transcriber, type Transcript, type TranscriptStore, type TranscriptWord,
+  type CaptionChunk, type Transcriber, type Transcript, type TranscriptStore, type TranscriptWord,
 } from "#/engine/transcript";
 import { TICKS_PER_SECOND, floorToFrame, frameIndexAt, frameStartTime, mediaTime, type MediaTime } from "#/engine/time";
+import type { CaptionCueWord } from "#/engine/captions";
 import { captionElement } from "./captions";
 import { defineTool, ok, toSec, ToolError, type ToolEnv } from "./env";
 import type { AgentTool, JsonSchema } from "./types";
@@ -53,6 +54,14 @@ function toTimelineTicks(placed: Placed, sourceSeconds: number): number {
   return mapSourceToTimeline({
     source: sourceSeconds * TICKS_PER_SECOND, trimStart: placed.element.trimStart, rate: placed.rate, start: placed.startTicks, end: placed.endTicks,
   });
+}
+
+/** The words a chunk spans, reduced to the timing fields. `words` must be the array the chunk indices were computed against. */
+export function captionCueWords(words: ReadonlyArray<TranscriptWord>, chunk: CaptionChunk): CaptionCueWord[] {
+  return words
+    .slice(chunk.startWord, chunk.endWord + 1)
+    .filter((word) => word.text.trim() !== "")
+    .map((word) => ({ text: word.text.trim(), startSeconds: word.startSeconds, endSeconds: word.endSeconds }));
 }
 
 function visibleWords(words: ReadonlyArray<TranscriptWord>, from: number, to: number): Placed["visible"] {
@@ -368,8 +377,9 @@ export function createTranscriptTools(deps: TranscriptDeps): AgentTool[] {
       const from = Math.max(0, (input.startWord ?? offset) - offset);
       const to = Math.min(words.length - 1, (input.endWord ?? offset + words.length - 1) - offset);
       if (to < from) throw new ToolError("The word range is outside this clip.", "Use get_transcript with elementId to see the clip's word indices.");
+      const clipWords = words.slice(from, to + 1);
       const chunks = wordsToCaptionChunks({
-        words: words.slice(from, to + 1),
+        words: clipWords,
         ...(input.maxChars === undefined ? {} : { maxChars: input.maxChars }),
         ...(input.maxSeconds === undefined ? {} : { maxSeconds: input.maxSeconds }),
       });
@@ -386,7 +396,7 @@ export function createTranscriptTools(deps: TranscriptDeps): AgentTool[] {
       const canvas = env.doc.settings.canvasSize;
       const ids = kept.map(() => env.editor.newId());
       const elements = kept.map((k, i) => captionElement({
-        cue: { text: k.chunk.text, startTime: k.start, duration: k.duration }, index: i, id: ids[i] as string, canvas, startTime: k.start, duration: k.duration,
+        cue: { text: k.chunk.text, startTime: k.start, duration: k.duration, words: captionCueWords(clipWords, k.chunk) }, index: i, id: ids[i] as string, canvas, startTime: k.start, duration: k.duration,
       }));
       env.editor.execute(batch("Add captions from transcript", [insertElementsOnLanes({ elements, index: 0, label: "Add captions from transcript" })]));
       const trackIds = [...new Set(ids.map((id) => env.require(id).track.id))];

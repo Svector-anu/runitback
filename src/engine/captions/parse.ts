@@ -6,6 +6,14 @@ export interface CaptionCue {
   duration: MediaTime;
   /** ASS only: fractional style hints resolved against the script's play resolution. */
   style?: CueStyle;
+  /** Transcript-derived only: per-word timing in SOURCE seconds, the units of `TranscriptWord`. Absent for SRT/ASS cues. */
+  words?: CaptionCueWord[];
+}
+
+export interface CaptionCueWord {
+  text: string;
+  startSeconds: number;
+  endSeconds: number;
 }
 
 export interface CueStyle {
