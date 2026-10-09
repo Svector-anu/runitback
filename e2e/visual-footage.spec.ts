@@ -25,10 +25,10 @@ test("real CLIP on real footage: do the top hits land in the human-checked range
     return asset ? route.fulfill({ path: asset.path, contentType: "video/mp4" }) : route.abort();
   });
   const files = Object.fromEntries(Object.entries(spec.assets).map(([key, a]) => [key, { durationSeconds: a.durationSeconds }]));
-  const result = await page.evaluate(async ({ files, queries }) => {
-    const { createClipIndexer } = (await import(/* @vite-ignore */ "/src/platform/visual/indexer.ts")) as typeof import("../src/platform/visual/indexer");
-    const { createClipSearcher } = (await import(/* @vite-ignore */ "/src/platform/visual/searcher.ts")) as typeof import("../src/platform/visual/searcher");
-    const engine = (await import(/* @vite-ignore */ "/src/engine/visual/index.ts")) as typeof import("../src/engine/visual");
+  const result = await page.evaluate(async ({ files, queries, indexerUrl, searcherUrl, engineUrl }: { indexerUrl: string; searcherUrl: string; engineUrl: string; files: Record<string, { durationSeconds: number }>; queries: Array<CaseFile["queries"][number] & { template: string }> }) => {
+    const { createClipIndexer } = (await import(/* @vite-ignore */ indexerUrl)) as typeof import("../src/platform/visual/indexer");
+    const { createClipSearcher } = (await import(/* @vite-ignore */ searcherUrl)) as typeof import("../src/platform/visual/searcher");
+    const engine = (await import(/* @vite-ignore */ engineUrl)) as typeof import("../src/engine/visual");
     const embeddings: Record<string, Awaited<ReturnType<ReturnType<typeof createClipIndexer>["index"]>>> = {};
     for (const [key, f] of Object.entries(files)) {
       const file = new File([await (await fetch(`/__footage/${key}`)).blob()], `${key}.mp4`, { type: "video/mp4" });
@@ -39,7 +39,7 @@ test("real CLIP on real footage: do the top hits land in the human-checked range
     for (const q of queries) {
       const emb = embeddings[q.asset];
       if (!emb) continue;
-      const scores = engine.scoreFrames(emb, await searcher.embedText(q.query));
+      const scores = engine.scoreFrames(emb, await searcher.embedText(q.template.replace("{query}", q.query)));
       const rows = scores.map((s, i) => ({ t: emb.times[i] ?? 0, s, inside: (emb.times[i] ?? 0) >= q.truth[0] && (emb.times[i] ?? 0) <= q.truth[1] }));
       const ranked = [...rows].sort((a, b) => b.s - a.s);
       const mean = (xs: number[]): number => (xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length);
@@ -57,6 +57,6 @@ test("real CLIP on real footage: do the top hits land in the human-checked range
     }
     searcher.dispose();
     return out;
-  }, { files, queries: spec.queries });
+  }, { indexerUrl: "/src/platform/visual/indexer.ts", searcherUrl: "/src/platform/visual/searcher.ts", engineUrl: "/src/engine/visual/index.ts", files, queries: spec.queries.map((q) => ({ ...q, template: process.env.QUERY_TEMPLATE ?? "{query}" })) });
   console.log(JSON.stringify(result));
 });
