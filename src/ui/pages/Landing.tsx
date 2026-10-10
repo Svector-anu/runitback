@@ -5,9 +5,9 @@ import { Icon, Logo } from "../icons";
 import { Button } from "../primitives/Button";
 
 const FEATURES = [
-  { title: "Private by design", body: "Your media never leaves your browser. Projects and files are stored locally." },
-  { title: "A real timeline", body: "Multiple tracks, trimming, splitting, snapping, ripple editing, keyframes and undo." },
-  { title: "Export in the browser", body: "Render MP4 or WebM with your edits and audio, using the video encoder built into your browser." },
+  { title: "Sees your footage", body: "The agent watches your clips, reads references, and knows what's on screen before it edits." },
+  { title: "Edits through real tools", body: "Every change runs through the same typed commands and undo stack a human uses — one agent turn, one undo step." },
+  { title: "Verifies its own work", body: "It renders and measures the result before calling a cut done, instead of guessing." },
 ];
 
 export function Landing(): ReactNode {
@@ -22,9 +22,9 @@ export function Landing(): ReactNode {
         </div>
       </header>
       <main className="landing__hero">
-        <h1>The open source <em>video editor</em></h1>
-        <p>A simple but powerful video editor that gets the job done. It runs entirely in your browser.</p>
-        <Button size="lg" style={{ height: 44, fontSize: "var(--text-base)" }} onClick={() => navigate("/projects")}>Start editing<Icon name="arrow-right" /></Button>
+        <h1>Tell your <em>video editor</em> what to do</h1>
+        <p>An agent-native video editor. It sees your footage, understands references, edits through the same tools you do, and verifies its own work. All in your browser.</p>
+        <Button size="lg" style={{ height: 44, fontSize: "var(--text-base)" }} onClick={() => location.assign("/app")}>Start editing<Icon name="arrow-right" /></Button>
       </main>
       <section className="landing__features" aria-label="Features">
         {FEATURES.map((f) => <div key={f.title} className="landing__feature"><h3>{f.title}</h3><p>{f.body}</p></div>)}

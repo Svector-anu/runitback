@@ -1,6 +1,9 @@
 {
   "buildCommand": "pnpm build",
   "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/app", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",

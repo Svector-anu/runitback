@@ -25,19 +25,28 @@ export function App(): ReactNode {
     });
   }, []);
 
+  // Landing is a real pathname (`/` with no hash), not a hash route: a bare `/app` load, or any
+  // non-empty hash on `/`, falls through to the app shell switch below instead.
+  const showLanding = location.pathname === "/" && location.hash === "";
+
   let page: ReactNode;
-  switch (route.name) {
-    case "landing": page = <Landing />; break;
-    case "projects": page = <ProjectsPage />; break;
-    case "editor": page = <Suspense fallback={<div className="loading-screen" role="status">Loading editor...</div>}><EditorPage key={route.id} id={route.id} /></Suspense>; break;
-    case "not-found":
-      page = <div className="loading-screen"><h1>Page not found</h1><Button onClick={() => navigate("/projects")}>Go to projects</Button></div>;
+  if (showLanding) {
+    page = <Landing />;
+  } else {
+    switch (route.name) {
+      case "projects": page = <ProjectsPage />; break;
+      case "editor": page = <Suspense fallback={<div className="loading-screen" role="status">Loading editor...</div>}><EditorPage key={route.id} id={route.id} /></Suspense>; break;
+      case "not-found":
+        page = <div className="loading-screen"><h1>Page not found</h1><Button onClick={() => navigate("/projects")}>Go to projects</Button></div>;
+    }
   }
   const exit = { label: "Back to projects", run: () => navigate("/projects") };
+  const errorKey = showLanding ? "landing" : route.name === "editor" ? `editor:${route.id}` : route.name;
   return (
     <>
-      <ErrorBoundary key={route.name === "editor" ? `editor:${route.id}` : route.name} scope={route.name === "editor" ? "the editor" : "this page"}
-        reloadLabel={route.name === "editor" ? "Reload project" : "Reload page"} onExit={route.name === "projects" ? undefined : exit}>
+      <ErrorBoundary key={errorKey} scope={!showLanding && route.name === "editor" ? "the editor" : "this page"}
+        reloadLabel={!showLanding && route.name === "editor" ? "Reload project" : "Reload page"}
+        onExit={!showLanding && route.name === "projects" ? undefined : exit}>
         {page}
       </ErrorBoundary>
       <Toaster />
