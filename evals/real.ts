@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AnthropicModelClient, DEFAULT_AGENT_MODEL, redactSecrets } from "#/app/agent/model-client";
+import { AnthropicModelClient, DEFAULT_AGENT_MODEL, redactSecrets, type ModelClient } from "#/app/agent/model-client";
+import { OpenAIModelClient } from "#/app/agent/model-client-openai";
 import { RUNNABLE_CASES } from "./cases";
 import { runCase } from "./harness";
 import { DEFAULT_PRICING, buildReport, renderMarkdown, type Pricing } from "./report";
@@ -10,9 +11,12 @@ import type { CaseResult } from "./types";
 const USAGE = `Real-model evals (periodic report, not a CI gate).
 
   ANTHROPIC_API_KEY=... [ANTHROPIC_BASE_URL=https://api.surplusintelligence.ai/anthropic] pnpm eval:real [--trials N] [--case ID]... [--model ID]
+  OPENAI_API_KEY=... [OPENAI_BASE_URL=https://api.openai.com/v1] pnpm eval:real --provider openai [--trials N] [--case ID]... [--model ID]
 
-Model calls only happen when ANTHROPIC_API_KEY is set AND --real is passed (pnpm eval:real passes it).
-Model: --model, else EVAL_MODEL, else ${DEFAULT_AGENT_MODEL}. Price overrides (USD per million tokens): EVAL_PRICE_INPUT, EVAL_PRICE_OUTPUT.
+Model calls only happen when the selected provider's API key is set AND --real is passed (pnpm eval:real passes it).
+Provider: --provider anthropic|openai, defaults to anthropic.
+Model: --model, else EVAL_MODEL, else ${DEFAULT_AGENT_MODEL} (used as-is for whichever provider is selected).
+Price overrides (USD per million tokens): EVAL_PRICE_INPUT, EVAL_PRICE_OUTPUT.
 Reports are written to evals/reports/<timestamp>.json and .md.`;
 
 const DEFAULT_TRIALS = 3;
@@ -32,15 +36,22 @@ function pricingFromEnv(env: NodeJS.ProcessEnv): Pricing {
   };
 }
 
+function clientFor({ provider, apiKey, baseUrl }: { provider: "anthropic" | "openai"; apiKey: string; baseUrl: string | undefined }): ModelClient {
+  if (provider === "openai") return new OpenAIModelClient({ apiKey, ...(baseUrl ? { baseUrl } : {}) });
+  return new AnthropicModelClient({ apiKey, ...(baseUrl ? { baseUrl } : {}) });
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const apiKey = process.env["ANTHROPIC_API_KEY"];
+  const provider = flagValues(argv, "provider")[0] === "openai" ? "openai" : "anthropic";
+  const apiKeyEnvVar = provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
+  const apiKey = process.env[apiKeyEnvVar];
   if (!argv.includes("--real")) {
     process.stdout.write(`${USAGE}\n\nNo --real flag: nothing was run and no model was called.\n`);
     return;
   }
   if (!apiKey) {
-    process.stderr.write("ANTHROPIC_API_KEY is not set: nothing was run and no model was called.\n");
+    process.stderr.write(`${apiKeyEnvVar} is not set: nothing was run and no model was called.\n`);
     process.exitCode = 1;
     return;
   }
@@ -52,7 +63,8 @@ async function main(): Promise<void> {
 
   const pricing = pricingFromEnv(process.env);
   const startedAt = new Date().toISOString();
-  const client = new AnthropicModelClient({ apiKey, ...(process.env["ANTHROPIC_BASE_URL"] ? { baseUrl: process.env["ANTHROPIC_BASE_URL"] } : {}) });
+  const baseUrlEnvVar = provider === "openai" ? "OPENAI_BASE_URL" : "ANTHROPIC_BASE_URL";
+  const client = clientFor({ provider, apiKey, baseUrl: process.env[baseUrlEnvVar] });
   const results: Array<{ caseId: string; title: string; trials: CaseResult[] }> = [];
   for (const evalCase of cases) {
     const caseTrials: CaseResult[] = [];
@@ -75,6 +87,7 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`${redactSecrets(message, process.env["ANTHROPIC_API_KEY"])}\n`);
+  const redacted = redactSecrets(redactSecrets(message, process.env["ANTHROPIC_API_KEY"]), process.env["OPENAI_API_KEY"]);
+  process.stderr.write(`${redacted}\n`);
   process.exitCode = 1;
 });
