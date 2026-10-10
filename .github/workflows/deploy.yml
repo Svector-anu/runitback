@@ -20,6 +20,8 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      url: ${{ steps.vercel-deploy.outputs.url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,9 +53,55 @@ jobs:
         run: npm install --global vercel@58.4.4
 
       - name: Deploy to Vercel (production)
+        id: vercel-deploy
         if: steps.latest.outputs.stale != 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: vercel deploy --prod --token="$VERCEL_TOKEN" --yes
+        run: |
+          url=$(vercel deploy --prod --token="$VERCEL_TOKEN" --yes)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    needs: deploy
+    # Empty url means deploy's steps didn't run at all (stale superseded-run skip or missing
+    # secrets) — in both cases there is no fresh URL to check, so skip rather than fail.
+    if: needs.deploy.outputs.url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Check Deployment Protection bypass secret
+        id: bypass
+        run: |
+          if [ -z "${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}" ]; then
+            echo "::warning::VERCEL_AUTOMATION_BYPASS_SECRET is not set. Deployment Protection is on, so a headless request to the live URL would hit the Vercel login page instead of the app. Skipping the post-deploy smoke check until the owner adds this secret (Vercel project Settings > Deployment Protection > Protection Bypass for Automation)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.bypass.outputs.skip != 'true'
+      - uses: actions/setup-node@v4
+        if: steps.bypass.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.bypass.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        if: steps.bypass.outputs.skip != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Smoke-check the live deploy
+        if: steps.bypass.outputs.skip != 'true'
+        env:
+          SMOKE_URL: ${{ needs.deploy.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: pnpm exec playwright test e2e/smoke-live.spec.ts
