@@ -118,3 +118,10 @@ export function buildEffectElement(input: Common & { effectType: string; params:
     duration: DEFAULT_ELEMENT_DURATION, trimStart: mediaTime(0), trimEnd: mediaTime(0), params: { ...input.params },
   };
 }
+
+/** True when no scene in the project has any element, so "first run" cannot resurface from creating a blank scene later. */
+export function projectHasNoElements(scenes: ReadonlyArray<Scene>): boolean {
+  return scenes.every(({ tracks }) => tracks.main.elements.length === 0
+    && tracks.overlay.every((track) => track.elements.length === 0)
+    && tracks.audio.every((track) => track.elements.length === 0));
+}

@@ -1,23 +1,17 @@
 import { useState, type ReactNode } from "react";
 import { getServices } from "#/app/services";
-import { useTracks } from "#/app/hooks";
-import type { SceneTracks } from "#/engine/model";
+import { useEditorState } from "#/app/hooks";
+import { projectHasNoElements } from "#/engine/model";
 import { ONBOARDING_DISMISSED_PREF, isBoolean } from "#/platform/prefs";
 import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
 
-function isEmptyProject(tracks: SceneTracks): boolean {
-  return tracks.main.elements.length === 0
-    && tracks.overlay.every((track) => track.elements.length === 0)
-    && tracks.audio.every((track) => track.elements.length === 0);
-}
-
 export function OnboardingHint(): ReactNode {
   const { prefs } = getServices();
-  const tracks = useTracks();
+  const projectIsEmpty = useEditorState((state) => projectHasNoElements((state.preview ?? state.doc).scenes));
   const [dismissed, setDismissed] = useState(() => prefs.read(ONBOARDING_DISMISSED_PREF, false, isBoolean));
 
-  if (dismissed || !isEmptyProject(tracks)) return null;
+  if (dismissed || !projectIsEmpty) return null;
 
   return (
     <div className="banner" role="status" data-testid="onboarding-hint">
