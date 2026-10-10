@@ -8,11 +8,15 @@ A local-first, in-browser video editor (RunItBack) reconstructed from OpenCut (c
 pnpm install
 pnpm dev            # http://localhost:5173
 pnpm typecheck      # tsc --noEmit (strict, noUncheckedIndexedAccess)
-pnpm lint           # eslint src tests e2e
+pnpm lint           # eslint src tests e2e tools evals
 pnpm test           # vitest: engine, persistence, render geometry, ui lib, architecture
 pnpm e2e            # Playwright (Chromium): import -> edit -> play -> persist -> export
 pnpm build          # typecheck + production bundle
+pnpm eval           # scripted agent evals (no network, no key): every policy must behave as declared
+pnpm eval:real      # real model; needs ANTHROPIC_API_KEY (+ optional ANTHROPIC_BASE_URL), see docs/EVALS.md
+pnpm mcp            # MCP server for external agents, see docs/AGENT_MCP.md
 ```
+Opt-in specs (skipped by default): `REAL_MODEL=1` e2e/agent-real.spec.ts (real model through a Node-side bridge), `REAL_CLIP=1`, `REAL_FACE=1`, `FOOTAGE_CASES=<json>` e2e/visual-footage.spec.ts. Never print, log or commit an API key; the key never enters the page (bridge model calls from Node).
 `pnpm exec playwright install chromium` once before `pnpm e2e`. Gate before declaring work done: typecheck, lint, test, build, e2e.
 
 ## Architecture (see `docs/ARCHITECTURE.md`)
@@ -27,6 +31,10 @@ Layers, imports point downward only (enforced by `tests/architecture.test.ts`):
 - `src/export/` export pipeline (frame loop + offline audio mix + mux).
 - `src/app/` composition root (`AppServices`), hooks, shortcuts wiring, preview renderer.
 - `src/ui/` React components and CSS. No document state lives here.
+
+## Agent layer (see `docs/PRODUCT_MAP.md` for state)
+
+`engine/agent` typed tools + `runAgentTurn` (one turn = one undo step); `engine/analysis` perception (silence, true LUFS, onsets, scene cuts); `engine/transcript` + `platform/transcribe` local Whisper; `engine/temporal` per-asset index and `find_moments`/`cut_to_moments`; `engine/visual` + `platform/visual` CLIP search and face detection; `engine/reference` style profiles; `src/app/agent` chat session and model client; `evals/` scored briefs with oracles and mutations. Models download only after explicit consent (`app/model-consent.ts`). Epoch plans work in the Aeon instance (`docs/AEON_EPOCH.md`); deploys go through Vercel's GitHub integration on push to main (`docs/PROJECT_STATE.md`).
 
 ## Domain model
 
