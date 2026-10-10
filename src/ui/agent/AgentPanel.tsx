@@ -4,6 +4,7 @@ import type { ChatItem } from "#/app/agent/session";
 import { AGENT_MODELS } from "#/app/agent/model-client";
 import { useEditorState } from "#/app/hooks";
 import { Button } from "../primitives/Button";
+import { PlanCard } from "./PlanCard";
 
 const EXAMPLE_PROMPTS = [
   "Build a rough cut: put my clips on the timeline in a sensible order and trim obvious dead air.",
@@ -38,6 +39,7 @@ function ToolChip({ item }: { item: Extract<ChatItem, { kind: "tool" }> }): Reac
 }
 
 function Item({ item }: { item: ChatItem }): ReactNode {
+  const session = getAgentSession();
   switch (item.kind) {
     case "user":
       return <div className="agent-msg agent-msg--user">{item.text}</div>;
@@ -51,6 +53,13 @@ function Item({ item }: { item: ChatItem }): ReactNode {
           <img src={`data:${item.mediaType};base64,${item.base64}`} alt={item.caption || "Rendered frame"} data-testid="agent-frame" />
           {item.caption ? <figcaption>{item.caption}</figcaption> : null}
         </figure>
+      );
+    case "plan":
+      return (
+        <PlanCard
+          plan={item.plan} revision={item.revision} status={item.status} steps={item.steps} verification={item.verification} feedback={item.feedback}
+          onApprove={() => session.approvePlan()} onRevise={(text) => session.revisePlan(text)} onReject={() => session.rejectPlan()}
+        />
       );
     case "notice":
       return <div className={`agent-notice agent-notice--${item.tone}`} role={item.tone === "error" ? "alert" : undefined}>{item.text}</div>;
@@ -148,10 +157,21 @@ export function AgentPanel(): ReactNode {
         )}
       </div>
 
+      <label className="agent-toggle">
+        <input
+          type="checkbox" checked={state.askBeforeEditing} disabled={state.running}
+          onChange={(e) => session.setAskBeforeEditing(e.target.checked)}
+        />
+        Ask before editing
+      </label>
+
       <div ref={logRef} className="agent-log" role="log" aria-label="Agent conversation" aria-relevant="additions text">
         {state.items.length === 0 ? (
           <div className="agent-empty" data-testid="agent-empty">
-            <p>Describe an edit and the agent will make it on your timeline, then check its own work. One undo reverts everything it did.</p>
+            <p>
+              Describe an edit. {state.askBeforeEditing ? "The agent shows a plan first and edits only after you approve it, then" : "The agent edits your timeline, then"} checks its own work.
+              One undo reverts everything it did.
+            </p>
             <ul className="agent-examples" aria-label="Example prompts">
               {EXAMPLE_PROMPTS.map((prompt) => (
                 <li key={prompt}><button type="button" className="agent-example" onClick={() => setDraft(prompt)}>{prompt}</button></li>
@@ -161,11 +181,11 @@ export function AgentPanel(): ReactNode {
         ) : state.items.map((item) => <Item key={item.id} item={item} />)}
         {state.running ? (
           <div className="agent-msg agent-msg--assistant agent-msg--streaming" data-testid="agent-streaming">
-            {state.streaming || `Working... (step ${state.step})`}
+            {state.awaitingPlan ? "Waiting for your answer to the plan above." : state.streaming || `Working... (step ${state.step})`}
           </div>
         ) : null}
       </div>
-      <div className="agent-sr-only" role="status" aria-live="polite">{state.running ? `Agent is working, step ${state.step}` : ""}</div>
+      <div className="agent-sr-only" role="status" aria-live="polite">{state.awaitingPlan ? "The agent is waiting for you to approve its plan" : state.running ? `Agent is working, step ${state.step}` : ""}</div>
 
       <div className="agent-actions">
         {state.running ? <Button size="sm" variant="destructive-outline" onClick={() => session.stop()}>Stop</Button> : null}

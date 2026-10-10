@@ -1,4 +1,4 @@
-import { runAgent, type AgentEvent } from "#/app/agent/loop";
+import { runAgent, type AgentEvent, type PlanningOptions } from "#/app/agent/loop";
 import type { ModelClient } from "#/app/agent/model-client";
 import { createAgentTools, createTemporalTools, createTranscriptTools, type AgentTool } from "#/engine/agent";
 import { Editor } from "#/engine/editor";
@@ -50,6 +50,8 @@ export interface RunCaseOptions {
   policyId: string;
   model: ModelClient;
   modelName?: string;
+  /** Plan-then-execute for this run. Scripted policies leave it unset (no plan tools); a real-model run may pass `{ mode: "auto-approve" }`. */
+  planning?: PlanningOptions;
   /** Called for every agent event (progress output for the real runner). */
   onEvent?: (event: AgentEvent) => void;
 }
@@ -64,6 +66,7 @@ export async function runCase(options: RunCaseOptions): Promise<CaseResult> {
     history: [],
     model: options.model,
     ...(options.modelName ? { modelName: options.modelName } : {}),
+    ...(options.planning ? { planning: options.planning } : {}),
     tools: world.tools,
     editor: world.editor,
     maxSteps: evalCase.budget.maxSteps,

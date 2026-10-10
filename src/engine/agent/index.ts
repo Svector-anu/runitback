@@ -10,3 +10,4 @@ export { runAgentTurn, runToolTurn, type ToolCall, type ToolTurnResult } from ".
 export { validateInput, didYouMean, type Validation } from "./validate";
 export { paramSpecsFor, paramEditCommand, animationPathFor, type ParamSpec } from "./params";
 export { toSec } from "./env";
+export * from "./plan";

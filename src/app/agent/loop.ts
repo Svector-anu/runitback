@@ -1,11 +1,15 @@
-import { callTool, runAgentTurn, type AgentToolRegistry, type ToolContext, type ToolResult } from "#/engine/agent";
+import {
+  PLAN_TOOL_SCHEMAS, PROPOSE_PLAN_DESCRIPTION, PROPOSE_PLAN_TOOL, UPDATE_PLAN_STEP_DESCRIPTION, UPDATE_PLAN_STEP_TOOL,
+  callTool, formatPlan, parsePlan, parseStepUpdate,
+  type AgentToolRegistry, type Plan, type PlanStepStatus, type ToolContext, type ToolResult,
+} from "#/engine/agent";
 import type { Editor } from "#/engine/editor";
 import {
   DEFAULT_AGENT_MODEL, DEFAULT_MAX_RESPONSE_TOKENS, ZERO_USAGE, addUsage, redactSecrets, totalTokens,
   type AssistantBlock, type ImageBlock, type ModelClient, type ModelMessage, type TextBlock, type TokenUsage, type ToolResultBlock,
   type ToolUseBlock, type UserBlock,
 } from "./model-client";
-import { AGENT_SYSTEM_PROMPT } from "./system-prompt";
+import { buildSystemPrompt } from "./system-prompt";
 
 export const DEFAULT_MAX_STEPS = 30;
 export const DEFAULT_TOKEN_BUDGET = 1_000_000;
@@ -18,13 +22,27 @@ export type AgentEvent =
   | { type: "text_delta"; delta: string }
   | { type: "text"; text: string }
   | { type: "tool_call"; id: string; name: string; args: unknown }
-  | { type: "tool_result"; id: string; name: string; ok: boolean; summary: string; detail: string; durationMs: number }
+  | { type: "tool_result"; id: string; name: string; ok: boolean; summary: string; detail: string; durationMs: number; planStep?: number }
+  | { type: "notice"; text: string }
+  | { type: "plan"; plan: Plan; revision: number }
+  | { type: "plan_decision"; decision: "approved" | "revise" | "rejected"; feedback?: string }
+  | { type: "plan_step"; step: number; status: PlanStepStatus; note: string }
   | { type: "image"; id: string; mediaType: "image/jpeg" | "image/png"; base64: string; caption: string }
   | { type: "usage"; usage: TokenUsage }
   | { type: "done"; status: AgentStatus; text: string }
   | { type: "error"; message: string };
 
-export type AgentStatus = "done" | "aborted" | "error" | "max_steps" | "token_budget" | "busy";
+export type AgentStatus = "done" | "aborted" | "error" | "max_steps" | "token_budget" | "busy" | "rejected";
+
+export type PlanDecision = { kind: "approve" } | { kind: "revise"; feedback: string } | { kind: "reject" };
+
+/**
+ * Plan-then-execute. Absent = no plan tools and no gate (headless callers, evals). "ask" shows each proposed plan to
+ * `decide` and edits wait for its answer; "auto-approve" records the plan and approves it at once (scripted policies).
+ */
+export type PlanningOptions =
+  | { mode: "auto-approve" }
+  | { mode: "ask"; decide: (plan: Plan) => Promise<PlanDecision> };
 
 export interface RunAgentOptions {
   goal: string;
@@ -44,6 +62,7 @@ export interface RunAgentOptions {
   systemPrompt?: string;
   /** Undo-step label shown in history. */
   label?: string;
+  planning?: PlanningOptions;
 }
 
 export interface AgentRunResult {
@@ -152,12 +171,165 @@ function describeFailure(error: unknown): string {
 }
 
 interface LoopEnd {
-  status: Extract<AgentStatus, "done" | "max_steps" | "token_budget">;
+  status: Extract<AgentStatus, "done" | "max_steps" | "token_budget" | "rejected">;
   finalText: string;
 }
 
+const textResult = (id: string, text: string, isError = false): ToolResultBlock => ({ type: "tool_result", toolUseId: id, isError, content: [{ type: "text", text }] });
+
+/**
+ * The run's undo step. Without planning it spans the whole run. With planning it is opened lazily by the first edit that
+ * is allowed to run (after approval, or the one unplanned edit) and committed before any wait for the user, so a wait
+ * never holds a transaction open and nothing the user does meanwhile can be rolled back with it.
+ */
+class TurnLedger {
+  private open = false;
+  private docAtBegin: unknown = null;
+  /** True when a committed transaction of this run changed the document (and was not reverted). */
+  changed = false;
+
+  constructor(private readonly editor: Editor, private readonly label: string) {}
+
+  ensure(): void {
+    if (this.open) return;
+    this.editor.beginTransaction(this.label);
+    this.open = true;
+    this.docAtBegin = this.editor.getState().doc;
+  }
+
+  commit(): void {
+    if (!this.open) return;
+    this.editor.commitTransaction();
+    this.open = false;
+    if (this.editor.getState().doc !== this.docAtBegin) this.changed = true;
+  }
+
+  rollback(): void {
+    if (!this.open) return;
+    this.editor.rollbackTransaction();
+    this.open = false;
+  }
+}
+
+/** An edit the user never saw a plan for is allowed once (a single, fully specified edit); anything more needs an approved plan. */
+const UNPLANNED_EDIT_LIMIT = 1;
+
+interface PlanGate {
+  plan: Plan | null;
+  /** A plan was proposed at least once in this run. */
+  proposed: boolean;
+  approved: boolean;
+  unplannedEdits: number;
+  /** Documents around the unplanned edit (its own committed undo step); a later plan reverts it only if nothing changed since. */
+  docBeforeUnplanned: unknown;
+  docAfterUnplanned: unknown;
+  revision: number;
+  /** 1-based step currently marked running. */
+  running: number | null;
+}
+
+/** Undoes the unplanned edit's own undo step, only while the document is exactly what that edit produced. */
+function revertUnplanned(editor: Editor, gate: PlanGate): "reverted" | "kept" {
+  if (gate.docBeforeUnplanned === gate.docAfterUnplanned || editor.getState().doc !== gate.docAfterUnplanned) return "kept";
+  if (editor.undo() && editor.getState().doc === gate.docBeforeUnplanned) return "reverted";
+  return "kept";
+}
+
+interface EditGate {
+  refusal: string | null;
+  /** The call may change the document. */
+  mutating: boolean;
+  /** The call is the one allowed edit without an approved plan. */
+  unplanned: boolean;
+}
+
+function gateEdit(input: { name: string; tools: AgentToolRegistry; gate: PlanGate; editor: Editor }): EditGate {
+  const { gate } = input;
+  const tool = input.tools.get(input.name);
+  if (!tool || tool.readOnly) return { refusal: null, mutating: false, unplanned: false };
+  if (gate.approved) return { refusal: null, mutating: true, unplanned: false };
+  if (gate.proposed) return { refusal: "Refused: the plan has not been approved, so nothing may be edited yet. Wait for the user's answer to propose_plan.", mutating: false, unplanned: false };
+  if (gate.unplannedEdits >= UNPLANNED_EDIT_LIMIT) {
+    return {
+      refusal: "Refused: more than one edit needs an approved plan. Call propose_plan (it changes nothing; the edit you already made is undone first if the project is unchanged since, so include it in the plan), then execute after the user approves.",
+      mutating: false, unplanned: false,
+    };
+  }
+  gate.docBeforeUnplanned = input.editor.getState().doc;
+  gate.unplannedEdits++;
+  return { refusal: null, mutating: true, unplanned: true };
+}
+
+async function proposePlan(input: {
+  call: ToolUseBlock; planning: PlanningOptions; gate: PlanGate; options: RunAgentOptions; turn: TurnLedger; emit: (event: AgentEvent) => void;
+}): Promise<{ block: ToolResultBlock; rejected?: true }> {
+  const { call, planning, gate, options, turn, emit } = input;
+  let revertedNote = "";
+  if (gate.unplannedEdits > 0) {
+    gate.unplannedEdits = 0;
+    if (revertUnplanned(options.editor, gate) === "reverted") {
+      turn.changed = false;
+      revertedNote = "\nYour earlier edit made without a plan was undone so the project stays untouched until approval; include it in the plan.";
+      emit({ type: "notice", text: "The agent's first edit was undone: the project stays unchanged until you approve its plan." });
+    } else if (gate.docBeforeUnplanned !== gate.docAfterUnplanned) {
+      revertedNote = "\nYour earlier edit made without a plan was kept because the project changed since; plan only the remaining work.";
+      emit({ type: "notice", text: "The agent made one edit before showing a plan. It was kept because the project changed since; use Undo agent changes to remove it." });
+    }
+  }
+  turn.commit();
+  const parsed = parsePlan(call.input, [...options.tools.keys()]);
+  if (!parsed.ok) return { block: textResult(call.id, `${parsed.error}\nHint: ${parsed.hint}`, true) };
+  gate.plan = parsed.plan;
+  gate.proposed = true;
+  gate.approved = false;
+  gate.running = null;
+  gate.revision++;
+  emit({ type: "plan", plan: parsed.plan, revision: gate.revision });
+  const docAtProposal = options.editor.getState().doc;
+  const withNote = (text: string): string => text + revertedNote;
+  const decision: PlanDecision = planning.mode === "auto-approve" ? { kind: "approve" } : await raceAbort(planning.decide(parsed.plan), options.signal);
+  throwIfAborted(options.signal);
+
+  if (decision.kind === "reject") {
+    emit({ type: "plan_decision", decision: "rejected" });
+    return { block: textResult(call.id, "The user rejected the plan. Do not edit anything.", true), rejected: true };
+  }
+  if (decision.kind === "revise") {
+    emit({ type: "plan_decision", decision: "revise", feedback: decision.feedback });
+    return {
+      block: textResult(call.id, withNote(`The user did not approve yet and asks for changes:\n${decision.feedback}\nNothing was edited. Revise the plan accordingly and call propose_plan again.`)),
+    };
+  }
+  if (options.editor.getState().doc !== docAtProposal) {
+    emit({ type: "plan_decision", decision: "revise", feedback: "The project changed while the plan was waiting." });
+    return {
+      block: textResult(call.id, "The project changed while the plan was waiting for approval, so the plan may be stale. Re-inspect with get_timeline and call propose_plan again."),
+    };
+  }
+  gate.approved = true;
+  emit({ type: "plan_decision", decision: "approved" });
+  return {
+    block: textResult(
+      call.id,
+      withNote(`The user approved this plan:\n${formatPlan(parsed.plan)}\nExecute it in order. Before each step call update_plan_step with status running; after verifying the step call it with status done and the measured result, or failed with the reason. End with a "Verification:" line of measured facts.`),
+    ),
+  };
+}
+
+function handleStepUpdate(input: { call: ToolUseBlock; gate: PlanGate; emit: (event: AgentEvent) => void }): { block: ToolResultBlock; rejected?: true } {
+  const { call, gate, emit } = input;
+  if (!gate.approved || !gate.plan) return { block: textResult(call.id, "There is no approved plan. Call propose_plan first.", true) };
+  const parsed = parseStepUpdate(call.input, gate.plan.steps.length);
+  if (!parsed.ok) return { block: textResult(call.id, `${parsed.error}\nHint: ${parsed.hint}`, true) };
+  const { step, status, note } = parsed.update;
+  if (status === "running") gate.running = step;
+  else if (gate.running === step) gate.running = null;
+  emit({ type: "plan_step", step, status, note });
+  return { block: textResult(call.id, `Step ${step} marked ${status}.`) };
+}
+
 async function drive(input: {
-  options: RunAgentOptions; messages: ModelMessage[]; usage: { value: TokenUsage }; steps: { value: number };
+  options: RunAgentOptions; messages: ModelMessage[]; usage: { value: TokenUsage }; steps: { value: number }; turn: TurnLedger;
 }): Promise<LoopEnd> {
   const { options, messages } = input;
   const emit = options.onEvent ?? (() => undefined);
@@ -165,6 +337,14 @@ async function drive(input: {
   const budget = options.tokenBudget ?? DEFAULT_TOKEN_BUDGET;
   const ctx: ToolContext = { editor: options.editor, nowMs: options.nowMs ?? (() => Date.now()) };
   const definitions = [...options.tools.values()].map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+  const planning = options.planning;
+  if (planning) {
+    definitions.push(
+      { name: PROPOSE_PLAN_TOOL, description: PROPOSE_PLAN_DESCRIPTION, inputSchema: PLAN_TOOL_SCHEMAS[PROPOSE_PLAN_TOOL] },
+      { name: UPDATE_PLAN_STEP_TOOL, description: UPDATE_PLAN_STEP_DESCRIPTION, inputSchema: PLAN_TOOL_SCHEMAS[UPDATE_PLAN_STEP_TOOL] },
+    );
+  }
+  const gate: PlanGate = { plan: null, proposed: false, approved: false, unplannedEdits: 0, docBeforeUnplanned: null, docAfterUnplanned: null, revision: 0, running: null };
   let lastText = "";
 
   const stop = (status: LoopEnd["status"], reason: string): LoopEnd => {
@@ -182,7 +362,7 @@ async function drive(input: {
     emit({ type: "step", step: input.steps.value, maxSteps });
     const response = await options.model.complete({
       model: options.modelName ?? DEFAULT_AGENT_MODEL,
-      system: options.systemPrompt ?? AGENT_SYSTEM_PROMPT,
+      system: options.systemPrompt ?? buildSystemPrompt({ planning: planning !== undefined }),
       tools: definitions,
       messages: limitImages(messages),
       maxTokens: options.maxResponseTokens ?? DEFAULT_MAX_RESPONSE_TOKENS,
@@ -210,29 +390,60 @@ async function drive(input: {
     }
 
     const results: ToolResultBlock[] = [];
+    let rejection: string | null = null;
     for (const call of calls) {
       throwIfAborted(options.signal);
+      if (rejection !== null) {
+        results.push(textResult(call.id, "Skipped: the user rejected the plan. Nothing was edited.", true));
+        continue;
+      }
+      if (planning && (call.name === PROPOSE_PLAN_TOOL || call.name === UPDATE_PLAN_STEP_TOOL)) {
+        const handled = call.name === PROPOSE_PLAN_TOOL
+          ? await proposePlan({ call, planning, gate, options, turn: input.turn, emit })
+          : handleStepUpdate({ call, gate, emit });
+        results.push(handled.block);
+        if (handled.rejected) rejection = "Plan rejected. No changes were made.";
+        continue;
+      }
+      const edit: EditGate = planning ? gateEdit({ name: call.name, tools: options.tools, gate, editor: options.editor }) : { refusal: null, mutating: false, unplanned: false };
+      const refusal = edit.refusal;
+      if (refusal) {
+        emit({ type: "tool_call", id: call.id, name: call.name, args: call.input });
+        emit({ type: "tool_result", id: call.id, name: call.name, ok: false, summary: refusal, detail: refusal, durationMs: 0 });
+        results.push(textResult(call.id, refusal, true));
+        continue;
+      }
       emit({ type: "tool_call", id: call.id, name: call.name, args: call.input });
       const started = Date.now();
+      if (edit.mutating) input.turn.ensure();
       const result = await raceAbort(callTool({ tools: options.tools, name: call.name, args: call.input, ctx }), options.signal);
+      if (edit.unplanned) {
+        input.turn.commit();
+        gate.docAfterUnplanned = options.editor.getState().doc;
+      }
       const block = toolResultToBlock({ id: call.id, result });
       results.push(block);
       const detail = block.content.filter((c): c is TextBlock => c.type === "text").map((c) => c.text).join("\n");
       emit({
         type: "tool_result", id: call.id, name: call.name, ok: result.ok, durationMs: Date.now() - started,
         summary: result.ok ? result.summary : result.error, detail,
+        ...(gate.approved && gate.running !== null ? { planStep: gate.running } : {}),
       });
       if (result.ok) {
         for (const image of result.images ?? []) emit({ type: "image", id: call.id, mediaType: image.mediaType, base64: image.base64, caption: image.caption ?? "" });
       }
     }
     messages.push({ role: "user", content: results });
+    if (rejection !== null) {
+      messages.push({ role: "assistant", content: [{ type: "text", text: rejection }] });
+      return { status: "rejected", finalText: rejection };
+    }
   }
 }
 
 /**
- * Runs one user request to completion. The whole run is one editor transaction, so a single undo reverts everything
- * the agent did; abort or failure rolls the document back exactly. Never throws: problems come back as a status.
+ * Runs one user request to completion. Without planning the whole run is one editor transaction; with planning, each
+ * stretch of edits after an approval is one (a wait for the user never holds one open). One undo reverts it; abort or failure rolls the document back exactly. Never throws: problems come back as a status.
  * Only one run may use an editor at a time, and tool calls inside a run execute strictly one after another.
  */
 export async function runAgent(options: RunAgentOptions): Promise<AgentRunResult> {
@@ -252,20 +463,22 @@ export async function runAgent(options: RunAgentOptions): Promise<AgentRunResult
     return { ...idle, status: "error", error: message };
   }
   activeEditors.add(options.editor);
-  const before = options.editor.getState().doc;
   const messages: ModelMessage[] = [...options.history, { role: "user", content: [{ type: "text", text: options.goal }] }];
+  const turn = new TurnLedger(options.editor, options.label ?? "Agent edit");
+  if (!options.planning) turn.ensure();
   try {
-    const end = await runAgentTurn(options.editor, options.label ?? "Agent edit", () => drive({ options, messages, usage, steps }));
+    const end = await drive({ options, messages, usage, steps, turn });
+    turn.commit();
     emit({ type: "done", status: end.status, text: end.finalText });
-    const docAfter = options.editor.getState().doc;
-    return { status: end.status, history: messages, finalText: end.finalText, usage: usage.value, steps: steps.value, changed: docAfter !== before, docAfter };
+    return { status: end.status, history: messages, finalText: end.finalText, usage: usage.value, steps: steps.value, changed: turn.changed, docAfter: options.editor.getState().doc };
   } catch (error) {
+    turn.rollback();
     const aborted = isAbort(error) || options.signal?.aborted === true;
-    const message = aborted ? "Stopped. Changes from this request were undone." : describeFailure(error);
+    const message = aborted ? (turn.changed ? "Stopped. Steps that were already completed are kept; the step in progress was undone." : "Stopped. Changes from this request were undone.") : describeFailure(error);
     emit(aborted ? { type: "done", status: "aborted", text: message } : { type: "error", message });
     return {
       status: aborted ? "aborted" : "error", history: options.history, finalText: message, usage: usage.value, steps: steps.value,
-      changed: false, docAfter: options.editor.getState().doc, ...(aborted ? {} : { error: message }),
+      changed: turn.changed, docAfter: options.editor.getState().doc, ...(aborted ? {} : { error: message }),
     };
   } finally {
     activeEditors.delete(options.editor);

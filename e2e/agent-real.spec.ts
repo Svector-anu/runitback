@@ -1,5 +1,5 @@
 import { appendFileSync, mkdirSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { AnthropicModelClient, ZERO_USAGE, addUsage, redactSecrets, totalTokens, type ModelRequest, type TokenUsage } from "../src/app/agent/model-client";
 import type { Project } from "../src/engine/model";
 import { documentKey } from "../evals/checks";
@@ -83,7 +83,11 @@ const GAPS: FixtureSpec = {
   blocks: [{ seconds: 6, rgb: [200, 90, 40] }],
 };
 
-async function openProjectWith(page: Page, specs: FixtureSpec[], place: FixtureSpec[]): Promise<void> {
+const ASK_PREF_KEY = "runitback:agent-ask-before-editing";
+
+/** The original scenarios run with "Ask before editing" off (no approval click); the plan scenario turns it on. */
+async function openProjectWith(page: Page, specs: FixtureSpec[], place: FixtureSpec[], askBeforeEditing = false): Promise<void> {
+  await page.addInitScript(({ key, on }) => localStorage.setItem(key, String(on)), { key: ASK_PREF_KEY, on: askBeforeEditing });
   await page.goto("/#/projects");
   await page.getByRole("button", { name: "Create your first project" }).click();
   await expect(page).toHaveURL(/#\/editor\//);
@@ -118,13 +122,29 @@ interface RunOutcome {
   errors: string[];
 }
 
-async function runBrief(page: Page, bridge: Bridge, brief: string, name: string): Promise<RunOutcome> {
+interface PlanGateHooks {
+  /** Runs while the plan is on screen and the run is paused, before Approve is clicked. */
+  whileAwaiting(plan: Locator): Promise<void>;
+}
+
+async function runBrief(page: Page, bridge: Bridge, brief: string, name: string, gate?: PlanGateHooks): Promise<RunOutcome> {
   mkdirSync(ARTIFACTS, { recursive: true });
   await page.getByRole("tab", { name: "Agent" }).click();
   const panel = page.getByTestId("agent-panel");
   await panel.getByLabel("Message to the agent").fill(brief);
   await panel.getByRole("button", { name: "Send" }).click();
   await expect(panel.getByTestId("agent-streaming")).toBeVisible({ timeout: 10_000 });
+  if (gate) {
+    const plan = panel.getByTestId("agent-plan").first();
+    await expect(plan).toHaveAttribute("data-status", "awaiting", { timeout: 180_000 });
+    try {
+      await gate.whileAwaiting(plan);
+    } catch (error) {
+      appendFileSync(REPORT, `${JSON.stringify({ scenario: name, gateFailed: true, calls: bridge.calls(), costUsd: bridge.cost() })}\n`);
+      throw error;
+    }
+    await plan.getByRole("button", { name: "Approve" }).click();
+  }
   await expect(panel.getByTestId("agent-streaming")).toHaveCount(0, { timeout: 240_000 });
   await page.screenshot({ path: `${ARTIFACTS}/agent-real-${name}.png` });
   const assistant = panel.getByTestId("agent-assistant-text");
@@ -203,4 +223,50 @@ test("asks a question instead of editing on an ambiguous brief", async ({ page }
   expect(outcome.finalText).toContain("?");
   expect(documentKey(await snapshot(page)), "project untouched").toBe(before);
   await expect(page.getByTestId("agent-panel").getByRole("button", { name: "Undo agent changes" })).toBeDisabled();
+});
+
+test("shows a plan before any edit, leaves the document alone until Approve, and the result matches the measured facts", async ({ page }) => {
+  test.setTimeout(360_000);
+  await openProjectWith(page, [TONE, GAPS], [], true);
+  const original = await snapshot(page);
+  const bridge = await installBridge(page);
+  const planFacts: { steps: number; docUnchanged: boolean; clipsWhileAwaiting: number; text: string } = { steps: 0, docUnchanged: false, clipsWhileAwaiting: -1, text: "" };
+
+  const outcome = await runBrief(page, bridge, "put the two clips back to back on the main track starting at 0, then tell me the final length in seconds", "plan-then-execute", {
+    async whileAwaiting(plan) {
+      const during = await snapshot(page);
+      planFacts.steps = await plan.getByTestId("agent-plan-step").count();
+      planFacts.docUnchanged = documentKey(during) === documentKey(original);
+      planFacts.clipsWhileAwaiting = clipsOf(during).length;
+      planFacts.text = redactSecrets(await plan.innerText(), API_KEY);
+      await page.waitForTimeout(1500);
+      expect(documentKey(await snapshot(page)), "still unchanged after a pause").toBe(documentKey(original));
+    },
+  });
+  appendFileSync(REPORT, `${JSON.stringify({ scenario: "plan-then-execute", planFacts })}\n`);
+  expect(outcome.errors, "no error notices").toEqual([]);
+  expect(planFacts.steps, "plan has steps").toBeGreaterThan(0);
+  expect(planFacts.docUnchanged, "document unchanged while the plan awaits approval").toBe(true);
+  expect(planFacts.clipsWhileAwaiting).toBe(0);
+
+  const panel = page.getByTestId("agent-panel");
+  const plan = panel.getByTestId("agent-plan").first();
+  await expect(plan).toHaveAttribute("data-status", "approved");
+  await expect(plan.locator('[data-testid="agent-plan-step"][data-status="failed"]')).toHaveCount(0);
+
+  const final = await snapshot(page);
+  const clips = clipsOf(final);
+  const main = clips.filter((c) => c.lane === "main").sort((a, b) => a.start - b.start);
+  expect(main.length).toBeGreaterThanOrEqual(2);
+  expect(main[0]?.start ?? -1).toBeLessThan(0.05);
+  for (let i = 1; i < main.length; i++) expect((main[i]?.start ?? 0) - (main[i - 1]?.end ?? 0), `clip ${i} adjacent to previous`).toBeLessThan(0.05);
+  const measuredEnd = Math.max(...clips.map((c) => c.end));
+
+  const verification = redactSecrets(await plan.getByTestId("agent-plan-verification").innerText().catch(() => ""), API_KEY);
+  appendFileSync(REPORT, `${JSON.stringify({ scenario: "plan-then-execute", measuredEnd, verification })}\n`);
+  const claimed = [...(verification || outcome.finalText).matchAll(/(\d+(?:\.\d+)?)\s*(?:s\b|sec|seconds)/gi)].map((m) => Number(m[1]));
+  expect(claimed.some((n) => Math.abs(n - measuredEnd) <= 0.2), `reported ${JSON.stringify(claimed)} vs measured ${measuredEnd.toFixed(2)}s`).toBe(true);
+
+  await panel.getByRole("button", { name: "Undo agent changes" }).click();
+  expect(documentKey(await snapshot(page))).toBe(documentKey(original));
 });

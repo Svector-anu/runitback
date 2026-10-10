@@ -107,10 +107,10 @@ When `planning` is set, the loop adds two loop-level tools (never registry tools
 What a harness can assert (see `tests/agent-plan.test.ts`):
 
 1. The document is identical to the start while a plan awaits a decision.
-2. Approve runs the plan inside the run's single transaction; one undo restores the start.
-3. Reject ends the run with status `rejected`, rolls back, leaves no history entry.
+2. Approve runs the plan inside one transaction opened after the approval; one undo restores the state right before it, including any edits the user made during the wait.
+3. Reject ends the run with status `rejected` and touches nothing (user edits made during the wait are kept, no history entry from the agent).
 4. Revise returns the user's text to the model, which proposes again; only the approved plan runs.
-5. Without an approved plan, one stand-alone edit is allowed; a second edit is refused. If a plan follows an unplanned edit, that edit is undone first so (1) still holds.
+5. Without an approved plan, one stand-alone edit is allowed; a second edit is refused. If a plan follows an unplanned edit, that edit's own undo step is reverted first, only if the project is unchanged since, so (1) holds.
 6. A final `Verification:` line must state facts measured after the edits (the measured-numbers rule); the real-model scenario compares the number it states with the document.
 
 To drive a case through the protocol without a human, pass `planning: { mode: "auto-approve" }` (`RunCaseOptions.planning`): the plan is recorded and approved at once. The real-model scenario is `e2e/agent-real.spec.ts` ("shows a plan before any edit..."), opt-in with `REAL_MODEL=1`; it asserts the plan is on screen before any edit, the document is unchanged while it waits, and the stated final length matches the measured one. See `AGENT_FLOW.md` for the full flow.
