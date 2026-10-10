@@ -69,13 +69,14 @@ pnpm exec tsx evals/run.ts remove-silences   # one case
 pnpm vitest run tests/evals      # the same suite plus unit tests of the checks, inside vitest
 pnpm exec playwright test e2e/agent-eval.spec.ts   # real generated media through the real in-app agent loop
 ANTHROPIC_API_KEY=... pnpm eval:real [--trials 3] [--case ID] [--model ID]   # real model, periodic report
+OPENAI_API_KEY=... pnpm eval:real --provider openai [--model ID] [--trials N]  # same suite through the OpenAI-compatible client
 ```
 
 **Scripted** (`pnpm eval`, `tests/evals-*.test.ts`): no network, no browser, deterministic. This is the CI gate.
 
 **Real media** (`e2e/agent-eval.spec.ts`): each case's fixtures are generated as real WebM files in the page (`evals/browser-entry.ts`), imported through the UI, edited by the real in-app session via the dev-only `window.__agentModel` hook driven by the case's oracle, and scored twice: against ground truth **measured** by the real analyzer from the decoded media, and against the declaration. It also runs three mutations to show the checks still discriminate on real data. Runs the cases `remove-silences`, `trim-to-duration`, `reorder-clips`, `captions-from-srt`, `speed-to-fit`, `title-fade`, `cut-to-beat`.
 
-**Real model** (`evals/real.ts`, `pnpm eval:real`): runs every runnable case `--trials` times (default 3) against `AnthropicModelClient`. It makes model calls only when `ANTHROPIC_API_KEY` is set **and** `--real` is passed (the npm script passes it); otherwise it prints usage and exits without calling anything. The model comes from `--model`, then `EVAL_MODEL`, then `claude-sonnet-5-5`. Tools are the deterministic stubs, so the only variable is the model. The key is never printed or stored; errors are passed through `redactSecrets`. Each run writes `evals/reports/<timestamp>.json` and `.md` (git-ignored) with per-case pass rate, mean score, steps, tokens and an estimated cost. Costs use `DEFAULT_PRICING` in `evals/report.ts` (override with `EVAL_PRICE_INPUT` / `EVAL_PRICE_OUTPUT`, USD per million tokens); treat them as a budget guide, not a bill.
+**Real model** (`evals/real.ts`, `pnpm eval:real`): runs every runnable case `--trials` times (default 3) against `AnthropicModelClient`. It makes model calls only when `ANTHROPIC_API_KEY` is set **and** `--real` is passed (the npm script passes it); otherwise it prints usage and exits without calling anything. `--provider anthropic` (default) or `--provider openai` selects the client (see `docs/PROVIDERS.md`); the OpenAI path reads `OPENAI_API_KEY` (never `ANTHROPIC_API_KEY`) and `OPENAI_BASE_URL` (default `https://api.surplusintelligence.ai/v1`). The model comes from `--model`, then `EVAL_MODEL`, then the provider default (`claude-sonnet-5-5` / `gpt-5-mini`). Tools are the deterministic stubs, so the only variable is the model. The key is never printed or stored; errors are passed through `redactSecrets`. Each run writes `evals/reports/<timestamp>.json` and `.md` (git-ignored) with per-case pass rate, mean score, steps, tokens and an estimated cost. Costs use `DEFAULT_PRICING` in `evals/report.ts` (override with `EVAL_PRICE_INPUT` / `EVAL_PRICE_OUTPUT`, USD per million tokens); treat them as a budget guide, not a bill.
 
 ## How results gate changes
 
@@ -132,3 +133,17 @@ pnpm eval:real --trials 1 --model claude-opus-4.8
 ```
 
 Only the synthetic fixtures' tool results (numbers and ids) leave the machine in this mode. Do not point the in-app agent at a gateway for real footage: requests are routed to third-party sellers and the docs do not say who can see them. Browser (CORS) access to the gateway is unverified, so the in-app agent has no base-URL setting. Model ids are the gateway's (`claude-opus-4.8`, `claude-sonnet-4-5-20250929`, ...), not Anthropic's.
+
+### OpenAI-compatible provider through the gateway
+
+```sh
+source ~/.surplus-env                                   # exports ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL
+export OPENAI_API_KEY=$ANTHROPIC_API_KEY OPENAI_BASE_URL=https://api.surplusintelligence.ai/v1
+pnpm eval:real --provider openai --model claude-haiku-4.5 --trials 1
+```
+
+Cost is estimated from `EVAL_PRICE_INPUT` / `EVAL_PRICE_OUTPUT` (or the registry price for models that have one); set them for non-default models.
+
+### Provider-independence results (N5, 1 trial per case)
+
+`claude-haiku-4.5` over `--provider openai` (chat completions, function tools, SSE): 8 of the 15 runnable cases run (`trim-to-duration`, `find-visual-moment`, `remove-silences`, `title-fade`, `ambiguous-request`, `impossible-request`, `loudest-shot-first`, `reframe-to-speaker`), 8/8 passed, mean score 1.00, about $0.53 estimated at $1/$5 per million tokens. Anthropic-path regression, `trim-to-duration` with `claude-haiku-4.5`: pass, 1.00, about $0.05. The remaining cases were not run to stay inside the spend cap. `gpt-5-mini`, `gpt-5.3-codex` and `mercury-2.5` returned 403 (key not scoped) with the development key, so no native OpenAI model has been evaluated. No prompt or tool-description change was needed.
