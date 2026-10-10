@@ -34,3 +34,6 @@ Instance: `Svector-anu/svectors-lab` (Aeon, GitHub Actions). Pitch-preserving sp
 - Instance's codex credential (`CODEX_AUTH`) is expired — owner action: `./aeon auth --harness codex`.
 - Aeon `chain-runner` workflow is disabled in the instance repo; used the Skill Runner directly instead.
 - Real-model evals need an Anthropic API key (owner).
+
+## Deploy path (2026-10-10)
+Vercel's native GitHub integration is connected to this repo: every push to `main` deploys to Production at runitback-three.vercel.app (Deployment Protection ON, login required). `.github/workflows/deploy.yml` (token-based, CI-gated) is disabled; re-enable it only after adding VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID.
