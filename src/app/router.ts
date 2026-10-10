@@ -1,15 +1,13 @@
 import { useSyncExternalStore } from "react";
 
 export type Route =
-  | { name: "landing" }
   | { name: "projects" }
   | { name: "editor"; id: string }
   | { name: "not-found" };
 
 export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, "").split("?")[0] ?? "";
-  if (path === "" || path === "/") return { name: "landing" };
-  if (path === "/projects") return { name: "projects" };
+  if (path === "" || path === "/" || path === "/projects") return { name: "projects" };
   const editor = /^\/editor\/([^/]+)$/.exec(path);
   if (editor?.[1]) return { name: "editor", id: decodeURIComponent(editor[1]) };
   return { name: "not-found" };
