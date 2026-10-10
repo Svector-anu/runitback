@@ -5,7 +5,7 @@ Audit of the implementation against **both** reference repositories:
 - `OpenCut-app/OpenCut` @ `e668010` (current rewrite): a scaffold. It contributes direction (Rust core, Editor API, plugins, MCP, headless), not behavior. None of its README promises exist in code (`research/06`).
 - `OpenCut-app/opencut-classic` @ `cf5e79e`: the product. All behavior comparisons below are against it.
 
-Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (286 unit/integration tests), `pnpm build`, `pnpm e2e` (13 Playwright tests in Chromium, real decode/encode), and a clean-checkout install/test/build. Columns: **Impl** = ✅ implemented, ◐ partial, ✖ not implemented (reason).
+Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (1190+ unit/integration tests; see docs/PRODUCT_MAP.md for the current agent-layer state), `pnpm build`, `pnpm e2e` (48+ Playwright tests in Chromium, real decode/encode, plus opt-in real-model/CLIP/face specs), and a clean-checkout install/test/build. Columns: **Impl** = ✅ implemented, ◐ partial, ✖ not implemented (reason).
 
 ## 1. Feature audit
 
@@ -76,7 +76,7 @@ Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (286 unit/integration tests
 |---|---|---|---|---|
 | Transform (pos/scale/rotate), opacity, 17 blend modes | all drive the frame plan; keyframable | ✅ | `frame-plan`, e2e opacity | Blend via `globalCompositeOperation` (Chromium supports all) |
 | Volume dB, mute, volume line drag | yes | ✅ | `captions-audio-playback`, `audio-clips` | |
-| Speed 0.01–5× | yes; duration re-derived, clamped by neighbour | ✅ | `split-resize` | "Change pitch" (maintainPitch) **not built**; field stored, UI hidden |
+| Speed 0.01–5× | yes; duration re-derived, clamped by neighbour | ✅ | `split-resize` | "Change pitch" switch in the Speed tab (maintainPitch); live playback and export use the WSOLA stretch; export pitch measured on real audio (e2e/pitch-real-audio.spec.ts) |
 | Text (all classic properties) | yes | ✅ | `render-geometry`, e2e | Fonts beyond system list load from Google Fonts at runtime (needs network) |
 | Graphics (rect, ellipse, polygon, star + stroke align) | yes | ✅ | `render-geometry` | |
 | Effects: blur (clip + scene layer, reorder, toggle) | yes | ✅ | `frame-plan`, `editor` | Blur is isotropic `filter: blur()` (avg of x/y sigma) |
@@ -109,8 +109,8 @@ Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (286 unit/integration tests
 
 ## 3. Known limitations (honest list)
 
-1. No pitch-preserving speed change; audio at ≠1× plays/exports with pitch shift (like classic's streaming path).
-2. No transcription, sounds library, stickers/flags, guides overlay, snapshot save, mask canvas handles, free-form easing editor, keyframe box-select, bookmark notes on preview, GPU/WASM compositor.
+1. Pitch-preserving speed is built (Speed tab "Change pitch" switch); only 2x and WebM/Opus are measured on real audio, live playback pitch is not measured.
+2. Transcription (local Whisper) is built; not built: sounds library, stickers/flags, guides overlay, snapshot save, mask canvas handles, free-form easing editor, keyframe box-select, bookmark notes on preview, GPU/WASM compositor.
 3. Export mixes the whole timeline's audio in memory (44.1 kHz stereo float): a 10-minute project needs ≈210 MB.
 4. Browser support is Chromium-first (WebCodecs, OPFS, `ctx.filter`, `roundRect`). Firefox/Safari untested; unsupported codecs surface as an export/import error message.
 5. Video frames are decoded sequentially per asset; the same asset used twice at once (different source times) thrashes its iterator.
