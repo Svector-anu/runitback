@@ -54,7 +54,7 @@ Priority rule: P0/P1 (reliability, long media) before P2/P3 features; the end-to
 
 | ID | Milestone | Claim that must be provable | Owner (paths) | Status |
 |---|---|---|---|---|
-| N1 | Long-media and large-project hardening (P0/P1) | A 10-min source, 60+ clips and a 5-min export complete without freezing the UI or exhausting memory; clip rendering is windowed; export audio mix is chunked | `src/ui/timeline/**`, `src/export/**`, `src/platform/video-frames*` | in progress |
+| N1 | Long-media and large-project hardening (P0/P1) | A 10-min source, 60+ clips and a 5-min export complete without freezing the UI or exhausting memory; clip rendering is windowed; export audio mix is chunked | `src/ui/timeline/**`, `src/export/**`, `src/platform/video-frames*` | done, measured (docs/PERFORMANCE.md); dev-server numbers only |
 | N2 | One-action "Understand footage" | One button runs analysis + transcript + visual index (+ faces) per asset with progress, cancel, one consent, resumable; agent tools report index readiness | `src/app/understand*`, `src/ui/assets/**` | done (a10d800), real-model path unverified |
 | N3 | Faces in the temporal index and agent | `find_face_moments`, face presence/size/position queries, auto-reframe target data; eval case | `src/engine/temporal/**`, `src/engine/face/**`, `src/engine/agent/tools-face.ts`, `src/app/agent/face-wiring.ts` | done (4c59093), no real MediaPipe output yet |
 | N4 | Plan-then-execute | The agent shows a plan the user can approve or edit before edits run; each step is verified; failures are explained | `src/app/agent/**` (loop, session, prompt), `src/ui/agent/**` | done, real-model verified once |
