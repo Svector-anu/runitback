@@ -55,3 +55,4 @@ export const isString = (v: unknown): v is string => typeof v === "string";
 /** Anthropic API key for the in-app agent. Kept in this browser's localStorage only; sent only to api.anthropic.com. */
 export const AGENT_API_KEY_PREF = "agent-api-key";
 export const AGENT_MODEL_PREF = "agent-model";
+export const ONBOARDING_DISMISSED_PREF = "onboarding-dismissed";

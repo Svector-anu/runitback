@@ -15,6 +15,7 @@ import { PropertiesPanel } from "../properties/PropertiesPanel";
 import { Timeline } from "../timeline/Timeline";
 import { EditorHeader } from "./Header";
 import { Button } from "../primitives/Button";
+import { OnboardingHint } from "./OnboardingHint";
 
 function useNarrow(): boolean {
   const [narrow, setNarrow] = useState(window.innerWidth < 900);
@@ -166,6 +167,7 @@ export function EditorPage({ id }: { id: string }): ReactNode {
           <Button variant="text" label="Dismiss" onClick={() => setBannerDismissed(true)}><Icon name="x" size={14} /></Button>
         </div>
       ) : null}
+      <OnboardingHint />
       <EditorHeader onRecording={onRecording} />
       <div className="editor__body"><Layout /></div>
     </div>
