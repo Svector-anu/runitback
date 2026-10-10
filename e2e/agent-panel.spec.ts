@@ -81,9 +81,55 @@ test("without a key and without a test model the panel asks for the key and edit
   await expect(panel.getByTestId("agent-key-hint")).toContainText("API key is required");
   await panel.getByLabel("Anthropic API key").fill("sk-ant-test");
   await expect(panel.getByTestId("agent-key-hint")).toHaveCount(0);
+  await expect(panel.getByTestId("agent-settings-summary")).toBeVisible();
+  await panel.getByRole("button", { name: "Change", exact: true }).click();
   await panel.getByLabel("Anthropic API key").fill("");
   await expect(panel.getByTestId("agent-key-hint")).toBeVisible();
   await panel.getByLabel("Message to the agent").fill("hello");
   await panel.getByRole("button", { name: "Send" }).click();
   await expect(panel.getByRole("alert")).toContainText("API key");
+});
+
+test("settings collapse to a compact row once a key is set, keep the chat log readable, and Change restores full controls", async ({ page }) => {
+  // A generous (but in-range, see PANEL_CONSTRAINTS.vertical max:85) top-row split, same as a
+  // returning user who has resized their panes via `src/platform/prefs.ts`'s "panel-sizes" key —
+  // isolates this assertion from the unrelated default 50/50 split's own fixed overhead.
+  await page.addInitScript(() => {
+    localStorage.setItem("runitback:panel-sizes", JSON.stringify({ horizontal: [25, 50, 25], vertical: [75, 25] }));
+  });
+  await page.goto("/#/projects");
+  await page.getByRole("button", { name: "Create your first project" }).click();
+  await expect(page).toHaveURL(/#\/editor\//);
+  await page.getByRole("tab", { name: "Agent" }).click();
+  const panel = page.getByTestId("agent-panel");
+
+  // No key yet: full settings block, same as before this change.
+  await expect(panel.getByLabel("Model")).toBeVisible();
+  await expect(panel.getByLabel("Anthropic API key")).toBeVisible();
+  await expect(panel.getByTestId("agent-settings-summary")).toHaveCount(0);
+
+  await panel.getByLabel("Anthropic API key").fill("sk-ant-test");
+
+  // Settings collapse to one row; model name stays visible, key does not.
+  const summary = panel.getByTestId("agent-settings-summary");
+  await expect(summary).toBeVisible();
+  await expect(summary).not.toContainText("sk-ant-test");
+  await expect(panel.getByLabel("Anthropic API key")).toHaveCount(0);
+  const toggle = panel.getByRole("button", { name: "Change", exact: true });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+  // Chat log reclaims the space the settings block used to occupy.
+  const logBox = await panel.getByRole("log", { name: "Agent conversation" }).boundingBox();
+  expect(logBox?.height ?? 0).toBeGreaterThanOrEqual(300);
+
+  // Change re-expands the settings; key field and model select are reachable again.
+  await toggle.click();
+  await expect(panel.getByTestId("agent-settings-summary")).toHaveCount(0);
+  await expect(panel.getByLabel("Model")).toBeVisible();
+  await expect(panel.getByLabel("Anthropic API key")).toBeVisible();
+  const doneToggle = panel.getByRole("button", { name: "Done", exact: true });
+  await expect(doneToggle).toHaveAttribute("aria-expanded", "true");
+
+  await doneToggle.click();
+  await expect(panel.getByTestId("agent-settings-summary")).toBeVisible();
 });

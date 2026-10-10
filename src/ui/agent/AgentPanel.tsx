@@ -74,7 +74,12 @@ export function AgentPanel(): ReactNode {
   const projectId = useEditorState((s) => s.meta?.id ?? null);
   const currentDoc = useEditorState((s) => s.doc);
   const [draft, setDraft] = useState("");
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+
+  const hasKey = state.apiKey !== "";
+  const showSettingsFields = !hasKey || settingsExpanded;
+  const modelLabel = AGENT_MODELS.find((m) => m.id === state.model)?.label ?? state.model;
 
   useEffect(() => {
     session.bindProject(projectId);
@@ -102,23 +107,45 @@ export function AgentPanel(): ReactNode {
   return (
     <section className="agent-panel panel-box" aria-label="Agent" data-testid="agent-panel">
       <div className="agent-settings">
-        <div className="agent-field">
-          <label className="label" htmlFor="agent-model">Model</label>
-          <select id="agent-model" className="select" value={state.model} disabled={state.running} onChange={(e) => session.setModel(e.target.value)}>
-            {AGENT_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-          </select>
-        </div>
-        <div className="agent-field">
-          <label className="label" htmlFor="agent-api-key">Anthropic API key</label>
-          <input
-            id="agent-api-key" className="input input--sm" type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-..."
-            value={state.apiKey} onChange={(e) => session.setApiKey(e.target.value)} aria-describedby="agent-key-warning"
-          />
-          <p id="agent-key-warning" className="agent-warning">{WARNING}</p>
-          {state.apiKey === "" ? (
-            <p className="agent-warning agent-warning--required" role="status" data-testid="agent-key-hint">An Anthropic API key is required. Paste yours above to use the agent.</p>
-          ) : null}
-        </div>
+        {showSettingsFields ? (
+          <div id="agent-settings-fields" className="agent-settings-fields">
+            <div className="agent-field">
+              <label className="label" htmlFor="agent-model">Model</label>
+              <select id="agent-model" className="select" value={state.model} disabled={state.running} onChange={(e) => session.setModel(e.target.value)}>
+                {AGENT_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+            </div>
+            <div className="agent-field">
+              <label className="label" htmlFor="agent-api-key">Anthropic API key</label>
+              <input
+                id="agent-api-key" className="input input--sm" type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-..."
+                value={state.apiKey} onChange={(e) => session.setApiKey(e.target.value)} aria-describedby="agent-key-warning"
+              />
+              <p id="agent-key-warning" className="agent-warning">{WARNING}</p>
+              {state.apiKey === "" ? (
+                <p className="agent-warning agent-warning--required" role="status" data-testid="agent-key-hint">An Anthropic API key is required. Paste yours above to use the agent.</p>
+              ) : null}
+            </div>
+            {hasKey ? (
+              <Button
+                size="sm" variant="outline" className="agent-settings-toggle"
+                aria-expanded="true" aria-controls="agent-settings-fields" onClick={() => setSettingsExpanded(false)}
+              >
+                Done
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="agent-settings-summary" data-testid="agent-settings-summary">
+            <span className="agent-settings-summary__model">{modelLabel}</span>
+            <Button
+              size="sm" variant="outline" className="agent-settings-toggle"
+              aria-expanded="false" aria-controls="agent-settings-fields" onClick={() => setSettingsExpanded(true)}
+            >
+              Change
+            </Button>
+          </div>
+        )}
       </div>
 
       <div ref={logRef} className="agent-log" role="log" aria-label="Agent conversation" aria-relevant="additions text">
