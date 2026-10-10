@@ -1,0 +1,47 @@
+name: smoke
+
+# Runs after Vercel's GitHub integration reports a successful production deployment.
+on:
+  deployment_status
+
+jobs:
+  smoke:
+    if: >
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - name: Check Deployment Protection bypass secret
+        id: bypass
+        env:
+          BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          if [ -z "$BYPASS" ]; then
+            echo "::warning::VERCEL_AUTOMATION_BYPASS_SECRET is not set. With Deployment Protection on, a headless request reaches the Vercel login page, not the app, so the smoke check is skipped. Add the secret (Vercel project Settings > Deployment Protection > Protection Bypass for Automation) or make the site public."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.bypass.outputs.skip != 'true'
+      - uses: actions/setup-node@v4
+        if: steps.bypass.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        if: steps.bypass.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        if: steps.bypass.outputs.skip != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Smoke-check the live deploy
+        if: steps.bypass.outputs.skip != 'true'
+        env:
+          SMOKE_URL: ${{ github.event.deployment_status.target_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: pnpm exec playwright test --config playwright.smoke.config.ts

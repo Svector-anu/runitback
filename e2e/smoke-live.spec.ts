@@ -7,7 +7,7 @@ import { expect, test } from "@playwright/test";
  * the baseURL hardcoded in playwright.config.ts; `VERCEL_AUTOMATION_BYPASS_SECRET`, when set,
  * carries Vercel's Deployment Protection bypass header so the request reaches the app instead of
  * the Vercel login page. CI only runs this spec once it has both an `SMOKE_URL` (the deploy job's
- * own output) and the bypass secret — see `.github/workflows/deploy.yml`'s `smoke` job — so skip
+ * deployment_status payload) and the bypass secret, see `.github/workflows/smoke.yml`, so skip
  * here only guards against this spec running unintentionally inside a plain CI job that has
  * neither.
  */
