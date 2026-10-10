@@ -11,7 +11,8 @@ on:
 jobs:
   smoke:
     # environment_url is the deployed app; target_url/log_url can point at build logs. Vercel's GitHub app
-    # posts deployments named "Production" for main and "Preview" for branches (observed on this repo).
+    # posts deployments named "Production" for main and "Preview" for branches. Observed on this repo: push 4d42770 to
+    # main created deployment 6974986638 (environment "Production", status success, environment_url = deployment URL).
     if: >
       github.event.deployment_status.state == 'success' &&
       github.event.deployment.environment == 'Production' &&
