@@ -46,3 +46,21 @@ Why the current codebase is a good foundation: every change is a `Command`; the 
 ## Rules for choosing the next milestone
 
 Pick the item that most reduces the risk that the thesis is wrong (can an agent actually produce a good edit end to end?), then the item that unblocks the most other work, then polish. Re-order this table when evidence changes.
+
+
+## Execution plan 2026-10-10 (supersedes ordering above)
+
+Priority rule: P0/P1 (reliability, long media) before P2/P3 features; the end-to-end loop on real footage is the acceptance test for everything.
+
+| ID | Milestone | Claim that must be provable | Owner (paths) | Status |
+|---|---|---|---|---|
+| N1 | Long-media and large-project hardening (P0/P1) | A 10-min source, 60+ clips and a 5-min export complete without freezing the UI or exhausting memory; clip rendering is windowed; export audio mix is chunked | `src/ui/timeline/**`, `src/export/**`, `src/platform/video-frames*` | in progress |
+| N2 | One-action "Understand footage" | One button runs analysis + transcript + visual index (+ faces) per asset with progress, cancel, one consent, resumable; agent tools report index readiness | `src/app/understand*`, `src/ui/assets/**` | in progress |
+| N3 | Faces in the temporal index and agent | `find_face_moments`, face presence/size/position queries, auto-reframe target data; eval case | `src/engine/temporal/**`, `src/engine/face/**`, `src/engine/agent/tools-face.ts`, `src/app/agent/face-wiring.ts` | in progress |
+| N4 | Plan-then-execute | The agent shows a plan the user can approve or edit before edits run; each step is verified; failures are explained | `src/app/agent/**` (loop, session, prompt), `src/ui/agent/**` | in progress |
+| N5 | Provider-independent agent | A second provider (OpenAI-compatible tool calling) passes the same evals through the same `ModelClient` | `src/app/agent/model-client-openai.ts`, `evals/real.ts` | Epoch order |
+| N6 | Landing page `/` + app at `/app` | Thin product page ("Tell your video editor what to do") around the real app; hash routes keep working | `src/ui/pages/Landing.tsx`, router | Epoch order |
+| N7 | Real-footage end-to-end acceptance | Import real footage, understand, instruct, plan, execute, verify, export; run by an automated script and recorded in `docs/E2E_REAL.md` | `e2e/`, docs | after N2-N4 |
+| N8 | Adversarial QA + final audit | A breaker agent and an architecture reviewer find nothing P0/P1 open; clean install/build/test/e2e; a11y and responsive pass | review agents | last |
+| N9 | Word-level captions render | Compositor rich-text path; animated word highlight | `src/render/**`, captions | later |
+| N10 | Reference workflow in the UI | Pick a reference video, see its style profile, apply to a timeline, verify | `src/app/agent`, `src/ui` | later |

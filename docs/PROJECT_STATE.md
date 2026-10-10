@@ -1,39 +1,46 @@
 # Project state
 
-_Updated at the end of every milestone. Read this first when resuming._
+_Updated at the end of every milestone. Read this first when resuming._ Last updated: 2026-10-10.
 
 ## North star
-An agent-native video editor: an agent that can see footage, understand references, edit the real project through typed tools, and verify its own work. See `ROADMAP.md`.
+An agent-native video editor ("a Claude for video editors"): understands footage and references, edits the real project through typed tools, verifies its own work. See `ROADMAP.md` and `PRODUCT_MAP.md`.
 
 ## Current milestone
-**M4 in-app agent**, **M6 reference intelligence (engine)** and **review hardening (remaining P1/P2)** in parallel. M5 eval harness is done (`docs/EVALS.md`). Next: M7 speech (transcript tool unblocks the last eval case), then the temporal index.
+**P2/P3 closure on real footage.** The smallest complete loop (import → understand → instruct → plan → execute → verify → export) exists in pieces; this phase makes it one reliable flow and hardens long-media behaviour. Milestone list and order are in `ROADMAP.md` ("Execution plan 2026-10-10").
 
 ## Completed (evidence)
-- M0 reconstruction: editor works end to end (`IMPLEMENTATION_AUDIT.md`).
-- M1 agent tool surface: 33 tools + transactions (one turn = one undo); 152 tests.
-- M2 perception: silence, loudness, onsets, tempo, scene cuts, pacing, contact sheets; real WebM e2e within 20 ms.
-- M3 bridge + MCP: loopback WebSocket with token handshake, MCP stdio server, `render_frame`/`export_project`; docs/AGENT_MCP.md.
-- Independent review (`docs/research/review-1.md`): 6 P0 / 18 P1 / 14 P2. All 6 P0 fixed with regression tests; most P1 fixed (`review-1-status.md`).
-- Gate at commit `4d4c4fc`: typecheck + lint clean, **653 unit tests** (incl. seeded fuzz over every command and every agent tool: invariants hold, undo-all restores the start), build ok, **24 Playwright tests**.
+- Editor M0: timeline, preview, keyframes, text, masks, captions, undo, autosave, MP4/WebM export. e2e on dev server and on the production build.
+- Agent: ~40 typed tools, one-turn-one-undo transactions, MCP bridge, in-app chat agent, `ModelClient` boundary. Real model passes 14/14 evals (Sonnet 4.5; Haiku 4.5 after a prompt fix) and a real-browser QA (e2e/agent-real.spec.ts).
+- Perception: silence, true BS.1770 LUFS, onsets, tempo, scene cuts. Speech: local Whisper (consent-gated). Visual: CLIP search (5/9 top-1 on real UI footage), MediaPipe face detection (detection + storage only). Temporal index + find/cut moments.
+- Pitch-preserving speed, measured on real exported audio (440 Hz stays 440 Hz at 2x).
+- Ship: CI (typecheck, lint, unit, eval, build, e2e, production-build e2e), Vercel native auto-deploy of `main`, post-deploy smoke workflow, release checklist (`RELEASE.md`).
+- Fixed from real use: first clip dropped on an empty timeline now starts at 0 (was black preview).
+- Gate at HEAD: typecheck, lint, 1196 unit tests, `pnpm eval` (all policy runs as declared), production build, 48+ e2e.
 
-## In flight (owners → paths)
-| Agent | Owns | Deliverable |
-|---|---|---|
-| H in-app agent | `src/app/agent`, `src/ui/agent` | Claude tool loop, chat panel, shared platform tools |
-| J hardening | engine persistence/editor/commands/timeline, `src/app`, `src/ui` (not agent) | typed errors in UI, error boundary, caption lanes, load-time repair, param clamping |
-| K reference | `src/engine/reference`, `agent/tools-reference.ts` | style profiles, planner, compare/apply tools |
+## Active work
+See the table in `ROADMAP.md`. Owners are partitioned by path; agents never edit the same files.
 
-## Epoch on Aeon (real runs)
-Instance: `Svector-anu/svectors-lab` (Aeon, GitHub Actions). Pitch-preserving speed (5 orders) is complete: #2 WSOLA module, #6 live playback (Aeon review caught a per-chunk reset bug; fixed and re-reviewed approve-ready), #7 export-mix verification, and the Speed-tab "Change pitch" switch (built directly after Aeon providers ran out of credit). Remaining gap: a Playwright test that measures pitch on real browser audio. See `AEON_EPOCH.md`.
+## Known failures / limitations
+- Faces are not in the temporal index, tools or UI. Word-level captions have data plumbing only; the compositor has no rich-text path.
+- No single "understand footage" action: analysis, Transcribe, Index visuals are separate buttons.
+- Agent does not show a plan for approval before executing.
+- Long media / large projects are untested: whole-timeline audio mix in memory, no clip virtualization, 4K decode.
+- Chromium only. WebGPU speech path and Firefox/Safari untested. In-app agent calling Anthropic directly from the browser with a pasted key is untested against the real API.
+- Visual search is weak on text-heavy UI footage and on absence queries.
 
-## Gates (must be green before any milestone is called done)
-`pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm e2e`
+## Architectural decisions
+- Layering engine ← render ← platform ← export ← app ← ui, enforced by `tests/architecture.test.ts`. Engine is pure and headless.
+- Agent and UI use the same commands; tools take seconds and element ids, not pixels.
+- Models are replaceable behind `ModelClient`, `Transcriber`, `VisualSearcher`, `AnalysisProvider`; model downloads need explicit consent; the API key never enters the page in tests (Node-side bridge).
+- Temporal data contract: per-asset index on a source-time axis with extensible `tracks`.
+- Deploy: Vercel GitHub integration on push to `main`. Epoch (Aeon instance `Svector-anu/svectors-lab`) plans/builds/reviews orders; local agents build in parallel where Aeon is slow.
+- Build vs buy: see `research/07-oss-reuse-audit.md`; check OSS before building.
 
-## Known risks / open items
-- Product name: **RunItBack** (renamed from the working title "OpenCut", which belongs to the upstream project). Storage migrates once from the `opencut*` IndexedDB names and `opencut:` prefs (`src/platform/legacy-migration.ts`); legacy data is left in place. Old `OPENCUT_*` MCP env vars still work as fallbacks.
-- Instance's codex credential (`CODEX_AUTH`) is expired — owner action: `./aeon auth --harness codex`.
-- Aeon `chain-runner` workflow is disabled in the instance repo; used the Skill Runner directly instead.
-- Real-model evals need an Anthropic API key (owner).
+## Next highest-leverage tasks
+See "Execution plan 2026-10-10" in `ROADMAP.md`.
 
-## Deploy path (2026-10-10)
-Vercel's native GitHub integration is connected to this repo: every push to `main` deploys to Production at runitback-three.vercel.app (Deployment Protection ON, login required). `.github/workflows/deploy.yml` (token-based, CI-gated) is disabled; re-enable it only after adding VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID.
+## Verification status
+Evidence lives in CI runs, `docs/EVALS.md`, `docs/VISUAL_SEARCH.md` (measured results) and `e2e/`. Not yet verified: items listed under Known failures.
+
+## Owner-only decisions
+License (none chosen), making the site public (Vercel Deployment Protection is on), `VERCEL_AUTOMATION_BYPASS_SECRET` for the smoke check, API keys.
