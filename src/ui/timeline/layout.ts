@@ -64,3 +64,19 @@ export function pathLabel(path: string): string {
   if (effect) return `Effect ${effect[1]}`;
   return path.replace(/^params\./, "");
 }
+
+export interface PixelWindow {
+  start: number;
+  end: number;
+}
+
+/** Content-pixel range worth mounting: the viewport plus half a viewport of overscan on each side. */
+export function clipWindow(input: { scrollLeft: number; viewportWidth: number }): PixelWindow {
+  const overscan = Math.max(200, input.viewportWidth / 2);
+  return { start: input.scrollLeft - overscan, end: input.scrollLeft + input.viewportWidth + overscan };
+}
+
+/** True when a clip spanning [startPx, endPx] touches the window. */
+export function intersectsWindow(input: { startPx: number; endPx: number; window: PixelWindow }): boolean {
+  return input.endPx >= input.window.start && input.startPx <= input.window.end;
+}

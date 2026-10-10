@@ -2,6 +2,13 @@ import { ALL_FORMATS, BlobSource, CanvasSink, Input, type InputVideoTrack, type 
 
 /** Within this distance ahead of the last frame we keep iterating instead of re-seeking. */
 export const FORWARD_ITERATION_WINDOW_SECONDS = 2;
+/** Decoders (and the full frame each retains) kept open at once; the least recently used is closed beyond this. */
+export const MAX_OPEN_DECODERS = 12;
+
+export interface VideoFrameCacheOptions {
+  /** Longest edge, in pixels, frames are decoded at. Larger sources are scaled down by the decoder. */
+  maxEdge?: number;
+}
 
 class VideoSource {
   private input: Input<BlobSource> | null = null;
@@ -11,15 +18,36 @@ class VideoSource {
   private ended = false;
   private chain: Promise<unknown> = Promise.resolve();
 
-  constructor(private readonly blob: Blob) {}
+  lastUsed = 0;
+
+  constructor(private readonly blob: Blob, private readonly maxEdge: number | undefined) {}
+
+  get isOpen(): boolean {
+    return this.input !== null;
+  }
 
   private async open(): Promise<CanvasSink> {
     if (this.sink) return this.sink;
-    this.input = new Input({ source: new BlobSource(this.blob), formats: ALL_FORMATS });
-    const track: InputVideoTrack | null = await this.input.getPrimaryVideoTrack();
-    if (!track) throw new Error("Media has no video track");
-    this.sink = new CanvasSink(track);
+    const input = new Input({ source: new BlobSource(this.blob), formats: ALL_FORMATS });
+    this.input = input;
+    try {
+      const track: InputVideoTrack | null = await input.getPrimaryVideoTrack();
+      if (!track) throw new Error("Media has no video track");
+      this.sink = new CanvasSink(track, await this.sizeOptions(track));
+    } catch (error) {
+      input.dispose();
+      this.input = null;
+      throw error;
+    }
     return this.sink;
+  }
+
+  private async sizeOptions(track: InputVideoTrack): Promise<{ width: number; height: number; fit: "fill" } | undefined> {
+    if (this.maxEdge === undefined) return undefined;
+    const [width, height] = await Promise.all([track.getDisplayWidth(), track.getDisplayHeight()]);
+    const scale = this.maxEdge / Math.max(width, height);
+    if (!(scale < 1)) return undefined;
+    return { width: Math.max(2, Math.round(width * scale)), height: Math.max(2, Math.round(height * scale)), fit: "fill" };
   }
 
   /** Calls are serialised per source: one iterator cannot serve two positions at once. */
@@ -74,19 +102,44 @@ class VideoSource {
 /** Decoded video frames by media id and source time. Preview and export each own one. */
 export class VideoFrameCache {
   private readonly sources = new Map<string, VideoSource>();
+  private clock = 0;
 
-  constructor(private readonly getBlob: (mediaId: string) => Blob | undefined) {}
+  constructor(private readonly getBlob: (mediaId: string) => Blob | undefined, private readonly options: VideoFrameCacheOptions = {}) {}
+
+  /** Number of decoders currently held open. */
+  get openDecoders(): number {
+    let open = 0;
+    for (const source of this.sources.values()) if (source.isOpen) open++;
+    return open;
+  }
 
   async getFrame(mediaId: string, seconds: number): Promise<CanvasImageSource | null> {
     let source = this.sources.get(mediaId);
     if (!source) {
       const blob = this.getBlob(mediaId);
       if (!blob) return null;
-      source = new VideoSource(blob);
+      const evicted = this.evictToMakeRoom();
+      source = new VideoSource(blob, this.options.maxEdge);
+      source.lastUsed = ++this.clock;
       this.sources.set(mediaId, source);
+      await evicted;
     }
-    const frame = await source.frameAt(Math.max(0, seconds));
-    return frame ? (frame.canvas as CanvasImageSource) : null;
+    source.lastUsed = ++this.clock;
+    const result = await source.frameAt(Math.max(0, seconds));
+    return result ? (result.canvas as CanvasImageSource) : null;
+  }
+
+  /** Closes the least recently used decoders so that one more can be opened without exceeding the limit. */
+  private async evictToMakeRoom(): Promise<void> {
+    const evicted: Array<Promise<void>> = [];
+    while (this.sources.size >= MAX_OPEN_DECODERS) {
+      let oldest: [string, VideoSource] | null = null;
+      for (const entry of this.sources) if (!oldest || entry[1].lastUsed < oldest[1].lastUsed) oldest = entry;
+      if (!oldest) break;
+      this.sources.delete(oldest[0]);
+      evicted.push(oldest[1].dispose());
+    }
+    await Promise.all(evicted);
   }
 
   async release(mediaId: string): Promise<void> {

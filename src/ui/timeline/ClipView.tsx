@@ -3,7 +3,7 @@ import { listKeyframes } from "#/engine/animation";
 import { dbToVolumeLine, volumeLineToDb } from "#/engine/audio";
 import { updateElements } from "#/engine/commands";
 import {
-  PARAM, numberParam, type ElementRef, type MediaAssetInfo, type TimelineElement, type TimelineTrack,
+  PARAM, numberParam, type ElementRef, type MediaAssetInfo, type TimelineElement,
 } from "#/engine/model";
 import { TICKS_PER_SECOND } from "#/engine/time";
 import { Icon } from "../icons";
@@ -14,7 +14,7 @@ import { commitEdit } from "../lib/edit";
 
 export interface ClipViewProps {
   element: TimelineElement;
-  track: TimelineTrack;
+  trackId: string;
   box: TrackBox;
   selected: boolean;
   selectedKeyframeIds: ReadonlySet<string>;
@@ -83,8 +83,8 @@ function VolumeLine({ element, refValue, height }: { element: TimelineElement; r
 }
 
 function ClipViewImpl(props: ClipViewProps): ReactNode {
-  const { element, track, box, selected, asset, zoom } = props;
-  const ref: ElementRef = { trackId: track.id, elementId: element.id };
+  const { element, trackId, box, selected, asset, zoom } = props;
+  const ref: ElementRef = { trackId, elementId: element.id };
   const left = element.startTime * pxPerTick(zoom);
   const width = Math.max(2, element.duration * pxPerTick(zoom));
   const height = box.baseHeight;
@@ -149,7 +149,7 @@ function ClipViewImpl(props: ClipViewProps): ReactNode {
     <>
       <div
         className={className} style={style} data-selected={selected} data-hidden={hidden} data-drop-target={props.dropTarget}
-        data-clip-id={element.id} data-start={element.startTime} data-duration={element.duration} data-track-id={track.id} role="button" tabIndex={0} aria-pressed={selected}
+        data-clip-id={element.id} data-start={element.startTime} data-duration={element.duration} data-track-id={trackId} role="button" tabIndex={0} aria-pressed={selected}
         aria-label={`${element.type} ${element.name}${selected ? ", selected" : ""}`}
         onPointerDown={(e) => { if (e.button === 0) { e.stopPropagation(); props.onPointerDown(e, ref); } }}
         onContextMenu={(e) => props.onContextMenu(e, ref)}
@@ -195,4 +195,17 @@ function ClipViewImpl(props: ClipViewProps): ReactNode {
   );
 }
 
-export const ClipView = memo(ClipViewImpl);
+function sameBox(a: TrackBox, b: TrackBox): boolean {
+  return a.top === b.top && a.baseHeight === b.baseHeight && a.lanes.length === b.lanes.length && a.lanes.every((lane, i) => lane === b.lanes[i]);
+}
+
+/** Geometry boxes are rebuilt on every document change; a clip only cares about the numbers it draws with. */
+function propsEqual(prev: ClipViewProps, next: ClipViewProps): boolean {
+  return prev.element === next.element && prev.trackId === next.trackId && prev.selected === next.selected
+    && prev.selectedKeyframeIds === next.selectedKeyframeIds && prev.asset === next.asset && prev.zoom === next.zoom
+    && prev.expanded === next.expanded && prev.dropTarget === next.dropTarget && sameBox(prev.box, next.box)
+    && prev.onPointerDown === next.onPointerDown && prev.onResizeDown === next.onResizeDown
+    && prev.onKeyframeDown === next.onKeyframeDown && prev.onContextMenu === next.onContextMenu && prev.onEffectsClick === next.onEffectsClick;
+}
+
+export const ClipView = memo(ClipViewImpl, propsEqual);

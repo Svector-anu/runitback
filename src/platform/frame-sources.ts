@@ -12,6 +12,10 @@ export class ImageCache {
 
   constructor(private readonly getBlob: (mediaId: string) => Blob | undefined) {}
 
+  get size(): number {
+    return this.bitmaps.size;
+  }
+
   get(mediaId: string): Promise<ImageBitmap | null> {
     let entry = this.bitmaps.get(mediaId);
     if (!entry) {

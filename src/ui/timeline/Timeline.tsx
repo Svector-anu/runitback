@@ -24,7 +24,7 @@ import { ClipView } from "./ClipView";
 import {
   interactionStore, startBackgroundGesture, startClipDrag, startKeyframeDrag, startResize, startScrub, type ControllerContext,
 } from "./controllers";
-import { BOOKMARK_ROW_HEIGHT, HEADER_HEIGHT, computeGeometry, pathLabel } from "./layout";
+import { BOOKMARK_ROW_HEIGHT, HEADER_HEIGHT, clipWindow, computeGeometry, intersectsWindow, pathLabel } from "./layout";
 import { Playhead } from "./Playhead";
 import { Ruler } from "./Ruler";
 import { EasingPopover } from "./EasingPopover";
@@ -62,7 +62,10 @@ export function Timeline(): ReactNode {
   const scene = useEditorState((s) => currentScene(s.doc));
   const scenes = useEditorState((s) => s.doc.scenes);
   const expanded = uiStore.use((s) => s.expandedElements);
-  const interaction = interactionStore.use((s) => s);
+  const interactionMode = interactionStore.use((s) => s.mode);
+  const snapTime = interactionStore.use((s) => s.snapTime);
+  const dropLineIndex = interactionStore.use((s) => s.dropLineIndex);
+  const selectionBox = interactionStore.use((s) => s.box);
   const duration = totalDuration(tracks);
   const viewport = useViewport(duration);
   const geometry = useMemo(() => computeGeometry({ tracks, expanded }), [tracks, expanded]);
@@ -112,6 +115,16 @@ export function Timeline(): ReactNode {
   const selectedKeyframeIds = useMemo(() => new Set(selection.keyframes.map((k) => k.keyframeId)), [selection.keyframes]);
   const selectedSet = useMemo(() => new Set(selection.elements.map((r) => `${r.trackId}/${r.elementId}`)), [selection.elements]);
   const assetById = useMemo(() => new Map(assets.map((a) => [a.id, a])), [assets]);
+
+  const onClipPointerDown = useCallback((e: React.PointerEvent, ref: ElementRef): void => startClipDrag(ctx, e.nativeEvent, ref), [ctx]);
+  const onClipResizeDown = useCallback((e: React.PointerEvent, ref: ElementRef, side: "left" | "right"): void => startResize(ctx, e.nativeEvent, ref, side), [ctx]);
+  const onClipKeyframeDown = useCallback(
+    (e: React.PointerEvent, ref: ElementRef, path: string, id: string): void => startKeyframeDrag(ctx, e.nativeEvent, ref, path, id), [ctx],
+  );
+  const onClipEffectsClick = useCallback((ref: ElementRef): void => {
+    editor.setSelection({ elements: [ref], keyframes: [], keyframeAnchor: null });
+    uiStore.set({ propertyTabs: { ...uiStore.get().propertyTabs, video: "effects", image: "effects" } });
+  }, [editor]);
 
   // ---- Context menus ------------------------------------------------------------------------------------------
 
@@ -240,10 +253,11 @@ export function Timeline(): ReactNode {
     if (outcome.imported.length > 0) toast.success(`${outcome.imported.length} media ${outcome.imported.length === 1 ? "file" : "files"} added`);
   };
 
+  const mountWindow = clipWindow({ scrollLeft: viewport.scrollLeft, viewportWidth: viewport.containerWidth });
   const contentHeight = HEADER_HEIGHT + geometry.totalHeight + 12;
-  const snapX = interaction.snapTime !== null ? viewport.timeToX(interaction.snapTime) : null;
+  const snapX = snapTime !== null ? viewport.timeToX(snapTime) : null;
   const dropLine = drop?.isNewTrack ? HEADER_HEIGHT + dropLineY({ layout: geometry.layout, trackIndex: drop.trackIndex }) : null;
-  const dragLine = interaction.mode === "move" && interaction.dropLineIndex !== null ? HEADER_HEIGHT + dropLineY({ layout: geometry.layout, trackIndex: interaction.dropLineIndex }) : null;
+  const dragLine = interactionMode === "move" && dropLineIndex !== null ? HEADER_HEIGHT + dropLineY({ layout: geometry.layout, trackIndex: dropLineIndex }) : null;
   const hasKeyframeSelection = selection.keyframes.length > 0;
   const onlyElement = selection.elements.length === 1 ? getElement(tracks, selection.elements[0] as ElementRef) : undefined;
   const canSplitAudio = selection.elements.length === 1 && canToggleSourceAudio(onlyElement as TimelineElement | undefined, assets);
@@ -337,26 +351,23 @@ export function Timeline(): ReactNode {
                   />
                 );
               })}
-              {geometry.boxes.flatMap((box) => (box.track.elements as TimelineElement[]).map((element) => {
-                const key = `${box.track.id}/${element.id}`;
-                const selected = selectedSet.has(key);
+              {geometry.boxes.flatMap((box) => (box.track.elements as TimelineElement[]).flatMap((element) => {
+                const selected = selectedSet.has(`${box.track.id}/${element.id}`);
+                if (!selected && !intersectsWindow({ startPx: viewport.timeToX(element.startTime), endPx: viewport.timeToX(element.startTime + element.duration), window: mountWindow })) return [];
                 const asset = "mediaId" in element ? assetById.get(element.mediaId) : undefined;
-                return (
+                return [(
                   <ClipView
-                    key={element.id} element={element} track={box.track} box={{ ...box, top: box.top }} selected={selected}
+                    key={element.id} element={element} trackId={box.track.id} box={box} selected={selected}
                     selectedKeyframeIds={selected ? selectedKeyframeIds : EMPTY_SET} asset={asset} zoom={viewport.zoom}
                     expanded={expanded.has(element.id)} dropTarget={drop?.targetElement?.elementId === element.id}
-                    onPointerDown={(e) => startClipDrag(ctx, e.nativeEvent, { trackId: box.track.id, elementId: element.id })}
-                    onResizeDown={(e, ref, side) => startResize(ctx, e.nativeEvent, ref, side)}
-                    onKeyframeDown={(e, ref, path, id) => startKeyframeDrag(ctx, e.nativeEvent, ref, path, id)}
-                    onContextMenu={openClipMenu}
-                    onEffectsClick={(ref) => { editor.setSelection({ elements: [ref], keyframes: [], keyframeAnchor: null }); uiStore.set({ propertyTabs: { ...uiStore.get().propertyTabs, video: "effects", image: "effects" } }); }}
+                    onPointerDown={onClipPointerDown} onResizeDown={onClipResizeDown} onKeyframeDown={onClipKeyframeDown}
+                    onContextMenu={openClipMenu} onEffectsClick={onClipEffectsClick}
                   />
-                );
+                )];
               }))}
             </div>
-            {interaction.box ? (
-              <div className="selection-box" style={{ left: interaction.box.left, top: interaction.box.top + HEADER_HEIGHT, width: interaction.box.right - interaction.box.left, height: interaction.box.bottom - interaction.box.top }} />
+            {selectionBox ? (
+              <div className="selection-box" style={{ left: selectionBox.left, top: selectionBox.top + HEADER_HEIGHT, width: selectionBox.right - selectionBox.left, height: selectionBox.bottom - selectionBox.top }} />
             ) : null}
             {snapX !== null && snappingEnabled ? <div className="snap-indicator" style={{ left: snapX - 1 }} /> : null}
             {dropLine !== null ? <div className="drop-line" style={{ top: dropLine - 1 }} /> : null}
