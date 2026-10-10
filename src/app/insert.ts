@@ -5,7 +5,7 @@ import {
   type MediaAssetInfo, type TimelineElement,
 } from "#/engine/model";
 import { mediaTime } from "#/engine/time";
-import type { DropTarget } from "#/engine/timeline";
+import { allElements, type DropTarget } from "#/engine/timeline";
 import type { DragPayload } from "#/ui/dnd";
 
 export function placementFromTarget(editor: Editor, target: DropTarget): InsertPlacement {
@@ -35,7 +35,10 @@ export type InsertOutcome = { ok: true } | { ok: false; message: string };
 
 const UNSUPPORTED: InsertOutcome = { ok: false, message: "That item can no longer be added." };
 
-/** Insert a dragged or clicked asset at a drop target (timeline drag) or via automatic placement (the "+" buttons). */
+/**
+ * Insert a dragged or clicked asset at a drop target (timeline drag) or via automatic placement (the "+" buttons).
+ * The first media clip of an empty timeline ignores the drop position and starts at 0 on the main track.
+ */
 export function insertPayload(input: { editor: Editor; payload: DragPayload; startTime: number; target?: DropTarget | null }): InsertOutcome {
   const { editor, payload } = input;
   const placement: InsertPlacement = input.target ? placementFromTarget(editor, input.target) : { mode: "auto" };
@@ -50,6 +53,9 @@ export function insertPayload(input: { editor: Editor; payload: DragPayload; sta
   if (payload.kind === "media") {
     const asset: MediaAssetInfo | undefined = editor.getAsset(payload.assetId);
     if (!asset) return UNSUPPORTED;
+    if (input.target && allElements(currentScene(editor.getState().doc).tracks).length === 0) {
+      return run(insertMediaElement({ asset, elementId: editor.newId(), startTime: 0, placement: { mode: "auto" } }));
+    }
     return run(insertMediaElement({ asset, elementId: editor.newId(), startTime: input.startTime, placement }));
   }
   const element = elementForPayload(editor, payload, input.startTime);
