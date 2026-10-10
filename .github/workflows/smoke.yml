@@ -6,9 +6,12 @@ on:
 
 jobs:
   smoke:
+    # environment_url is the deployed app; target_url/log_url can point at build logs. Vercel's GitHub app
+    # posts deployments named "Production" for main and "Preview" for branches (observed on this repo).
     if: >
       github.event.deployment_status.state == 'success' &&
-      github.event.deployment.environment == 'Production'
+      github.event.deployment.environment == 'Production' &&
+      github.event.deployment_status.environment_url != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -42,6 +45,6 @@ jobs:
       - name: Smoke-check the live deploy
         if: steps.bypass.outputs.skip != 'true'
         env:
-          SMOKE_URL: ${{ github.event.deployment_status.target_url }}
+          SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: pnpm exec playwright test --config playwright.smoke.config.ts
