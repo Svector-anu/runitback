@@ -21,9 +21,9 @@ An agent-native video editor ("a Claude for video editors"): understands footage
 See the table in `ROADMAP.md`. Owners are partitioned by path; agents never edit the same files.
 
 ## Known failures / limitations
-- Faces are not in the temporal index, tools or UI. Word-level captions have data plumbing only; the compositor has no rich-text path.
-- No single "understand footage" action: analysis, Transcribe, Index visuals are separate buttons.
-- Agent does not show a plan for approval before executing.
+- Faces are in the index and agent tools (N3) but untested on real MediaPipe output in the app. Word-level captions have data plumbing only; the compositor has no rich-text path.
+- Understand footage (N2) works with test doubles; real models through it and a mid-run reload are not browser-verified.
+- Plan approval exists (N4); after a re-plan one run can have more than one undo step, and a manual edit made while an approved plan executes is rolled back if the run fails.
 - Long media / large projects are untested: whole-timeline audio mix in memory, no clip virtualization, 4K decode.
 - Chromium only. WebGPU speech path and Firefox/Safari untested. In-app agent calling Anthropic directly from the browser with a pasted key is untested against the real API.
 - Visual search is weak on text-heavy UI footage and on absence queries.
