@@ -1,0 +1,55 @@
+name: smoke
+
+# Deploy path: Vercel's native GitHub integration (connected to this repo) deploys every push to main to
+# Production. deploy.yml (token-based CLI deploy gated on CI) is DISABLED and is only the alternative if the
+# owner wants CI-gated deploys, which needs the VERCEL_* secrets. This job therefore smoke-checks whatever Vercel
+# deployed to Production, and it fires for either path, since both register a GitHub deployment named "Production".
+# It is a post-deploy check, not a gate: a failure means "production is broken, fix forward or roll back".
+on:
+  deployment_status
+
+jobs:
+  smoke:
+    # environment_url is the deployed app; target_url/log_url can point at build logs. Vercel's GitHub app
+    # posts deployments named "Production" for main and "Preview" for branches. Observed on this repo: push 4d42770 to
+    # main created deployment 6974986638 (environment "Production", status success, environment_url = deployment URL).
+    if: >
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Production' &&
+      github.event.deployment_status.environment_url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - name: Check Deployment Protection bypass secret
+        id: bypass
+        env:
+          BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          if [ -z "$BYPASS" ]; then
+            echo "::warning::VERCEL_AUTOMATION_BYPASS_SECRET is not set. With Deployment Protection on, a headless request reaches the Vercel login page, not the app, so the smoke check is skipped. Add the secret (Vercel project Settings > Deployment Protection > Protection Bypass for Automation) or make the site public."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.bypass.outputs.skip != 'true'
+      - uses: actions/setup-node@v4
+        if: steps.bypass.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        if: steps.bypass.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        if: steps.bypass.outputs.skip != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Smoke-check the live deploy
+        if: steps.bypass.outputs.skip != 'true'
+        env:
+          SMOKE_URL: ${{ github.event.deployment_status.environment_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: pnpm exec playwright test --config playwright.smoke.config.ts
