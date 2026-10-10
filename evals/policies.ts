@@ -419,6 +419,32 @@ function findVisual(options: { mode: "subject" | "first-only" | "wrong-subject" 
   };
 }
 
+/** Makes the project vertical, then reframes the interview clip onto the speaker (or fakes it with a fixed crop). */
+function reframeSpeaker(options: { mode: "faces" | "static-crop" | "wrong-canvas" }): () => Turn[] {
+  return () => {
+    let elementId = "";
+    return [
+      (_seen, use) => orient(use),
+      (seen, use) => {
+        const asset = assetNamed(seen, "interview.mp4");
+        elementId = elementsOf(seen.data<TimelineData>("get_timeline")).find((e) => e.assetId === asset.id)?.id ?? "";
+        return [
+          say("Checking where the speaker is, then making the canvas vertical."),
+          use("describe_faces", { assetId: asset.id }),
+          ...(options.mode === "wrong-canvas" ? [] : [use("set_project", { canvasPreset: "9:16" })]),
+        ];
+      },
+      (_seen, use) => {
+        if (options.mode === "static-crop") {
+          return [say("Cropping to the middle of the frame."), use("set_params", { elementId, params: { "transform.scaleX": 3.16, "transform.scaleY": 3.16 } })];
+        }
+        return [say("Reframing onto the speaker."), use("reframe_to_faces", { elementId })];
+      },
+      () => [say("The interview is vertical now and follows the speaker.")],
+    ];
+  };
+}
+
 function ask(reply: string, extra: Turn[] = []): () => Turn[] {
   return () => [(_seen, use) => orient(use), ...extra, () => [say(reply)]];
 }
@@ -491,6 +517,9 @@ const SPECS: PolicySpec[] = [
   { id: "oracle", caseId: "find-visual-moment", kind: "oracle", description: "find_visual_moments for the quoted subject, cut_to_moments on the results in time order.", turns: findVisual({ mode: "subject" }) },
   { id: "first-only", caseId: "find-visual-moment", kind: "mutation", description: "Assembles only the first moment that shows the subject.", mustFail: ["subject-footage-kept"], turns: findVisual({ mode: "first-only" }) },
   { id: "wrong-subject", caseId: "find-visual-moment", kind: "mutation", description: "Searches for a different subject and assembles that.", mustFail: ["subject-footage-kept", "nothing-else-kept"], turns: findVisual({ mode: "wrong-subject" }) },
+  { id: "oracle", caseId: "reframe-to-speaker", kind: "oracle", description: "describe_faces, set_project 9:16, reframe_to_faces on the interview clip.", turns: reframeSpeaker({ mode: "faces" }) },
+  { id: "static-crop", caseId: "reframe-to-speaker", kind: "mutation", description: "Makes the canvas vertical and crops to the middle of the frame, never following the speaker.", mustFail: ["speaker-in-frame"], turns: reframeSpeaker({ mode: "static-crop" }) },
+  { id: "wrong-canvas", caseId: "reframe-to-speaker", kind: "mutation", description: "Reframes onto the speaker but leaves the canvas 16:9.", mustFail: ["canvas-is-vertical"], turns: reframeSpeaker({ mode: "wrong-canvas" }) },
   {
     id: "oracle", caseId: "ambiguous-request", kind: "oracle", description: "Inspect, then ask what 'better' means.",
     turns: ask("What would you like me to improve: the pacing, the audio level, add titles or captions, or something else? Tell me what 'better' means for this video and I'll do it."),
@@ -519,6 +548,7 @@ const LAZY_FAILS: Record<string, string[]> = {
   "find-and-cut-phrase-moments": ["keyword-sentences-kept"],
   "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
   "find-visual-moment": ["subject-footage-kept"],
+  "reframe-to-speaker": ["canvas-is-vertical", "speaker-in-frame"],
 };
 
 const OVERREACH_FAILS: Record<string, string[]> = {
@@ -536,6 +566,7 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "find-and-cut-phrase-moments": ["keyword-sentences-kept"],
   "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
   "find-visual-moment": ["subject-footage-kept"],
+  "reframe-to-speaker": ["canvas-is-vertical", "speaker-in-frame", "whole-clip-kept"],
 };
 
 function generic(): PolicySpec[] {

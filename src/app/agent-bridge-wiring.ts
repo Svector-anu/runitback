@@ -9,6 +9,7 @@ import { createAnalysisProvider, getStyleProfileStore } from "./agent/reference-
 import { createAppTemporalTools } from "./agent/temporal-wiring";
 import { createAppTranscriptTools } from "./agent/transcript-wiring";
 import { createAppUnderstandTools } from "./agent/understand-wiring";
+import { createAppFaceTools } from "./agent/face-wiring";
 import { createAppVisualTools } from "./agent/visual-wiring";
 import { getServices } from "./services";
 
@@ -44,6 +45,7 @@ export function createBridgeRegistry(onExport: (result: PendingExport) => void):
   for (const tool of createAppTranscriptTools()) registry.set(tool.name, tool);
   for (const tool of createAppTemporalTools(provider)) registry.set(tool.name, tool);
   for (const tool of createAppVisualTools()) registry.set(tool.name, tool);
+  for (const tool of createAppFaceTools(provider)) registry.set(tool.name, tool);
   for (const tool of createAppUnderstandTools()) registry.set(tool.name, tool);
   return registry;
 }

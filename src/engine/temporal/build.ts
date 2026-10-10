@@ -1,6 +1,8 @@
 import type { MediaAnalysis } from "#/engine/analysis";
+import { faceShotStats, type FaceDetections } from "#/engine/face";
 import { beatTimes } from "#/engine/reference";
 import { groupSentences, type Transcript } from "#/engine/transcript";
+import { faceEvents } from "./faces";
 import { coverageRatio, levelStats, shotIndexAt } from "./measure";
 import { visualEvents, type VisualTrackInput } from "./visual";
 import {
@@ -40,9 +42,10 @@ function rhythmOf(analysis: MediaAnalysis): RhythmSummary | null {
  * Joins what is known about one asset on its source-time axis: shots (from scene cuts), loudness and silence per
  * shot, speech sentences, silences and rhythm. Missing inputs leave their parts empty and `sources` says which
  * inputs were present, so a consumer can tell "no speech" from "never transcribed". Visual embeddings, when given, add
- * `tracks.visual` (see `visualEvents`).
+ * `tracks.visual` (see `visualEvents`). Face detections, when given, add `tracks.face` (one event per continuous
+ * appearance of a tracked face) and `faces` statistics on every shot.
  */
-export function buildTemporalIndex(input: { assetId: string; duration: number; analysis?: MediaAnalysis; transcript?: Transcript; visual?: VisualTrackInput }): TemporalIndex {
+export function buildTemporalIndex(input: { assetId: string; duration: number; analysis?: MediaAnalysis; transcript?: Transcript; visual?: VisualTrackInput; faces?: FaceDetections }): TemporalIndex {
   const { analysis, transcript } = input;
   const duration = Math.max(0, input.duration);
   const words = transcript?.words ?? [];
@@ -77,6 +80,9 @@ export function buildTemporalIndex(input: { assetId: string; duration: number; a
     };
   });
 
+  const faceStats = input.faces ? faceShotStats({ detections: input.faces, spans: shots }) : undefined;
+  const shotsWithFaces = faceStats ? shots.map((shot, i) => (faceStats[i] ? { ...shot, faces: faceStats[i] } : shot)) : shots;
+
   const speech: SpeechSegment[] = groupSentences({ words }).map((s, index) => ({
     index, startSeconds: s.startSeconds, endSeconds: s.endSeconds, startWord: s.startWord, endWord: s.endWord, text: s.text,
     shotIndex: shotIndexAt(shots, (s.startSeconds + s.endSeconds) / 2),
@@ -86,9 +92,11 @@ export function buildTemporalIndex(input: { assetId: string; duration: number; a
     version: TEMPORAL_INDEX_VERSION,
     assetId: input.assetId,
     durationSeconds: duration,
-    sources: { analysis: analysis !== undefined, transcript: transcript !== undefined, audio: hasAudio, ...(input.visual ? { visual: true } : {}) },
-    shots,
-    tracks: { speech, speechLike, silence, onset, ...(input.visual ? { visual: visualEvents(input.visual) } : {}) },
+    sources: { analysis: analysis !== undefined, transcript: transcript !== undefined, audio: hasAudio, ...(input.visual ? { visual: true } : {}), ...(input.faces ? { faces: true } : {}) },
+    shots: shotsWithFaces,
+    tracks: { speech, speechLike, silence, onset, ...(input.visual ? { visual: visualEvents(input.visual) } : {}),
+      ...(input.faces ? { face: faceEvents({ detections: input.faces, cuts: bounds.slice(1, -1) }) } : {}),
+    },
     words,
     levels,
     rhythm: analysis ? rhythmOf(analysis) : null,

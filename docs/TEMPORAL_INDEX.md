@@ -12,7 +12,7 @@ Engine side of M7c. One per-asset structure that joins what is known about foota
 | `rhythm` | Onset count, the strongest onsets, and a beat grid (bpm, period, first beat) when the tempo estimate is trusted. |
 | `sources` | Which inputs were present (`analysis`, `transcript`, `audio`), so "no speech" is distinguishable from "never transcribed". |
 
-`tracks` is `Record<string, TemporalEvent[]>` with the core kinds typed. A face detector or embedding matcher adds `tracks.face` / `tracks.visual` (events with `label` and `score`) and nothing else changes: consumers ignore kinds they do not know, and `describeIndex` lists them.
+`tracks` is `Record<string, TemporalEvent[]>` with the core kinds typed. The face detector and the embedding matcher add `tracks.face` / `tracks.visual` (events with `label` and `score`) and nothing else changes: consumers ignore kinds they do not know, and `describeIndex` lists them.
 
 ## Queries
 
@@ -34,10 +34,14 @@ Opt-in like the transcript and reference tools: exported from `#/engine/agent`, 
 
 `buildTemporalIndex({ ..., visual: { embeddings, query? } })` adds `tracks.visual` and `sources.visual: true` (both absent otherwise, so existing consumers and tests are unchanged). Without `query`: one unlabelled event per sampled frame, covering the span that frame stands for. With `query: { label, embedding, minScore? }`: the matching stretches, merged, with `label` and `score`. The agent tools search the embeddings directly (`find_visual_moments`, see `docs/VISUAL_SEARCH.md`); `find_moments` has no visual filter.
 
+## Face track
+
+`buildTemporalIndex({ ..., faces })` (a `FaceDetections`, see `docs/FACES.md`) adds `sources.faces: true`, `tracks.face` and `shot.faces` (both absent without faces, so existing consumers and tests are unchanged). `tracks.face` has one event per continuous appearance of a tracked face, labelled `face-<id>` (stable while the IoU tracker can follow the person) and scored with the mean detector confidence. `shot.faces` is `{ framesSampled, presentRatio, meanCount, largest?, dominantPosition? }` over the sampled frames inside the shot; a shot with no sampled frame says `framesSampled: 0` rather than "no faces". `describeIndex` adds a faces part to each shot line. Queries over faces are `findFaceMoments` and `faceFocusPath`, not `findMoments`.
+
 ## Not built
 
-Faces and any other model-backed track. `findMoments` has no `track` filter yet; add one when the first non-core producer exists.
+Any other model-backed track. `findMoments` has no `track` filter yet; add one when a producer needs to be filtered through it.
 
 ## Tests
 
-`tests/temporal-index.test.ts` (build, every filter, ranking, describe bounds, timeline mapping), `tests/temporal-tools.test.ts`, `tests/temporal-fuzz.test.ts` (random queries and cuts keep `assertDocumentInvariants`, each cut is one undo step), and the evals `find-and-cut-phrase-moments` and `loudest-shot-first`.
+`tests/temporal-index.test.ts` (build, every filter, ranking, describe bounds, timeline mapping), `tests/face-pure.test.ts` (the face track), `tests/temporal-tools.test.ts`, `tests/temporal-fuzz.test.ts` (random queries and cuts keep `assertDocumentInvariants`, each cut is one undo step), and the evals `find-and-cut-phrase-moments` and `loudest-shot-first`.

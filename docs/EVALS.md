@@ -9,7 +9,7 @@ EvalCase { id, brief, fixtures, budget, checks }
 ```
 
 - **brief**: the user's request, verbatim. This is the only instruction the agent gets.
-- **fixtures**: declarative synthetic media (`FixtureSpec`): a name, a duration, colour blocks (the shots) and a soundtrack (`speech` ranges, a steady `tone`, a `beat` grid, or `none`) and optionally a word-level `transcript` in source seconds. Ground truth is exact because it is derived from the declaration, never measured. A fixture with `placeAt` starts on the timeline; the others sit in the media pool.
+- **fixtures**: declarative synthetic media (`FixtureSpec`): a name, a duration, colour blocks (the shots) and a soundtrack (`speech` ranges, a steady `tone`, a `beat` grid, or `none`) and optionally a word-level `transcript` in source seconds, `visual` showings (what is on screen when) or `faces` (where the speaker's face is when). Ground truth is exact because it is derived from the declaration, never measured. A fixture with `placeAt` starts on the timeline; the others sit in the media pool.
 - **budget**: `maxSteps` and `maxTokens` handed to `runAgent`.
 - **checks**: pure functions `(CheckInput) => { pass, score 0..1, detail }` over the project before the run (`initial`), right after it (`final`), after one undo (`afterUndo`), the resolved fixtures with their ground truth, and the run summary (status, final text, steps, usage).
 
@@ -37,6 +37,7 @@ Headless runs use the real `createAgentTools()`. The browser-only tools are repl
 | `find-and-cut-phrase-moments` | Assemble a sequence of only the sentences where the speaker says "budget", in spoken order, back to back | `keyword-sentences-kept`: at least 98% of the matching sentences' speech is on the timeline. `nothing-else-kept`: at most 0.1 s of the other sentences' speech. `spoken-order-back-to-back`: main-track clips start at 0, touch, and follow source order. Uses `find_moments` + `cut_to_moments`. |
 | `loudest-shot-first` | Cut a three-shot clip so the loudest shot plays first, the others after it in order | `loudest-leads`: the first clip is the whole loudest shot at 0. `all-shots-kept`: every shot at least 95% present. `rest-in-order-back-to-back`: the remaining shots follow in source order with no gaps. The fixture's soundtrack is `{ kind: "levels" }` (a tone whose level steps per shot). |
 | `find-visual-moment` | Assemble only the parts of a clip that show "a dog", in the order they appear, back to back | `subject-footage-kept`: at least 95% of the seconds showing the subject are on the timeline. `nothing-else-kept`: at most 0.5 s of other footage. `appearance-order-back-to-back`: main-track clips start at 0, touch, and follow source order. The fixture declares what is on screen when (`visual: [{ start, end, shows }]`); `evals/visual.ts` turns that into embeddings with the real sampling plan and a stand-in text encoder, so the case gets `find_visual_moments` with no model involved. Mutations: `first-only`, `wrong-subject`. |
+| `reframe-to-speaker` | Make a landscape interview vertical (9:16) and keep the speaker in the middle of the picture, keeping the whole clip | `canvas-is-vertical`: the canvas is 9:16. `speaker-in-frame`: at nine sampled moments inside the three declared stretches the speaker's face is within 10% of the canvas width from the middle, evaluating the clip's animated position and scale (all samples). `whole-clip-kept`: at least 95% of the clip still plays. The fixture declares where the face is when (`faces: [{ start, end, centerX }]`); `evals/faces.ts` turns that into detections with the real sampling plan, so the case gets `find_face_moments`, `describe_faces` and `reframe_to_faces` with no detector involved. Mutations: `static-crop` (fixed zoom on the middle, never follows), `wrong-canvas` (reframes but leaves 16:9). |
 
 `asks-or-declines` is a heuristic: the final answer must contain a question mark or a plain refusal ("can't", "cannot", "unable", "no tool", "not possible", "not supported", ...). `project-unchanged` compares the whole document (scenes, settings, current scene), not just the timeline, and also requires that the run left nothing to undo.
 
@@ -93,6 +94,26 @@ When a real-model run fails a case, look at the failed check ids in the report, 
 3. Add an oracle (`id: "oracle"`) in `evals/policies.ts` that solves it from tool results, then at least one specific mutation with `mustFail`, and entries for the case in `LAZY_FAILS` and `OVERREACH_FAILS`.
 4. Run `pnpm eval`. The oracle must pass, each mutation must fail exactly the checks it declares, and no mutation may fail an invariant. Add unit tests for any new helper to `tests/evals-checks.test.ts`.
 5. If no oracle can solve the case with today's tools, set `blocked` to the reason and the missing tool instead of faking a solution.
+
+## The plan protocol (plan-then-execute)
+
+The in-app agent runs with "Ask before editing" on by default. Evals and scripted policies do not: `runAgent` is called without `planning`, so there are no plan tools, no gate, and the prompt is the plain one. The eval suite therefore measures the editing tools and checks, not the approval UI, and `pnpm eval` stays 75/75 as declared.
+
+When `planning` is set, the loop adds two loop-level tools (never registry tools, never editor commands, no document effect):
+
+- `propose_plan {summary, steps[{intent, tools[], targets[], check}]}`: 1 to 12 ordered steps. Tool names are validated against the registry. The call blocks until the user answers.
+- `update_plan_step {step, status: running|done|failed, note}`: progress on an approved plan; `note` carries the measured result or the failure reason.
+
+What a harness can assert (see `tests/agent-plan.test.ts`):
+
+1. The document is identical to the start while a plan awaits a decision.
+2. Approve runs the plan inside the run's single transaction; one undo restores the start.
+3. Reject ends the run with status `rejected`, rolls back, leaves no history entry.
+4. Revise returns the user's text to the model, which proposes again; only the approved plan runs.
+5. Without an approved plan, one stand-alone edit is allowed; a second edit is refused. If a plan follows an unplanned edit, that edit is undone first so (1) still holds.
+6. A final `Verification:` line must state facts measured after the edits (the measured-numbers rule); the real-model scenario compares the number it states with the document.
+
+To drive a case through the protocol without a human, pass `planning: { mode: "auto-approve" }` (`RunCaseOptions.planning`): the plan is recorded and approved at once. The real-model scenario is `e2e/agent-real.spec.ts` ("shows a plan before any edit..."), opt-in with `REAL_MODEL=1`; it asserts the plan is on screen before any edit, the document is unchanged while it waits, and the stated final length matches the measured one. See `AGENT_FLOW.md` for the full flow.
 
 ## Known gaps
 

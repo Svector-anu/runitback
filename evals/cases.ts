@@ -1,6 +1,10 @@
 import type { TranscriptWord } from "#/engine/transcript";
 import { clamp01, documentKey, fail, graded, pass, verdict } from "./checks";
-import { mergeRanges } from "./fixtures";
+import { resolvePathValue } from "#/engine/timeline";
+import { TICKS_PER_SECOND } from "#/engine/time";
+import type { TimelineElement } from "#/engine/model";
+import { FIXTURE_HEIGHT, FIXTURE_WIDTH, mergeRanges } from "./fixtures";
+import { sceneOf } from "./timeline";
 import {
   FRAME_SECONDS, audibleSoundRanges, byStart, clipsOf, fixtureOf, intersect, lengthOf, normalizeText, silentRuns,
   sourceTimesOnTimeline, sourceWindow, timelineEnd, type ClipView,
@@ -690,9 +694,84 @@ const FIND_VISUAL: EvalCase = {
   ],
 };
 
+// 14. Reframe to the speaker: vertical canvas, face kept in the middle ---------------------------------------------
+
+const SPEAKER_FACES = [{ start: 0, end: 10, centerX: 0.2 }, { start: 10, end: 20, centerX: 0.8 }, { start: 20, end: 30, centerX: 0.25 }] as const;
+/** Sampled well inside each stretch: the path eases and jumps between the 2 s face samples, so the edges are not judged. */
+const SPEAKER_SAMPLES: ReadonlyArray<{ seconds: number; centerX: number }> = SPEAKER_FACES.flatMap((f) =>
+  [f.start + 2, (f.start + f.end) / 2, f.end - 2].map((seconds) => ({ seconds, centerX: f.centerX })));
+const MAX_OFF_CENTER = 0.1;
+
+function elementById(project: CheckInput["final"], id: string): TimelineElement | undefined {
+  const { tracks } = sceneOf(project);
+  return [...tracks.overlay, tracks.main, ...tracks.audio].flatMap((t) => t.elements as TimelineElement[]).find((e) => e.id === id);
+}
+
+/** Horizontal distance of the speaker from the middle of the canvas at a source second, as a share of the canvas width; null when no clip plays that second. */
+function speakerOffset(input: CheckInput, fixture: ResolvedFixture, sample: { seconds: number; centerX: number }): number | null {
+  const clip = clipsOfFixture(input, fixture).find((c) => c.type === "video" && sourceWindow(c).start <= sample.seconds && sample.seconds < sourceWindow(c).end);
+  const element = clip ? elementById(input.final, clip.id) : undefined;
+  if (!clip || !element) return null;
+  const canvas = input.final.settings.canvasSize;
+  const local = Math.round(((sample.seconds - clip.trimStart) / clip.rate) * TICKS_PER_SECOND);
+  const number = (path: string, fallback: number): number => {
+    const value = resolvePathValue(element, path, local);
+    return typeof value === "number" ? value : fallback;
+  };
+  const contain = Math.min(canvas.width / FIXTURE_WIDTH, canvas.height / FIXTURE_HEIGHT);
+  const shown = FIXTURE_WIDTH * contain * number("transform.scaleX", 1);
+  const x = canvas.width / 2 + number("transform.positionX", 0) + (sample.centerX - 0.5) * shown;
+  return (x - canvas.width / 2) / canvas.width;
+}
+
+const REFRAME: EvalCase = {
+  id: "reframe-to-speaker",
+  title: "Make a landscape interview vertical and keep the speaker in frame",
+  brief: "interview.mp4 is a 16:9 interview where the speaker moves around the frame. Make the project vertical (9:16) for a phone and reframe the clip so the speaker stays in the middle of the picture the whole time. Keep the whole clip.",
+  fixtures: [{
+    id: "interview", name: "interview.mp4", kind: "video", durationSeconds: 30, placeAt: 0,
+    blocks: [{ seconds: 10, rgb: BLUE }, { seconds: 10, rgb: GREEN }, { seconds: 10, rgb: AMBER }],
+    audio: { kind: "tone" }, faces: SPEAKER_FACES.map((f) => ({ ...f })),
+  }],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "canvas-is-vertical",
+      description: "The project canvas is 9:16 (taller than wide).",
+      run({ final }) {
+        const { width, height } = final.settings.canvasSize;
+        return verdict(width * 16 === height * 9, `canvas is ${width}x${height}`);
+      },
+    },
+    {
+      id: "speaker-in-frame",
+      description: `At sampled moments in each stretch the speaker's face is within ${MAX_OFF_CENTER * 100}% of the canvas width from the middle (all samples).`,
+      run(input) {
+        const interview = fixtureByName(input, "interview.mp4");
+        const offsets = SPEAKER_SAMPLES.map((sample) => ({ sample, offset: speakerOffset(input, interview, sample) }));
+        const framed = offsets.filter((o) => o.offset !== null && Math.abs(o.offset) <= MAX_OFF_CENTER).length;
+        const worst = offsets.reduce((m, o) => Math.max(m, o.offset === null ? Number.POSITIVE_INFINITY : Math.abs(o.offset)), 0);
+        return graded({
+          score: framed / offsets.length, threshold: 1,
+          detail: `${framed}/${offsets.length} samples framed; worst offset ${Number.isFinite(worst) ? `${(worst * 100).toFixed(1)}%` : "clip not playing"}`,
+        });
+      },
+    },
+    {
+      id: "whole-clip-kept",
+      description: "At least 95% of the interview is still played (reframing is not trimming).",
+      run(input) {
+        const interview = fixtureByName(input, "interview.mp4");
+        const ratio = retainedSource(clipsOfFixture(input, interview), [{ start: 0, end: 30 }]) / 30;
+        return graded({ score: ratio, threshold: 0.95, detail: `${(ratio * 100).toFixed(1)}% of the clip plays` });
+      },
+    },
+  ],
+};
+
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
-  FIND_AND_CUT, LOUDEST_FIRST, FIND_VISUAL,
+  FIND_AND_CUT, LOUDEST_FIRST, FIND_VISUAL, REFRAME,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);

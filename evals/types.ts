@@ -47,6 +47,16 @@ export interface FixtureSpec {
    * declaration (see visual.ts), so no image model is involved and the ground truth is exact.
    */
   visual?: VisualShowing[];
+  /**
+   * Where the speaker's face is when, in SOURCE seconds. The case gets the face tools over detections built from this
+   * declaration (see faces.ts), so no detector is involved and the ground truth is exact. Frames outside every range have no face.
+   */
+  faces?: FaceShowing[];
+}
+
+export interface FaceShowing extends Range {
+  /** Horizontal centre of the face as a fraction of the frame width. */
+  centerX: number;
 }
 
 export interface VisualShowing extends Range {

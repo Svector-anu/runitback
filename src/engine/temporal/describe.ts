@@ -20,6 +20,10 @@ function shotLine(shot: IndexShot): string {
   if (shot.silenceRatio !== null) parts.push(`silent ${Math.round(shot.silenceRatio * 100)}%`);
   parts.push(`${shot.speechWordCount} words (${roundMs(shot.wordsPerSecond)}/s)`);
   if (shot.motion) parts.push(`motion ${shot.motion}`);
+  if (shot.faces && shot.faces.framesSampled > 0) {
+    const f = shot.faces;
+    parts.push(`faces ${Math.round(f.presentRatio * 100)}% of frames, mean ${roundMs(f.meanCount)}${f.dominantPosition ? `, ${f.dominantPosition}` : ""}`);
+  }
   return `  #${shot.index} ${secs(shot.startSeconds)}-${secs(shot.endSeconds)}: ${parts.join(", ")}`;
 }
 
@@ -37,7 +41,7 @@ function silenceLines(silences: ReadonlyArray<SilenceSpan>): string[] {
 /** Compact, size-bounded English for the model: structure and numbers, with pointers to find_moments for detail. */
 export function describeIndex(index: TemporalIndex): string {
   const { shots, tracks, rhythm, sources } = index;
-  const known = [sources.analysis ? "analysis" : null, sources.transcript ? "transcript" : null].filter((x): x is string => x !== null);
+  const known = [sources.analysis ? "analysis" : null, sources.transcript ? "transcript" : null, sources.faces ? "faces" : null].filter((x): x is string => x !== null);
   const lines = [`Footage ${index.assetId}: ${secs(index.durationSeconds)}, ${shots.length} shot(s). Indexed from: ${known.join(" + ") || "nothing"}. Times are SOURCE seconds.`];
   if (!sources.analysis) lines.push("No audio/video analysis: loudness, silence and shot data are missing (run analyze_media).");
   if (!sources.transcript) lines.push("No transcript: speech and phrase search are unavailable (run transcribe_asset).");

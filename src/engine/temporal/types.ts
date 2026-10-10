@@ -1,4 +1,5 @@
 import type { LevelCurve, MotionLevel } from "#/engine/analysis";
+import type { FaceShotStats } from "#/engine/face";
 import type { TranscriptWord } from "#/engine/transcript";
 
 /** All times are seconds in SOURCE time of the asset; all levels are dBFS. */
@@ -26,6 +27,8 @@ export interface IndexShot extends TemporalEvent {
   speechWordCount: number;
   wordsPerSecond: number;
   motion?: MotionLevel;
+  /** Present only when face detections were given to `buildTemporalIndex`. */
+  faces?: FaceShotStats;
 }
 
 export interface SpeechSegment extends TemporalEvent {
@@ -78,7 +81,7 @@ export interface TemporalIndex {
   version: typeof TEMPORAL_INDEX_VERSION;
   assetId: string;
   durationSeconds: number;
-  sources: { analysis: boolean; transcript: boolean; audio: boolean; visual?: boolean };
+  sources: { analysis: boolean; transcript: boolean; audio: boolean; visual?: boolean; faces?: boolean };
   shots: IndexShot[];
   tracks: TemporalTracks;
   /** Transcript words (empty without a transcript); phrase queries search these. */
