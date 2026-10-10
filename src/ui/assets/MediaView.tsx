@@ -8,6 +8,8 @@ import { useAssets } from "#/app/hooks";
 import { uiStore } from "#/app/ui-state";
 import { getTranscribeService } from "#/app/transcribe-service";
 import { getVisualService } from "#/app/visual-service";
+import { getUnderstandService } from "#/app/understand-stages";
+import type { ModelDownload } from "#/engine/understand";
 import { beginDrag, endDrag, hasFiles } from "../dnd";
 import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
@@ -16,6 +18,9 @@ import { toast } from "../primitives/toast";
 import { reportInsert } from "../lib/edit";
 import { TranscribeDialog } from "./TranscribeDialog";
 import { transcribeWithToast } from "./transcribe-action";
+import { UnderstandChip } from "./UnderstandChip";
+import { UnderstandDialog } from "./UnderstandDialog";
+import { understandWithToast } from "./understand-action";
 import { VisualDialog } from "./VisualDialog";
 import { indexVisualsWithToast } from "./visual-action";
 
@@ -75,6 +80,11 @@ export function MediaView(): ReactNode {
   const transcribeJobs = transcribeService.state.use((s) => s.jobs);
   const visualService = getVisualService();
   const visualJobs = visualService.state.use((s) => s.jobs);
+  const understandService = getUnderstandService();
+  const understandRuns = understandService.state.use((s) => s.runs);
+  const understandStatuses = understandService.state.use((s) => s.statuses);
+  const understandFailures = understandService.state.use((s) => s.failures);
+  const [understandConsent, setUnderstandConsent] = useState<{ assetIds: string[]; label: string; downloads: ModelDownload[] } | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const anchor = useRef<string | null>(null);
   const depth = useRef(0);
@@ -96,6 +106,12 @@ export function MediaView(): ReactNode {
     const timer = setTimeout(() => setHighlight(null), 1500);
     return () => clearTimeout(timer);
   }, [reveal]);
+
+  const assetKey = assets.map((a) => `${a.id}:${a.size}:${a.hasAudio}`).join("|");
+  const advancedJobsKey = `${Object.keys(transcribeJobs).join(",")}|${Object.keys(visualJobs).join(",")}`;
+  useEffect(() => {
+    void understandService.refresh(assets);
+  }, [assetKey, advancedJobsKey]);
 
   useEffect(() => {
     const onPaste = (e: ClipboardEvent): void => {
@@ -165,6 +181,29 @@ export function MediaView(): ReactNode {
     void indexVisualsWithToast({ assetId: asset.id, assetName: asset.name });
   };
 
+  const understand = async (targets: ReadonlyArray<MediaAssetInfo>): Promise<void> => {
+    const labelOf = (id: string): string => targets.find((t) => t.id === id)?.name ?? "footage";
+    const assetIds = targets.map((t) => t.id);
+    const outcome = await understandWithToast({ assetIds, labelOf });
+    if (outcome.status === "needs-consent") setUnderstandConsent({ assetIds, label: targets.length === 1 ? `"${targets[0]?.name}"` : `${targets.length} files`, downloads: outcome.downloads });
+    else if (outcome.status === "nothing-to-do") toast.info("Already understood");
+  };
+
+  const toggleUnderstand = (asset: MediaAssetInfo): void => {
+    if (asset.id in understandRuns) { understandService.cancel(asset.id); return; }
+    void understand([asset]);
+  };
+
+  const confirmUnderstandDownload = (): void => {
+    const pending = understandConsent;
+    setUnderstandConsent(null);
+    if (!pending) return;
+    understandService.grantConsent(pending.downloads);
+    void understand(pending.assetIds.flatMap((id) => assets.filter((a) => a.id === id)));
+  };
+
+  const needsUnderstanding = assets.filter((a) => a.type !== "image" && understandStatuses[a.id]?.state !== "understood" && understandStatuses[a.id]?.state !== "not-applicable");
+
   const removeSelected = (ids: string[]): void => {
     const removed = services.removeAssets(ids);
     if (!removed.ok) { toast.error("Could not remove that media", removed.error.message); return; }
@@ -200,6 +239,7 @@ export function MediaView(): ReactNode {
           <DropdownMenu align="end" width={160}
             entries={(Object.keys(sortLabel) as Array<keyof typeof sortLabel>).map((k) => ({ label: `${sortLabel[k]}${k === sort ? (desc ? " ↓" : " ↑") : ""}`, onSelect: () => setSort(k) }))}
             trigger={(p) => <Button {...p} variant="ghost" size="icon" label={`Sort by ${sort} (${desc ? "descending" : "ascending"})`} disabled={!!progress}><Icon name="arrow-up-down" /></Button>} />
+          <Button variant="ghost" size="sm" disabled={!!progress || needsUnderstanding.length === 0} label="Understand all new media" onClick={() => void understand(needsUnderstanding)}><Icon name="wand" />Understand all</Button>
           <Button variant="outline" size="sm" disabled={!!progress} onClick={() => input.current?.click()}><Icon name="upload" />Import</Button>
           <input ref={input} type="file" multiple accept="image/*,video/*,audio/*" hidden aria-label="Import media files"
             onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) void run(files); }} />
@@ -238,6 +278,16 @@ export function MediaView(): ReactNode {
                       {asset.id in visualJobs ? `${Math.round((visualJobs[asset.id] ?? 0) * 100)}%` : <Icon name="search" />}
                     </button>
                   ) : null}
+                  {asset.type !== "image" ? (
+                    <div className="media-item__understand">
+                      <UnderstandChip status={understandStatuses[asset.id]} run={understandRuns[asset.id]} failures={understandFailures[asset.id]} />
+                      <button type="button" data-busy={asset.id in understandRuns}
+                        aria-label={asset.id in understandRuns ? `Cancel understanding of ${asset.name}` : `Understand ${asset.name}`}
+                        onClick={(e) => { e.stopPropagation(); toggleUnderstand(asset); }}>
+                        <Icon name="wand" />
+                      </button>
+                    </div>
+                  ) : null}
                   <button type="button" className="media-item__add" aria-label={`Add ${asset.name} to timeline`} onClick={(e) => { e.stopPropagation(); add(asset); }}><Icon name="plus" /></button>
                 </div>
                 <div className="media-item__name truncate" title={asset.name}>{shortName(asset.name)}</div>
@@ -264,6 +314,9 @@ export function MediaView(): ReactNode {
           { label: selected.length > 1 ? `Add ${selected.length} items to timeline` : "Add to timeline", icon: "plus",
             onSelect: () => { for (const id of selected) { const a = assets.find((x) => x.id === id); if (a) add(a); } } },
           ...(selected.length === 1 && assets.find((a) => a.id === selected[0])?.type !== "image"
+            ? [{ label: "Understand footage", icon: "wand" as const, onSelect: () => { const a = assets.find((x) => x.id === selected[0]); if (a) toggleUnderstand(a); } }]
+            : []),
+          ...(selected.length === 1 && assets.find((a) => a.id === selected[0])?.type !== "image"
             ? [{ label: "Transcribe", icon: "captions" as const, onSelect: () => { const a = assets.find((x) => x.id === selected[0]); if (a) transcribe(a); } }]
             : []),
           ...(selected.length === 1 && assets.find((a) => a.id === selected[0])?.type === "video"
@@ -272,6 +325,7 @@ export function MediaView(): ReactNode {
           { type: "separator" },
           { label: selected.length > 1 ? `Delete ${selected.length} items` : "Delete", icon: "trash", destructive: true, onSelect: () => removeSelected(selected) },
         ]} />
+      <UnderstandDialog downloads={understandConsent?.downloads ?? null} label={understandConsent?.label ?? ""} onConfirm={confirmUnderstandDownload} onClose={() => setUnderstandConsent(null)} />
       <TranscribeDialog assetName={consentFor?.name ?? null} onConfirm={confirmDownload} onClose={() => setConsentFor(null)} />
       <VisualDialog assetName={visualConsentFor?.name ?? null} onConfirm={confirmVisualDownload} onClose={() => setVisualConsentFor(null)} />
     </div>

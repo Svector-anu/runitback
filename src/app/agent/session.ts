@@ -10,6 +10,7 @@ import { createPlatformTools, sharedAnalysisStore, type PendingExport } from "./
 import { createAnalysisProvider, getStyleProfileStore } from "./reference-wiring";
 import { createAppTemporalTools } from "./temporal-wiring";
 import { createAppTranscriptTools } from "./transcript-wiring";
+import { createAppUnderstandTools } from "./understand-wiring";
 import { createAppVisualTools } from "./visual-wiring";
 
 export type ChatItem =
@@ -169,6 +170,7 @@ export class AgentSession {
     for (const tool of createAppTranscriptTools()) tools.set(tool.name, tool);
     for (const tool of createAppTemporalTools(provider)) tools.set(tool.name, tool);
     for (const tool of createAppVisualTools()) tools.set(tool.name, tool);
+    for (const tool of createAppUnderstandTools()) tools.set(tool.name, tool);
 
     const toolItems = new Map<string, number>();
     const onEvent = (event: AgentEvent): void => this.handle(event, toolItems);
