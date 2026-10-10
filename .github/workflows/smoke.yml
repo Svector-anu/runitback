@@ -1,6 +1,10 @@
 name: smoke
 
-# Runs after Vercel's GitHub integration reports a successful production deployment.
+# Deploy path: Vercel's native GitHub integration (connected to this repo) deploys every push to main to
+# Production. deploy.yml (token-based CLI deploy gated on CI) is DISABLED and is only the alternative if the
+# owner wants CI-gated deploys, which needs the VERCEL_* secrets. This job therefore smoke-checks whatever Vercel
+# deployed to Production, and it fires for either path, since both register a GitHub deployment named "Production".
+# It is a post-deploy check, not a gate: a failure means "production is broken, fix forward or roll back".
 on:
   deployment_status
 
