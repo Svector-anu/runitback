@@ -47,3 +47,14 @@ License (none chosen), making the site public (Vercel Deployment Protection is o
 
 ## N7 real-footage acceptance (2026-10-11)
 Full results in `E2E_REAL.md`. Real Whisper/CLIP/MediaPipe through one Understand consent: pass (113-157 s for 3 files incl. downloads). Export of unedited 83 s timeline and of a scripted cut: pass, decoded duration/frames/audio match. Real-model scenarios on Haiku: vertical reframe pass; transcript highlight failed (appended a copy instead of trimming; prompt rule added, completion not confirmed); visual order failed (CLIP top hit off by ~4 s on text-heavy UI, agent verification did not catch it); pace unfinished (footage has almost no silence). Open P1: cost grows across a conversation (15-17k input tokens per call, history carries over). Open P2: verification quotes set times, not visible content.
+
+## Status 2026-10-11 (end of hardening pass)
+Merged to main: N1-N7 (see ROADMAP), agent fixes (replace mode, history compaction, content-checked verification), architecture review (`research/09`), adversarial QA (`research/08`: 0 P0, P1 fixed), derived-data purge + persistent storage + portable `.runitback` projects (`PERSISTENCE.md`), strict CSP + self-hosted fonts + pinned model revisions + stable onnxruntime-web (`SECURITY.md`, `SUPPLY_CHAIN.md`), plan-scope binding and untrusted-tool-output rule (`AGENT_FLOW.md`).
+Production deploys through Vercel's GitHub integration. `VERCEL_FORCE_NO_BUILD_CACHE=1` is set on the project: a cached node_modules lacked `onnxruntime-common` after the ORT pin change and broke one build.
+GitHub Actions CI is currently NOT running: runs fail instantly with "recent account payments have failed or your spending limit needs to be increased" (owner billing). Local gates at HEAD: typecheck, lint, 1508 unit tests, 79/79 evals, build.
+
+### Open, ranked
+1. Owner: GitHub Actions billing; license; making the site public; smoke bypass secret; Surplus key budget (real-model confirmation of replace/verification/injection rules); decide CI gating for deploys (`RELEASE.md`).
+2. QA-P2-1 (rename not locked across tabs) and QA-P2-5 (corrupt/newer projects vanish from the library): fixme tests in `e2e/qa-adversarial.spec.ts`.
+3. Review P1: one `createAppToolRegistry` (registry composed in four places, MCP calls have no turn/plan gate); stronger architecture test (relative/dynamic imports); "headless" is true for engine+agent only, exporter needs ports; token cost (lazy tool groups); schema migration fixtures.
+4. Visual search quality on text-heavy UI; word-level caption rendering; reference workflow UI; real-model confirmation of agent changes.
