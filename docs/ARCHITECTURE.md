@@ -61,3 +61,7 @@ See `docs/RECONSTRUCTION_SPEC.md` §D table. In addition: whole-document undo sn
 ## Visual search (local-first)
 
 `platform/visual` implements the engine's `VisualIndexer` and `VisualSearcher` with the same shape as speech: a module worker runs `@huggingface/transformers` CLIP (`Xenova/clip-vit-base-patch32`, int8, WASM, ONNX runtime self-hosted), `planFrameTimes` (engine) picks one frame per shot midpoint plus one every 2 s, `VideoFrameCache` decodes them, and normalised Float32 embeddings persist in IndexedDB `runitback-visual`. `app/visual-service.ts` owns the consent gate (shared `ModelConsent` with the transcribe service) and the Index visuals action; the agent's `index_visuals` / `find_visual_moments` use the same gated indexer and searcher. E2E replaces the models through the dev-only `window.__visual` hook. Details, model sizes, licence and score calibration: `docs/VISUAL_SEARCH.md`.
+
+## Persistence additions
+
+Derived per-asset data is purged through `DerivedDataRegistry` (platform) when media bytes are swept or a project is deleted, and projects export/import as `.runitback` bundles (`engine/persistence/bundle.ts` pure format and id remap; `platform/bundle*.ts` zip, hashing, orchestration). See `docs/PERSISTENCE.md`.

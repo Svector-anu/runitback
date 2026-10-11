@@ -70,6 +70,10 @@ export class IdbAssetRepository implements AssetRepository {
     return rows.map((r) => r.info);
   }
 
+  async listAllIds(): Promise<string[]> {
+    return [...new Set((await this.db.assets.getAll()).map((r) => r.info.id))];
+  }
+
   /** Bytes first, metadata second: a failure never leaves metadata pointing at missing bytes. */
   async save(projectId: string, asset: StoredAsset): Promise<void> {
     const key = this.key(projectId, asset.info.id);

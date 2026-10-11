@@ -3,6 +3,7 @@ import { AppServices, type AppServicesDeps } from "#/app/services";
 import { MemoryAssetRepository, MemoryProjectRepository } from "#/engine/persistence";
 import { createProject, sequentialIds, type MediaAssetInfo } from "#/engine/model";
 import { allElements, documentViolations } from "#/engine/timeline";
+import { DerivedDataRegistry } from "#/platform/derived-data";
 import { MediaRuntime } from "#/platform/media-runtime";
 import { video, videoAsset } from "./helpers";
 
@@ -10,7 +11,7 @@ function setup(): { services: AppServices; projects: MemoryProjectRepository } {
   const projects = new MemoryProjectRepository();
   const deps: AppServicesDeps = {
     projectRepository: projects, assetRepository: new MemoryAssetRepository(),
-    locks: { tryAcquire: async () => ({ release: () => undefined }) }, storageMode: "indexeddb",
+    locks: { tryAcquire: async () => ({ release: () => undefined }) }, storageMode: "indexeddb", derivedData: new DerivedDataRegistry(),
     createRuntime: () => new MediaRuntime(),
     createAudioEngine: () => ({ attach: () => undefined, restart: () => undefined, dispose: () => undefined }),
     probe: vi.fn(async (file: File, id: string): Promise<MediaAssetInfo> => ({ ...videoAsset(id), name: file.name })),

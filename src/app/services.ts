@@ -2,7 +2,7 @@ import { collectAudioClips } from "#/engine/audio";
 import { Editor, type ExecuteResult } from "#/engine/editor";
 import { currentScene } from "#/engine/commands";
 import { removeAssetsCommand } from "#/engine/commands";
-import { randomId, stringParam, type MediaAssetInfo, type Project } from "#/engine/model";
+import { PROJECT_SCHEMA_VERSION, randomId, stringParam, type MediaAssetInfo, type Project } from "#/engine/model";
 import { buildFramePlan } from "#/engine/render";
 import {
   ProjectLockedError, ProjectsService, SaveManager, StorageQuotaError, canStoreFile, isQuotaExceededError,
@@ -13,9 +13,12 @@ import { createCanvas } from "#/render/canvas";
 import { AudioEngine } from "#/platform/audio-engine";
 import { browserProjectLocks } from "#/platform/project-locks";
 import { loadFont } from "#/platform/fonts";
-import { OpfsFileStore } from "#/platform/file-store";
 import { MediaRuntime } from "#/platform/media-runtime";
 import { PrefsStore } from "#/platform/prefs";
+import { OpfsFileStore, StoragePersistence, estimateStorage, type StorageEstimate, type StorageManagerLike } from "#/platform/file-store";
+import { exportProjectBundle, importProjectBundle, type BundleProgress, type ExportBundleResult, type ImportBundleResult } from "#/platform/bundle";
+import { browserDerivedData } from "#/platform/derived-data-adapters";
+import type { DerivedDataRegistry } from "#/platform/derived-data";
 import { startPlaybackClock } from "./clock";
 import { probeMedia, UnsupportedMediaError } from "#/platform/probe";
 import type { Playback } from "#/engine/editor";
@@ -55,6 +58,9 @@ export interface AppServicesDeps {
   assetRepository: AssetRepository;
   locks: ProjectLocks;
   storageMode: "opfs" | "indexeddb";
+  derivedData: DerivedDataRegistry;
+  /** `navigator.storage`; absent where the Storage API is missing. */
+  storage?: StorageManagerLike;
   createRuntime: () => MediaRuntime;
   createAudioEngine: (deps: { playback: Playback; getClips: () => AudioClip[]; sinks: AudioSinkCache }) => AudioEngineLike;
   probe: typeof probeMedia;
@@ -68,6 +74,8 @@ function browserDeps(): AppServicesDeps {
     assetRepository: new IdbAssetRepository(db, files),
     locks: browserProjectLocks(),
     storageMode: files ? "opfs" : "indexeddb",
+    derivedData: browserDerivedData(),
+    ...(globalThis.navigator?.storage ? { storage: globalThis.navigator.storage } : {}),
     createRuntime: () => new MediaRuntime(),
     createAudioEngine: (deps) => new AudioEngine(deps),
     probe: probeMedia,
@@ -94,6 +102,8 @@ export class AppServices {
   readonly projects: ProjectsService;
   readonly saveManager: SaveManager;
   readonly storageMode: "opfs" | "indexeddb";
+  readonly derivedData: DerivedDataRegistry;
+  readonly persistence: StoragePersistence;
   runtime: MediaRuntime;
   private session: Session | null = null;
   private chain: Promise<unknown> = Promise.resolve();
@@ -104,15 +114,20 @@ export class AppServices {
   constructor(deps: AppServicesDeps = browserDeps()) {
     this.deps = deps;
     this.storageMode = deps.storageMode;
+    this.derivedData = deps.derivedData;
+    this.persistence = new StoragePersistence({ storage: deps.storage, prefs: this.prefs });
     this.runtime = deps.createRuntime();
     this.projectRepository = deps.projectRepository;
     this.assetRepository = deps.assetRepository;
     this.projects = new ProjectsService({
       projects: this.projectRepository, assets: this.assetRepository, newId: randomId, now: () => new Date().toISOString(),
-      locks: deps.locks,
+      locks: deps.locks, derived: deps.derivedData,
     });
     this.saveManager = new SaveManager({ editor: this.editor, repository: this.projectRepository });
     this.saveManager.start();
+    this.saveManager.subscribe(() => {
+      if (this.saveManager.getState().lastSavedAt !== null) void this.persistence.requestOnce();
+    });
     startPlaybackClock(this.editor.playback);
   }
 
@@ -242,7 +257,7 @@ export class AppServices {
       console.warn("Could not refresh the project thumbnail", error);
     }
     try {
-      await this.projects.sweepOrphans(session.projectId);
+      await this.projects.finalizeClose({ projectId: session.projectId, registeredAssetIds: this.editor.getState().doc.assets.map((a) => a.id) });
     } catch (error) {
       console.warn("Could not sweep unused media", error);
     }
@@ -252,6 +267,38 @@ export class AppServices {
     await session.runtime.dispose();
     this.runtime = this.deps.createRuntime();
     session.lock.release();
+  }
+
+  /** Packs a stored project (media, derived data) into one `.runitback` file. Works on what is saved, not on the open document. */
+  exportProject(id: string, options: BundleOptions & { includeEmbeddings?: boolean } = {}): Promise<ExportBundleResult> {
+    return exportProjectBundle(
+      { projects: this.projectRepository, assets: this.assetRepository, derived: this.derivedData, now: () => new Date().toISOString(), createdWith: `RunItBack (project schema v${PROJECT_SCHEMA_VERSION})` },
+      { projectId: id, includeEmbeddings: options.includeEmbeddings ?? false, ...(options.onProgress ? { onProgress: options.onProgress } : {}), ...(options.signal ? { signal: options.signal } : {}) },
+    );
+  }
+
+  /** Imports a `.runitback` file as a new project with fresh ids. */
+  async importProject(file: Blob, options: BundleOptions = {}): Promise<ImportBundleResult> {
+    const result = await importProjectBundle(
+      { projects: this.projectRepository, assets: this.assetRepository, derived: this.derivedData, newId: randomId, now: () => new Date().toISOString(), ...(this.deps.storage ? { storage: this.deps.storage } : {}) },
+      file, { ...(options.onProgress ? { onProgress: options.onProgress } : {}), ...(options.signal ? { signal: options.signal } : {}) },
+    );
+    void this.persistence.requestOnce();
+    return result;
+  }
+
+  storageEstimate(): Promise<StorageEstimate | null> {
+    return estimateStorage(this.deps.storage);
+  }
+
+  /** The one-time "storage may be cleared" message, if the browser refused durable storage and the user has not yet been told. */
+  takeStorageNotice(): Promise<string | null> {
+    return this.persistence.takeNotice();
+  }
+
+  /** Deletes derived data whose media no project stores any more (failed purges, jobs that finished after their media was removed). */
+  purgeStrayDerivedData(): Promise<string[]> {
+    return this.projects.purgeStrayDerived();
   }
 
   async updateThumbnail(): Promise<void> {
@@ -320,12 +367,20 @@ export class AppServices {
     return outcome;
   }
 
-  /** Removing media is one undoable step; stored bytes stay until the project closes so undo can restore them. */
+  /**
+   * Removing media is one undoable step; stored bytes, and the analysis/transcript/embedding/face data derived from them,
+   * stay until the project closes and `ProjectsService.sweepOrphans` deletes the bytes, so undo can restore everything.
+   */
   removeAssets(ids: ReadonlyArray<string>): ExecuteResult {
     const result = this.editor.tryExecute(removeAssetsCommand(ids));
     if (result.ok) for (const id of ids) void (this.session?.runtime ?? this.runtime).video.release(id);
     return result;
   }
+}
+
+export interface BundleOptions {
+  onProgress?: (progress: BundleProgress) => void;
+  signal?: AbortSignal;
 }
 
 let instance: AppServices | null = null;

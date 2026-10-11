@@ -58,3 +58,20 @@ export const AGENT_MODEL_PREF = "agent-model";
 /** "Ask before editing": the agent shows a plan for approval before it edits. Default on. */
 export const AGENT_ASK_BEFORE_EDITING_PREF = "agent-ask-before-editing";
 export const ONBOARDING_DISMISSED_PREF = "onboarding-dismissed";
+
+export type PersistOutcome = "granted" | "denied" | "unsupported";
+
+/** Result of the one-time `navigator.storage.persist()` request, and whether the user was already told it was refused. */
+export interface StoragePersistRecord {
+  outcome: PersistOutcome;
+  requestedAt: string;
+  noticeShown: boolean;
+}
+
+export const STORAGE_PERSIST_PREF = "storage-persist";
+
+export const isStoragePersistRecord = (v: unknown): v is StoragePersistRecord =>
+  typeof v === "object" && v !== null
+  && ["granted", "denied", "unsupported"].includes((v as StoragePersistRecord).outcome)
+  && typeof (v as StoragePersistRecord).requestedAt === "string"
+  && typeof (v as StoragePersistRecord).noticeShown === "boolean";

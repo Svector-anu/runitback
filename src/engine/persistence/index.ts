@@ -5,3 +5,4 @@ export * from "./save-manager";
 export * from "./quota";
 export * from "./projects";
 export * from "./repair";
+export * from "./bundle";

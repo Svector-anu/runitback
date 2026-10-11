@@ -1,3 +1,5 @@
+import { STORAGE_PERSIST_PREF, isStoragePersistRecord, type PersistOutcome, type PrefsStore, type StoragePersistRecord } from "./prefs";
+
 /** Byte storage for media files, keyed by `<projectId>/<assetId>`. */
 export interface FileStore {
   put(key: string, blob: Blob): Promise<void>;
@@ -83,5 +85,82 @@ export class OpfsFileStore implements FileStore {
     await (await this.getRoot()).removeEntry(`media-${projectId}`, { recursive: true }).catch((error: unknown) => {
       if (!(error instanceof DOMException && error.name === "NotFoundError")) throw error;
     });
+  }
+}
+
+export interface StorageEstimate {
+  usage: number;
+  quota: number;
+}
+
+/** The slice of `navigator.storage` this module uses; tests substitute a fake. */
+export interface StorageManagerLike {
+  persist?(): Promise<boolean>;
+  persisted?(): Promise<boolean>;
+  estimate?(): Promise<{ usage?: number; quota?: number }>;
+}
+
+export async function estimateStorage(storage: StorageManagerLike | undefined): Promise<StorageEstimate | null> {
+  try {
+    const estimate = await storage?.estimate?.();
+    if (estimate?.usage === undefined || estimate.quota === undefined || estimate.quota <= 0) return null;
+    return { usage: estimate.usage, quota: estimate.quota };
+  } catch {
+    return null;
+  }
+}
+
+export function formatStorageBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  if (bytes < 1024 ** 3) return `${Math.round(bytes / 1024 ** 2)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+}
+
+/**
+ * Asks the browser to make this origin's storage durable (exempt from eviction under pressure), once, after the user has
+ * something worth keeping. The answer is recorded in prefs and never asked again; a refusal produces at most one notice.
+ */
+export class StoragePersistence {
+  private asked = false;
+
+  constructor(private readonly deps: { storage: StorageManagerLike | undefined; prefs: PrefsStore; now?: () => string }) {}
+
+  private read(): StoragePersistRecord | null {
+    return this.deps.prefs.read<StoragePersistRecord | null>(STORAGE_PERSIST_PREF, null, (v): v is StoragePersistRecord | null => v === null || isStoragePersistRecord(v));
+  }
+
+  outcome(): PersistOutcome | null {
+    return this.read()?.outcome ?? null;
+  }
+
+  async requestOnce(): Promise<PersistOutcome> {
+    const existing = this.read();
+    if (existing) return existing.outcome;
+    if (this.asked) return "unsupported";
+    this.asked = true;
+    const outcome = await this.ask();
+    this.deps.prefs.write(STORAGE_PERSIST_PREF, { outcome, requestedAt: (this.deps.now ?? (() => new Date().toISOString()))(), noticeShown: false } satisfies StoragePersistRecord);
+    return outcome;
+  }
+
+  private async ask(): Promise<PersistOutcome> {
+    const { storage } = this.deps;
+    if (!storage || typeof storage.persist !== "function") return "unsupported";
+    try {
+      if (typeof storage.persisted === "function" && (await storage.persisted())) return "granted";
+      return (await storage.persist()) ? "granted" : "denied";
+    } catch {
+      return "unsupported";
+    }
+  }
+
+  /** The refusal message, exactly once per browser profile; null when granted, unsupported, unasked or already shown. */
+  async takeNotice(): Promise<string | null> {
+    const record = this.read();
+    if (!record || record.outcome !== "denied" || record.noticeShown) return null;
+    this.deps.prefs.write(STORAGE_PERSIST_PREF, { ...record, noticeShown: true });
+    const estimate = await estimateStorage(this.deps.storage);
+    const usage = estimate ? ` This site is using ${formatStorageBytes(estimate.usage)} of about ${formatStorageBytes(estimate.quota)} available.` : "";
+    return `Your browser did not grant durable storage, so it may clear your projects if the disk runs low.${usage} Use Export project to keep a backup.`;
   }
 }

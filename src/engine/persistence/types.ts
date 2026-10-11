@@ -15,6 +15,8 @@ export interface StoredAsset {
 /** Bytes and metadata for a project's media, kept apart from the project document. */
 export interface AssetRepository {
   list(projectId: string): Promise<MediaAssetInfo[]>;
+  /** Ids of every asset whose bytes are stored for any project, readable or not. */
+  listAllIds(): Promise<string[]>;
   save(projectId: string, asset: StoredAsset): Promise<void>;
   getFile(projectId: string, assetId: string): Promise<Blob | null>;
   remove(projectId: string, assetId: string): Promise<void>;
@@ -57,4 +59,12 @@ export class SaveFailedError extends Error {
     super(`Your latest changes could not be saved: ${detail}`);
     this.name = "SaveFailedError";
   }
+}
+
+/** Per-asset data derived from media bytes (analysis, transcripts, embeddings, faces) that must die with the bytes. */
+export interface DerivedDataPurger {
+  /** Deletes everything derived from these assets in every store. Resolves once all stores were tried; rejects if any failed. */
+  purgeAssets(assetIds: ReadonlyArray<string>): Promise<void>;
+  /** Asset ids that have derived data in at least one store. */
+  listAssetIds(): Promise<string[]>;
 }

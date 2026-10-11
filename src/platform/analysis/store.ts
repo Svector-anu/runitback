@@ -9,6 +9,15 @@ export interface AnalysisStore {
   get(key: string): Promise<MediaAnalysis | undefined>;
   put(key: string, value: MediaAnalysis): Promise<void>;
   delete(key: string): Promise<void>;
+  /** Removes every entry of an asset (keys are `<assetId>:<size>:<lastModified>`, so one asset may have several). */
+  deleteAsset(assetId: string): Promise<void>;
+  /** Asset ids that have at least one entry. */
+  assetIds(): Promise<string[]>;
+}
+
+export function assetIdOfKey(key: string): string {
+  const colon = key.indexOf(":");
+  return colon < 0 ? key : key.slice(0, colon);
 }
 
 export function analysisCacheKey(info: { id: string; size: number; lastModified: number }): string {
@@ -28,6 +37,14 @@ export class MemoryAnalysisStore implements AnalysisStore {
 
   async delete(key: string): Promise<void> {
     this.entries.delete(key);
+  }
+
+  async deleteAsset(assetId: string): Promise<void> {
+    for (const key of [...this.entries.keys()]) if (assetIdOfKey(key) === assetId) this.entries.delete(key);
+  }
+
+  async assetIds(): Promise<string[]> {
+    return [...new Set([...this.entries.keys()].map(assetIdOfKey))];
   }
 }
 
@@ -50,5 +67,17 @@ export class IdbAnalysisStore implements AnalysisStore {
 
   delete(key: string): Promise<void> {
     return this.store.delete(key);
+  }
+
+  async deleteAsset(assetId: string): Promise<void> {
+    for (const key of await this.store.keys()) {
+      if (typeof key === "string" && assetIdOfKey(key) === assetId) await this.store.delete(key);
+    }
+  }
+
+  async assetIds(): Promise<string[]> {
+    const ids = new Set<string>();
+    for (const key of await this.store.keys()) if (typeof key === "string") ids.add(assetIdOfKey(key));
+    return [...ids];
   }
 }

@@ -4,6 +4,7 @@ import {
   MemoryAssetRepository, MemoryProjectRepository, ProjectLockedError, SaveFailedError, type ProjectLockHandle, type ProjectLocks,
 } from "#/engine/persistence";
 import { createProject, sequentialIds, type MediaAssetInfo } from "#/engine/model";
+import { DerivedDataRegistry } from "#/platform/derived-data";
 import { MediaRuntime } from "#/platform/media-runtime";
 import { videoAsset } from "./helpers";
 
@@ -40,7 +41,7 @@ async function harness(projectIds: string[] = ["A", "B"]): Promise<Harness> {
   const engines: Harness["engines"] = [];
   const probe = vi.fn(async (file: File, id: string): Promise<MediaAssetInfo> => ({ ...videoAsset(id), name: file.name }));
   const deps: AppServicesDeps = {
-    projectRepository: projects, assetRepository: assets, locks, storageMode: "indexeddb",
+    projectRepository: projects, assetRepository: assets, locks, storageMode: "indexeddb", derivedData: new DerivedDataRegistry(),
     createRuntime: () => new MediaRuntime(),
     createAudioEngine: () => {
       const engine = { restarts: 0, disposed: false, attach: () => undefined, restart() { this.restarts++; }, dispose() { this.disposed = true; } };

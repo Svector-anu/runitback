@@ -1,5 +1,6 @@
 import { createProject, type IdGenerator, type MediaAssetInfo, type Project, type ProjectMetadata } from "#/engine/model";
-import { ProjectLockedError, type AssetRepository, type ProjectLocks, type ProjectRepository } from "./types";
+import { allElements } from "#/engine/timeline";
+import { ProjectLockedError, type AssetRepository, type DerivedDataPurger, type ProjectLocks, type ProjectRepository } from "./types";
 
 export type ProjectSortKey = "createdAt" | "updatedAt" | "name" | "duration";
 export type SortOrder = "asc" | "desc";
@@ -36,6 +37,8 @@ export function duplicateName(name: string, existing: ReadonlyArray<string>): st
 export class ProjectsService {
   constructor(private readonly deps: {
     projects: ProjectRepository; assets: AssetRepository; newId: IdGenerator; now: () => string; locks?: ProjectLocks;
+    /** Derived data (analysis, transcripts, embeddings, faces) is deleted together with the last copy of an asset's bytes. */
+    derived?: DerivedDataPurger;
   }) {}
 
   list(): Promise<ProjectMetadata[]> {
@@ -82,12 +85,44 @@ export class ProjectsService {
       const lock = await this.deps.locks?.tryAcquire(id);
       if (lock === null) throw new ProjectLockedError(id);
       try {
+        const held = (await this.deps.assets.list(id)).map((a) => a.id);
         await this.deps.projects.delete(id);
         await this.deps.assets.removeAll(id);
+        await this.purgeUnreferenced(held);
       } finally {
         lock?.release();
       }
     }
+  }
+
+  /**
+   * Duplicated projects share asset ids, so derived data is deleted only when no project still stores the asset's bytes.
+   * Failing to purge never fails the caller (the bytes are already gone); `purgeStrayDerived` catches up later.
+   */
+  private async purgeUnreferenced(assetIds: ReadonlyArray<string>): Promise<void> {
+    const derived = this.deps.derived;
+    if (!derived || assetIds.length === 0) return;
+    try {
+      const held = await this.heldAssetIds();
+      const doomed = assetIds.filter((id) => !held.has(id));
+      if (doomed.length > 0) await derived.purgeAssets(doomed);
+    } catch (error) {
+      console.warn("Could not remove derived data of deleted media", error);
+    }
+  }
+
+  private async heldAssetIds(): Promise<Set<string>> {
+    return new Set(await this.deps.assets.listAllIds());
+  }
+
+  /** Deletes derived data whose asset no project stores any more: leftovers of failed purges, or of finishing jobs for removed media. */
+  async purgeStrayDerived(): Promise<string[]> {
+    const derived = this.deps.derived;
+    if (!derived) return [];
+    const held = await this.heldAssetIds();
+    const stray = (await derived.listAssetIds()).filter((id) => !held.has(id));
+    if (stray.length > 0) await derived.purgeAssets(stray);
+    return stray;
   }
 
   /** Opens a project's media: only assets the project lists, in project order. */
@@ -99,9 +134,30 @@ export class ProjectsService {
   /** Deletes stored media the saved project no longer lists (left behind by removals that stayed undoable). */
   async collectOrphans(project: Project): Promise<void> {
     const keep = new Set(project.assetIds);
+    const removed: string[] = [];
     for (const info of await this.deps.assets.list(project.metadata.id)) {
-      if (!keep.has(info.id)) await this.deps.assets.remove(project.metadata.id, info.id);
+      if (keep.has(info.id)) continue;
+      await this.deps.assets.remove(project.metadata.id, info.id);
+      removed.push(info.id);
     }
+    await this.purgeUnreferenced(removed);
+  }
+
+  /**
+   * The last step of closing a project. The saved row still lists media that only undo history kept alive (removed
+   * assets stay in `assetIds` while they can be restored); history ends with the session, so those ids are dropped here
+   * and their bytes, and the data derived from them, are swept. Run only after the final save succeeded.
+   */
+  async finalizeClose(input: { projectId: string; registeredAssetIds: ReadonlyArray<string> }): Promise<void> {
+    const persisted = await this.deps.projects.load(input.projectId);
+    if (!persisted) return;
+    const live = new Set(input.registeredAssetIds);
+    for (const scene of persisted.scenes) {
+      for (const { element } of allElements(scene.tracks)) if ("mediaId" in element) live.add(element.mediaId);
+    }
+    const assetIds = persisted.assetIds.filter((id) => live.has(id));
+    if (assetIds.length !== persisted.assetIds.length) await this.deps.projects.save({ ...persisted, assetIds });
+    await this.sweepOrphans(input.projectId);
   }
 
   /** Sweeps against the row that is actually in storage, never an in-memory copy that may be stale. */

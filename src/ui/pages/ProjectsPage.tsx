@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { filterProjects, sortProjects, type ProjectSortKey, type SortOrder } from "#/engine/persistence";
 import type { ProjectMetadata } from "#/engine/model";
 import { getServices } from "#/app/services";
+import type { BundleProgress } from "#/platform/bundle";
+import { formatStorageBytes, type StorageEstimate } from "#/platform/file-store";
+import { BUNDLE_EXTENSION, BundleError } from "#/engine/persistence";
 import { navigate } from "#/app/router";
 import { Store } from "#/app/store";
 import { setTheme, uiStore } from "#/app/ui-state";
@@ -20,7 +23,25 @@ const prefsStore = new Store<ViewPrefs>({ mode: "grid", key: "updatedAt", order:
 const SORT_LABELS: Record<ProjectSortKey, string> = { createdAt: "Created", updatedAt: "Modified", name: "Name", duration: "Duration" };
 const dateFormat = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" });
 
-type Dialogs = { kind: "rename" | "delete" | "info"; projects: ProjectMetadata[] } | null;
+type Dialogs = { kind: "rename" | "delete" | "info" | "export"; projects: ProjectMetadata[] } | null;
+
+interface Busy { kind: "export" | "import"; label: string; fraction: number | null }
+
+function describeBundleError(error: unknown): string {
+  if (error instanceof BundleError) return error.message;
+  return error instanceof Error ? error.message : "Unexpected error";
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 function ProjectCard({ project, selected, mode, onOpen, onToggle, onMenu }: {
   project: ProjectMetadata; selected: boolean; mode: "grid" | "list"; onOpen: () => void; onToggle: (shift: boolean) => void; onMenu: (x: number, y: number) => void;
@@ -71,6 +92,10 @@ export function ProjectsPage(): ReactNode {
   const [dialog, setDialog] = useState<Dialogs>(null);
   const [name, setName] = useState("");
   const anchor = useRef<string | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<Busy | null>(null);
+  const [includeEmbeddings, setIncludeEmbeddings] = useState(false);
+  const [storage, setStorage] = useState<StorageEstimate | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -86,8 +111,43 @@ export function ProjectsPage(): ReactNode {
     services.closeProject().then(load, (error: unknown) => {
       toast.error("Could not save the project you just left", error instanceof Error ? error.message : undefined);
       return load();
-    });
+    }).then(() => services.purgeStrayDerivedData()).catch((error: unknown) => console.warn("Could not clean up derived data", error));
+    void services.takeStorageNotice().then((notice) => { if (notice) toast.error("Storage is not durable", notice); });
   }, [services, load]);
+
+  useEffect(() => {
+    void services.storageEstimate().then(setStorage);
+  }, [services, projects]);
+
+  const onProgress = (kind: Busy["kind"]) => (p: BundleProgress): void => {
+    setBusy({ kind, label: p.label ?? p.phase, fraction: p.total > 0 ? Math.min(1, p.done / p.total) : null });
+  };
+
+  const exportProject = async (project: ProjectMetadata): Promise<void> => {
+    setBusy({ kind: "export", label: "Preparing", fraction: null });
+    try {
+      const result = await services.exportProject(project.id, { includeEmbeddings, onProgress: onProgress("export") });
+      downloadBlob(result.blob, result.fileName);
+      toast.success(`Exported ${project.name}`, result.missingAssets.length > 0 ? `${result.missingAssets.length} missing media file(s) were left out.` : undefined);
+    } catch (error) {
+      toast.error("Could not export the project", describeBundleError(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const importProject = async (file: File): Promise<void> => {
+    setBusy({ kind: "import", label: file.name, fraction: null });
+    try {
+      const result = await services.importProject(file, { onProgress: onProgress("import") });
+      toast.success(`Imported ${result.name}`);
+      await load();
+    } catch (error) {
+      toast.error("Could not import the project", describeBundleError(error));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const setPrefs = (patch: Partial<ViewPrefs>): void => {
     prefsStore.set(patch);
@@ -153,6 +213,7 @@ export function ProjectsPage(): ReactNode {
     return [
       { label: "Rename", icon: "edit", disabled: list.length > 1, onSelect: () => { setName(project.name); setDialog({ kind: "rename", projects: [project] }); } },
       { label: list.length > 1 ? `Duplicate ${list.length} projects` : "Duplicate", icon: "copy", onSelect: () => void duplicate(list) },
+      { label: "Export project", icon: "arrow-down", disabled: list.length > 1, onSelect: () => setDialog({ kind: "export", projects: [project] }) },
       { label: "Info", icon: "info", disabled: list.length > 1, onSelect: () => setDialog({ kind: "info", projects: [project] }) },
       { type: "separator" },
       { label: list.length > 1 ? `Delete ${list.length} projects` : "Delete", icon: "trash", destructive: true, onSelect: () => setDialog({ kind: "delete", projects: list }) },
@@ -182,6 +243,9 @@ export function ProjectsPage(): ReactNode {
             <input className="input" type="search" placeholder="Search projects..." aria-label="Search projects" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
           <Button variant="ghost" size="icon-lg" label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><Icon name={theme === "dark" ? "sun" : "moon"} size={18} /></Button>
+          <Button variant="outline" size="lg" onClick={() => importInput.current?.click()}>Import project</Button>
+          <input ref={importInput} type="file" accept={BUNDLE_EXTENSION} hidden aria-label="Import project file"
+            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void importProject(f); }} />
           <Button size="lg" onClick={() => void create()}><Icon name="plus" />New project</Button>
         </div>
       </header>
@@ -197,6 +261,7 @@ export function ProjectsPage(): ReactNode {
         <Button variant="text" label={prefs.order === "asc" ? "Sort ascending" : "Sort descending"} onClick={() => setPrefs({ order: prefs.order === "asc" ? "desc" : "asc" })}>
           <Icon name="arrow-down" style={{ transform: prefs.order === "asc" ? "rotate(180deg)" : undefined }} />
         </Button>
+        {storage ? <span className="muted" data-testid="storage-usage">Storage: {formatStorageBytes(storage.usage)} of {formatStorageBytes(storage.quota)} used</span> : null}
         {selectedProjects.length > 0 ? (
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <Button variant="outline" size="icon-lg" label="Duplicate selected" onClick={() => void duplicate(selectedProjects)}><Icon name="copy" /></Button>
@@ -248,6 +313,20 @@ export function ProjectsPage(): ReactNode {
         title={dialog?.projects.length === 1 ? `Delete '${dialog.projects[0]?.name}'?` : `Delete ${dialog?.projects.length ?? 0} projects?`}
         footer={<><Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button><Button variant="destructive" onClick={() => { const list = dialog?.projects ?? []; setDialog(null); void remove(list); }}>Delete project</Button></>}>
         <div className="alert alert--destructive" role="alert"><div><strong>Warning</strong><br />This will permanently delete the project and all associated media from this browser.</div></div>
+      </Dialog>
+      <Dialog open={dialog?.kind === "export"} onClose={() => setDialog(null)} title={`Export '${dialog?.projects[0]?.name ?? ""}'`}
+        footer={<><Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button><Button onClick={() => { const p = dialog?.projects[0]; setDialog(null); if (p) void exportProject(p); }}>Export</Button></>}>
+        <p>Saves the project, its media and its analysis as one {BUNDLE_EXTENSION} file you can import again, here or in another browser.</p>
+        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input type="checkbox" className="checkbox" checked={includeEmbeddings} onChange={(e) => setIncludeEmbeddings(e.target.checked)} />
+          Include the visual search index (larger file)
+        </label>
+      </Dialog>
+      <Dialog open={busy !== null} onClose={() => undefined} title={busy?.kind === "import" ? "Importing project" : "Exporting project"}>
+        <div role="status" aria-live="polite">
+          <progress style={{ width: "100%" }} {...(busy?.fraction != null ? { value: busy.fraction, max: 1 } : {})} aria-label="Progress" />
+          <p className="muted truncate">{busy?.label}</p>
+        </div>
       </Dialog>
       <Dialog open={dialog?.kind === "info"} onClose={() => setDialog(null)} title={dialog?.projects[0]?.name ?? "Project"}
         footer={<Button variant="outline" onClick={() => setDialog(null)}>Close</Button>}>

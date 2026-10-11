@@ -25,4 +25,8 @@ export class IdbVisualStore implements VisualStore {
   delete(assetId: string): Promise<void> {
     return this.store.delete(assetId);
   }
+
+  async assetIds(): Promise<string[]> {
+    return (await this.store.keys()).filter((key): key is string => typeof key === "string");
+  }
 }

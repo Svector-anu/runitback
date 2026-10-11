@@ -43,6 +43,9 @@ export class MemoryAssetRepository implements AssetRepository {
   async list(projectId: string): Promise<MediaAssetInfo[]> {
     return [...this.bucket(projectId).values()].map((a) => a.info);
   }
+  async listAllIds(): Promise<string[]> {
+    return [...new Set([...this.projects.values()].flatMap((b) => [...b.keys()]))];
+  }
   async save(projectId: string, asset: StoredAsset): Promise<void> {
     this.bucket(projectId).set(asset.info.id, asset);
   }
