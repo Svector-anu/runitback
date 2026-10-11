@@ -22,7 +22,7 @@
     "@huggingface/transformers": "4.3.0",
     "@mediapipe/tasks-vision": "1.0.1",
     "mediabunny": "^1.61.3",
-    "onnxruntime-web": "1.31.0-dev.20260914-8d85527a0",
+    "onnxruntime-web": "1.30.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

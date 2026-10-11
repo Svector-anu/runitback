@@ -1,5 +1,6 @@
 import ortMjsUrl from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs?url";
 import ortWasmUrl from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url";
+import { revisionFor } from "../model-revisions";
 import { WHISPER_SAMPLE_RATE } from "./chunking";
 import type { WorkerRequest, WorkerResponse } from "./protocol";
 import { createWhisperEngine, type AsrPipeline } from "./whisper-engine";
@@ -24,11 +25,14 @@ async function hasWebGpu(): Promise<boolean> {
 async function loadPipeline(model: string): Promise<AsrPipeline> {
   const { pipeline, env } = await import("@huggingface/transformers");
   env.allowLocalModels = false;
+  // The default wasm cache re-wraps the ORT loader in a blob: URL, which a strict script-src (no blob:) forbids; import it from its own-origin URL instead.
+  env.useWasmCache = false;
   // transformers.js defaults to fetching the ONNX runtime from a CDN; serve it from this origin so the model download is the only network access.
   const onnx = env.backends.onnx;
   if (onnx.wasm) onnx.wasm.wasmPaths = { mjs: ortMjsUrl, wasm: ortWasmUrl };
   const create = (device: "webgpu" | "wasm") =>
     pipeline("automatic-speech-recognition", model, {
+      revision: revisionFor(model),
       device,
       dtype: device === "webgpu" ? { encoder_model: "fp32", decoder_model_merged: "q8" } : "q8",
     });

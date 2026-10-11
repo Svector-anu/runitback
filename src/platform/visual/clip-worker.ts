@@ -1,5 +1,6 @@
 import ortMjsUrl from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs?url";
 import ortWasmUrl from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url";
+import { revisionFor } from "../model-revisions";
 import { createClipEngine, createLoadProgress, type ImageEncoder, type TextEncoder } from "./clip-engine";
 import type { EncodedBatch, WorkerRequest, WorkerResponse } from "./protocol";
 
@@ -14,6 +15,8 @@ const scope = self as unknown as WorkerScope;
 async function transformers(): Promise<typeof import("@huggingface/transformers")> {
   const library = await import("@huggingface/transformers");
   library.env.allowLocalModels = false;
+  // The default wasm cache re-wraps the ORT loader in a blob: URL, which a strict script-src (no blob:) forbids; import it from its own-origin URL instead.
+  library.env.useWasmCache = false;
   // transformers.js defaults to fetching the ONNX runtime from a CDN; serve it from this origin so the model download is the only network access.
   const onnx = library.env.backends.onnx;
   if (onnx.wasm) onnx.wasm.wasmPaths = { mjs: ortMjsUrl, wasm: ortWasmUrl };
@@ -33,8 +36,8 @@ async function loadImageEncoder(model: string, onLoad: (fraction: number) => voi
   const { AutoProcessor, CLIPVisionModelWithProjection, RawImage } = await transformers();
   const progress_callback = createLoadProgress(onLoad);
   const [processor, vision] = await Promise.all([
-    AutoProcessor.from_pretrained(model, { progress_callback }),
-    CLIPVisionModelWithProjection.from_pretrained(model, { ...MODEL_OPTIONS, progress_callback }),
+    AutoProcessor.from_pretrained(model, { revision: revisionFor(model), progress_callback }),
+    CLIPVisionModelWithProjection.from_pretrained(model, { ...MODEL_OPTIONS, revision: revisionFor(model), progress_callback }),
   ]);
   return async (images) => {
     const inputs = await processor(images.map((image) => new RawImage(image.data, image.width, image.height, 4)));
@@ -47,8 +50,8 @@ async function loadTextEncoder(model: string, onLoad: (fraction: number) => void
   const { AutoTokenizer, CLIPTextModelWithProjection } = await transformers();
   const progress_callback = createLoadProgress(onLoad);
   const [tokenizer, text] = await Promise.all([
-    AutoTokenizer.from_pretrained(model, { progress_callback }),
-    CLIPTextModelWithProjection.from_pretrained(model, { ...MODEL_OPTIONS, progress_callback }),
+    AutoTokenizer.from_pretrained(model, { revision: revisionFor(model), progress_callback }),
+    CLIPTextModelWithProjection.from_pretrained(model, { ...MODEL_OPTIONS, revision: revisionFor(model), progress_callback }),
   ]);
   return async (texts) => {
     const output = await text(tokenizer(texts, { padding: true, truncation: true }));

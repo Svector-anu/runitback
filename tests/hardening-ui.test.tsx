@@ -144,31 +144,28 @@ describe("pointer gestures (P1-9)", () => {
   });
 });
 
-describe("fonts never block rendering (P1-16)", () => {
-  let appended: HTMLLinkElement[];
+describe("fonts never block rendering and never touch the network (P1-16, supply chain)", () => {
+  let appended: Node[];
+  const stubFonts = (load: (descriptor: string) => Promise<unknown[]>): void => {
+    Object.defineProperty(document, "fonts", { configurable: true, value: { load } });
+  };
+  const freshLoadFont = async (): Promise<typeof loadFont> => {
+    vi.resetModules();
+    return (await import("#/platform/fonts")).loadFont;
+  };
   beforeEach(() => {
     appended = [];
-    vi.spyOn(document.head, "appendChild").mockImplementation(<T extends Node>(node: T): T => { appended.push(node as unknown as HTMLLinkElement); return node; });
+    vi.spyOn(document.head, "appendChild").mockImplementation(<T extends Node>(node: T): T => { appended.push(node); return node; });
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    Reflect.deleteProperty(document, "fonts");
+  });
 
-  it("resolves false after the timeout when Google Fonts never answers, and retries on the next call", async () => {
-    vi.useFakeTimers();
-    const first = loadFont("Offline Test Font", 500);
-    expect(appended).toHaveLength(1);
-    expect(appended[0]?.href).toContain("family=Offline+Test+Font");
-    await vi.advanceTimersByTimeAsync(499);
-    let settled = false;
-    void first.then(() => { settled = true; });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(settled).toBe(false);
-    await vi.advanceTimersByTimeAsync(2);
-    await expect(first).resolves.toBe(false);
-
-    const second = loadFont("Offline Test Font", 500);
-    expect(appended).toHaveLength(2);
-    appended[1]?.onerror?.(new Event("error"));
-    await expect(second).resolves.toBe(false);
+  it("a family that is not bundled never makes a request, even a well-formed name", async () => {
+    for (const family of ["Roboto", "Offline Test Font", "Open Sans"]) await expect(loadFont(family)).resolves.toBe(false);
+    expect(appended).toHaveLength(0);
   });
 
   it("never makes a request for names that are not plain family names", async () => {
@@ -181,5 +178,28 @@ describe("fonts never block rendering (P1-16)", () => {
   it("system fonts need no request", async () => {
     await expect(loadFont("Arial")).resolves.toBe(false);
     expect(appended).toHaveLength(0);
+  });
+
+  it("the bundled family resolves true once its faces are loaded, without adding a stylesheet", async () => {
+    const load = vi.fn(async () => [{}]);
+    stubFonts(load);
+    await expect((await freshLoadFont())("Inter")).resolves.toBe(true);
+    expect(load).toHaveBeenCalledWith('400 16px "Inter"');
+    expect(load).toHaveBeenCalledWith('700 16px "Inter"');
+    expect(appended).toHaveLength(0);
+  });
+
+  it("a bundled family that never settles resolves false at the timeout and is retried on the next call", async () => {
+    vi.useFakeTimers();
+    stubFonts(() => new Promise<unknown[]>(() => undefined));
+    const loadInter = await freshLoadFont();
+    const first = loadInter("Inter", 500);
+    await vi.advanceTimersByTimeAsync(501);
+    await expect(first).resolves.toBe(false);
+
+    const load = vi.fn(async () => [{}]);
+    stubFonts(load);
+    await expect(loadInter("Inter", 500)).resolves.toBe(true);
+    expect(load).toHaveBeenCalled();
   });
 });

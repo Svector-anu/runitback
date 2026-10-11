@@ -1,3 +1,5 @@
+# DISABLED in GitHub Actions settings. The active deploy path is Vercel's native Git integration; this workflow is the
+# CI-gated alternative and must only be enabled together with turning that integration's auto-deploy off (docs/RELEASE.md section 3).
 name: deploy
 
 on:

@@ -2,3 +2,5 @@ allowBuilds:
   esbuild: true
   onnxruntime-node: false
   protobufjs: false
+overrides:
+  onnxruntime-web: 1.30.0
