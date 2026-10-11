@@ -44,3 +44,6 @@ Evidence lives in CI runs, `docs/EVALS.md`, `docs/VISUAL_SEARCH.md` (measured re
 
 ## Owner-only decisions
 License (none chosen), making the site public (Vercel Deployment Protection is on), `VERCEL_AUTOMATION_BYPASS_SECRET` for the smoke check, API keys.
+
+## N7 real-footage acceptance (2026-10-11)
+Full results in `E2E_REAL.md`. Real Whisper/CLIP/MediaPipe through one Understand consent: pass (113-157 s for 3 files incl. downloads). Export of unedited 83 s timeline and of a scripted cut: pass, decoded duration/frames/audio match. Real-model scenarios on Haiku: vertical reframe pass; transcript highlight failed (appended a copy instead of trimming; prompt rule added, completion not confirmed); visual order failed (CLIP top hit off by ~4 s on text-heavy UI, agent verification did not catch it); pace unfinished (footage has almost no silence). Open P1: cost grows across a conversation (15-17k input tokens per call, history carries over). Open P2: verification quotes set times, not visible content.
