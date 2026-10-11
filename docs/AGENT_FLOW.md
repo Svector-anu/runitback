@@ -33,6 +33,14 @@ On: the prompt allows a plan-free request only when it is a single fully specifi
 
 `RunAgentOptions.planning?: { mode: "ask"; decide(plan): Promise<PlanDecision> } | { mode: "auto-approve" }`. Absent = legacy behaviour (evals, headless). Events: `plan`, `plan_decision`, `plan_step`, `notice`, and `tool_result.planStep`. New status: `rejected`.
 
+## Context cost: history compaction
+
+Every request resends the whole conversation, so analysis dumps and frames from many steps ago dominated the input (15-17k tokens per call). `compactHistory` (`loop.ts`, applied just before `limitImages`) replaces a stale tool result with `[result omitted: <tool>, <n> chars[, <k> image(s)]. Call <tool> again if you still need it. It began: <first line>]` when it is bulky (over `MIN_STUB_CHARS` or carrying an image). Stale means: results from earlier user requests, and results older than the newest `KEEP_RECENT_STEPS` (6) assistant steps of the current request, rounded down to a multiple of `COMPACTION_STEP_QUANTUM` (4). Only block content changes, so every `tool_use` keeps its `tool_result` (valid for both the Anthropic and OpenAI mappings), the latest step's results are never touched, the stored session history stays complete, and the prefix of the request changes once per quantum, not every step, so the Anthropic cache breakpoints (system, last tool, newest message) keep hitting between those points. The first request of a new user turn re-writes the cache once because earlier turns are now stubbed. Tests: `tests/agent-compaction.test.ts` (character-count proxy, pairing, cache breakpoints).
+
+## Highlights and "keep only": replace, then verify content
+
+`cut_to_moments` (and `apply_cut_plan`) append or fail by default. The prompt and tool description tell the model to pass `replace:true` when the result must BE the timeline; the main-track clips are then removed and the sequence built from 0 in one transaction (one undo step, nothing changes if the new sequence cannot be built). The result reports `timelineDurationSeconds` for the whole timeline. After placing a moment found by look or speech, the prompt requires a `render_frame` at its midpoint and a one-sentence comparison with the request, and a new search on mismatch. Eval: `highlight-around-phrase` (mutation `appended-copy`).
+
 ## Known limits
 
 - The editor is not locked. While a plan waits, user edits are safe (see above). While an approved plan executes, the transaction is open, as for any agent run without planning, so stopping or failing mid-execution rolls back manual edits made in that window too.

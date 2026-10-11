@@ -9,7 +9,7 @@ import { canPlaceSpans, elementEnd } from "#/engine/timeline";
 import { TICKS_PER_SECOND } from "#/engine/time";
 import type { TranscriptStore } from "#/engine/transcript";
 import { defineTool, ok, toSec, ToolError, type ToolEnv } from "./env";
-import { buildPlanElements } from "./tools-reference";
+import { buildPlanElements, clearMainTrack } from "./tools-reference";
 import type { AgentTool, JsonSchema } from "./types";
 
 /** Injected by the app layer: where finished analyses and transcripts come from. */
@@ -177,10 +177,10 @@ export function createTemporalTools(deps: TemporalDeps): AgentTool[] {
     },
   });
 
-  const cut = defineTool<{ moments: Array<{ assetId: string; startSeconds: number; endSeconds: number }>; startSeconds?: number }>({
+  const cut = defineTool<{ moments: Array<{ assetId: string; startSeconds: number; endSeconds: number }>; startSeconds?: number; replace?: boolean }>({
     name: "cut_to_moments",
     description:
-      "Build a sequence from chosen moments: each [startSeconds, endSeconds] SOURCE range (as returned by find_moments) becomes a video clip, placed back to back on the main track in the order given, starting at startSeconds (default: right after the last clip on the main track, or 0 when it is empty). Nothing is moved or rippled; fails without changes if the span is occupied or a range exceeds its source. Video assets only. One undo step. Times are SECONDS, snapped to the frame grid.",
+      "Build a sequence from chosen moments: each [startSeconds, endSeconds] SOURCE range (as returned by find_moments) becomes a video clip, placed back to back on the main track in the order given, starting at startSeconds (default: right after the last clip on the main track, or 0 when it is empty). Nothing is moved or rippled; fails without changes if the span is occupied or a range exceeds its source. Video assets only. One undo step. Times are SECONDS, snapped to the frame grid. APPENDING IS THE DEFAULT: if the footage is already on the main track, the new sequence lands after it and the timeline gets longer. When the user wants the result to BE the timeline (a highlight, a shorter cut, a trailer, \"keep only X\"), pass replace:true: the existing main-track clips are removed and the sequence is built from 0, in the same undo step; overlay and audio tracks are untouched. The result reports the whole-timeline duration (timelineDurationSeconds), not just the new clips'.",
     inputSchema: {
       type: "object",
       properties: {
@@ -193,7 +193,8 @@ export function createTemporalTools(deps: TemporalDeps): AgentTool[] {
           },
           description: `Ordered source ranges, at most ${MAX_CUT_MOMENTS}.`,
         },
-        startSeconds: { type: "number", minimum: 0, description: "Timeline position of the first clip." },
+        startSeconds: { type: "number", minimum: 0, description: "Timeline position of the first clip. Not allowed with replace (the sequence starts at 0)." },
+        replace: { type: "boolean", description: "Remove the existing main-track clips and build the sequence from 0 in the same undo step (default false: append after them)." },
       },
       required: ["moments"],
     },
@@ -204,7 +205,11 @@ export function createTemporalTools(deps: TemporalDeps): AgentTool[] {
       if (input.moments.length > MAX_CUT_MOMENTS) throw new ToolError(`Too many moments (${input.moments.length}); the limit is ${MAX_CUT_MOMENTS}.`, "Cut in several calls or choose fewer moments.");
       const main = env.tracks.main;
       const mainEnd = (main.elements as TimelineElement[]).reduce((end, e) => Math.max(end, elementEnd(e)), 0);
-      const startTicks = input.startSeconds === undefined ? mainEnd : env.snap(input.startSeconds);
+      const replace = input.replace === true;
+      if (replace && (input.startSeconds ?? 0) > 0) {
+        throw new ToolError("replace:true rebuilds the main track from 0, so startSeconds must be 0 or omitted.", "Drop startSeconds, or drop replace to place the sequence later.");
+      }
+      const startTicks = replace ? env.snap(0) : input.startSeconds === undefined ? mainEnd : env.snap(input.startSeconds);
       if (main.elements.length === 0 && startTicks > 0) {
         throw new ToolError("The main track is empty, so the sequence must start at 0.", "Omit startSeconds or pass 0.");
       }
@@ -212,14 +217,16 @@ export function createTemporalTools(deps: TemporalDeps): AgentTool[] {
       const elements = buildPlanElements({ shots, startTicks, env });
       const last = elements[elements.length - 1];
       if (!last) throw new ToolError("No clips could be built from the moments.", "Check the ranges with find_moments.");
-      if (!canPlaceSpans(main, [{ start: startTicks, duration: elementEnd(last) - startTicks }])) {
+      if (!replace && !canPlaceSpans(main, [{ start: startTicks, duration: elementEnd(last) - startTicks }])) {
         throw new ToolError(
           `The main track is occupied between ${toSec(startTicks)}s and ${toSec(elementEnd(last))}s.`,
-          "Omit startSeconds to append after the existing clips (see get_timeline), or delete them first.",
+          "Omit startSeconds to append after the existing clips (see get_timeline), pass replace:true to swap them for the sequence, or delete them first.",
         );
       }
       const mainId = main.id;
+      let replacedClips = 0;
       const clips = env.atomically("Cut to moments", () => {
+        if (replace) replacedClips = clearMainTrack(env);
         env.editor.execute(batch("Cut to moments", elements.map((element) => insertElement({ element, placement: { mode: "explicit", trackId: mainId } }))));
         return elements.map((element, i) => {
           const landed = env.require(element.id);
@@ -233,7 +240,11 @@ export function createTemporalTools(deps: TemporalDeps): AgentTool[] {
           return { elementId: element.id, assetId: moment.assetId, sourceStart: ms(moment.startSeconds), sourceEnd: ms(moment.endSeconds), start: toSec(element.startTime), end: toSec(elementEnd(element)) };
         });
       });
-      return ok(`Placed ${clips.length} clip(s) back to back on the main track from ${toSec(startTicks)}s to ${toSec(elementEnd(last))}s.`, { clips, durationSeconds: toSec(env.editor.duration()) });
+      const timelineDurationSeconds = toSec(env.editor.duration());
+      return ok(
+        `Placed ${clips.length} clip(s) back to back on the main track from ${toSec(startTicks)}s to ${toSec(elementEnd(last))}s${replacedClips > 0 ? `, replacing ${replacedClips} existing main-track clip(s)` : ""}. The whole timeline is now ${timelineDurationSeconds}s long.`,
+        { clips, durationSeconds: timelineDurationSeconds, timelineDurationSeconds, replacedClips },
+      );
     },
   });
 

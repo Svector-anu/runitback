@@ -16,6 +16,12 @@ export const DEFAULT_TOKEN_BUDGET = 1_000_000;
 /** Older images are replaced by a text stub when a request is built, so frames do not pile up in the context. */
 export const MAX_IMAGES_IN_CONTEXT = 6;
 export const MAX_RESULT_DATA_CHARS = 8000;
+/** The newest assistant steps of the current request whose tool results are always sent in full. */
+export const KEEP_RECENT_STEPS = 6;
+/** Older results are stubbed in blocks of this many steps, so the cached request prefix only changes once per block. */
+export const COMPACTION_STEP_QUANTUM = 4;
+/** A stale tool result shorter than this is cheaper to keep than to stub. */
+export const MIN_STUB_CHARS = 600;
 
 export type AgentEvent =
   | { type: "step"; step: number; maxSteps: number }
@@ -164,6 +170,53 @@ export function limitImages(messages: ReadonlyArray<ModelMessage>, keep: number 
     out.push({ role: "user", content: content.reverse() });
   }
   return out.reverse();
+}
+
+const isGoalMessage = (message: ModelMessage): boolean => message.role === "user" && !message.content.some((b) => b.type === "tool_result");
+
+function stubFor(input: { name: string; block: ToolResultBlock }): ToolResultBlock | null {
+  const texts = input.block.content.filter((c): c is TextBlock => c.type === "text");
+  const images = input.block.content.length - texts.length;
+  const chars = texts.reduce((sum, t) => sum + t.text.length, 0);
+  if (images === 0 && chars < MIN_STUB_CHARS) return null;
+  const headline = (texts[0]?.text.split("\n")[0] ?? "").slice(0, 160);
+  const what = `${input.name}, ${chars} chars${images > 0 ? `, ${images} image(s)` : ""}`;
+  const text = `[result omitted: ${what}. Call ${input.name} again if you still need it.${headline ? ` It began: ${headline}` : ""}]`;
+  return { ...input.block, content: [{ type: "text", text }] };
+}
+
+/**
+ * Copies `messages` with the bulky tool results of stale steps replaced by a one-line stub, so a long conversation does
+ * not resend every analysis dump and frame on each call. Stale = results from earlier user requests, and results older
+ * than the newest `keepRecent` assistant steps of the current request (rounded down to a multiple of the quantum, which
+ * keeps the request prefix, and so the prompt cache, unchanged between most steps). Tool_use and tool_result blocks are
+ * only edited in content, never added or removed, so pairing stays valid; the latest step's results are never touched.
+ */
+export function compactHistory(messages: ReadonlyArray<ModelMessage>, options: { keepRecent?: number; quantum?: number } = {}): ModelMessage[] {
+  const keepRecent = options.keepRecent ?? KEEP_RECENT_STEPS;
+  const quantum = Math.max(1, options.quantum ?? COMPACTION_STEP_QUANTUM);
+  let goalIndex = -1;
+  messages.forEach((m, i) => { if (isGoalMessage(m)) goalIndex = i; });
+  const assistantSteps = messages.flatMap((m, i) => (i > goalIndex && m.role === "assistant" ? [i] : []));
+  const staleSteps = Math.floor(Math.max(0, assistantSteps.length - keepRecent) / quantum) * quantum;
+  const staleBefore = staleSteps === 0 ? goalIndex : (assistantSteps[staleSteps - 1] as number) + 1;
+
+  const names = new Map<string, string>();
+  for (const m of messages) {
+    if (m.role === "assistant") for (const b of m.content) if (b.type === "tool_use") names.set(b.id, b.name);
+  }
+  return messages.map((message, index) => {
+    if (message.role !== "user" || index > staleBefore) return message;
+    let changed = false;
+    const content = message.content.map((block): UserBlock => {
+      if (block.type !== "tool_result") return block;
+      const stub = stubFor({ name: names.get(block.toolUseId) ?? "the tool", block });
+      if (!stub) return block;
+      changed = true;
+      return stub;
+    });
+    return changed ? { role: "user", content } : message;
+  });
 }
 
 function describeFailure(error: unknown): string {
@@ -364,7 +417,7 @@ async function drive(input: {
       model: options.modelName ?? DEFAULT_AGENT_MODEL,
       system: options.systemPrompt ?? buildSystemPrompt({ planning: planning !== undefined }),
       tools: definitions,
-      messages: limitImages(messages),
+      messages: limitImages(compactHistory(messages)),
       maxTokens: options.maxResponseTokens ?? DEFAULT_MAX_RESPONSE_TOKENS,
       signal: options.signal,
       onTextDelta: (delta) => emit({ type: "text_delta", delta }),

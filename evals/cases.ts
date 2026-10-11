@@ -581,6 +581,62 @@ const FIND_AND_CUT: EvalCase = {
   ],
 };
 
+// 12b. Highlight around a phrase: the finished TIMELINE must be the highlight, not the original plus a copy -------------
+
+const HIGHLIGHT_MAX_SECONDS = 15;
+
+const HIGHLIGHT: EvalCase = {
+  id: "highlight-around-phrase",
+  title: "Turn the timeline into a highlight of a phrase",
+  brief: `Turn the interview on the timeline into a highlight made only of the sentences where the speaker says "${KEYWORD}", in the order they are said, back to back from the start. The timeline should end up being just that highlight, not the full interview with the highlight added.`,
+  fixtures: [{
+    id: "interview", name: "interview.mp4", kind: "video", durationSeconds: 30, placeAt: 0,
+    blocks: [{ seconds: 10, rgb: BLUE }, { seconds: 10, rgb: GREEN }, { seconds: 10, rgb: AMBER }],
+    audio: { kind: "speech", speech: [{ start: 0, end: 30 }] }, transcript: INTERVIEW_TRANSCRIPT,
+  }],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "timeline-is-the-highlight",
+      description: `The whole timeline is at most ${HIGHLIGHT_MAX_SECONDS}s long: the highlight, not the original with a copy appended.`,
+      run(input) {
+        const end = timelineEnd(clipsOf(input.final));
+        return verdict(end > 0 && end <= HIGHLIGHT_MAX_SECONDS, `the timeline is ${end.toFixed(1)}s long`);
+      },
+    },
+    {
+      id: "highlight-sentences-kept",
+      description: `At least ${MIN_KEPT_SENTENCE * 100}% of the spoken seconds of every sentence containing "${KEYWORD}" are on the timeline.`,
+      run(input) {
+        const interview = fixtureByName(input, "interview.mp4");
+        const wanted = sentenceRanges(true);
+        const ratio = retainedSource(clipsOfFixture(input, interview), wanted) / lengthOf(wanted);
+        return graded({ score: ratio, threshold: MIN_KEPT_SENTENCE, detail: `${(ratio * 100).toFixed(1)}% of the matching speech is on the timeline` });
+      },
+    },
+    {
+      id: "original-removed",
+      description: `At most ${MAX_OTHER_SENTENCE_SECONDS}s of the speech of the other sentences is still on the timeline.`,
+      run(input) {
+        const interview = fixtureByName(input, "interview.mp4");
+        const unwanted = sentenceRanges(false);
+        const kept = retainedSource(clipsOfFixture(input, interview), unwanted);
+        return graded({ score: 1 - kept / lengthOf(unwanted), threshold: 1 - MAX_OTHER_SENTENCE_SECONDS / lengthOf(unwanted), detail: `${kept.toFixed(2)}s of the other sentences still plays` });
+      },
+    },
+    {
+      id: "highlight-back-to-back",
+      description: "On the main track the clips start at 0, touch one another, and follow the order in which they are said.",
+      run(input) {
+        const clips = mainClips(input);
+        const ordered = clips.every((c, i) => i === 0 || c.trimStart >= (clips[i - 1] as ClipView).trimStart);
+        const touching = backToBack(clips);
+        return verdict(ordered && touching, `${clips.length} clip(s); ${touching ? "back to back" : "gaps or not starting at 0"}; ${ordered ? "in spoken order" : "out of order"}`);
+      },
+    },
+  ],
+};
+
 const SCENES_LEVELS = [{ seconds: 4, db: -30 }, { seconds: 4, db: -12 }, { seconds: 4, db: -22 }];
 const SCENES_SPEC: FixtureSpec = {
   id: "scenes", name: "scenes.mp4", kind: "video", durationSeconds: 12,
@@ -771,7 +827,7 @@ const REFRAME: EvalCase = {
 
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
-  FIND_AND_CUT, LOUDEST_FIRST, FIND_VISUAL, REFRAME,
+  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);

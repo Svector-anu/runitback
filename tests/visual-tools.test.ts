@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createAgentTools, createVisualTools } from "#/engine/agent";
 import type { InsertedData } from "./agent-harness";
 import { assertEditorHealthy, snapshotForUndo } from "./invariants-harness";
+import { CONFIDENT_BEST_SCORE, MIN_TOP_MARGIN, searchConfidence } from "#/engine/agent/tools-visual";
 import { A1_CUTS, A1_FRAMES, CONCEPTS, FAKE_MODEL, makeEmbeddings, setupVisual, type VisualHarness } from "./visual-harness";
 
 interface Found {
@@ -196,6 +197,58 @@ describe("index_visuals", () => {
     const failure = await h.failure("index_visuals", { assetId: "a1" });
     expect(failure.error).toBe("Ask the user to press Index visuals.");
     expect(failure.hint).toContain("Do not retry");
+  });
+});
+
+describe("find_visual_moments confidence", () => {
+  interface Confident extends FindData { confidence: "low" | "ok"; margin: number | null; hint?: string }
+  const frames = (mixes: Array<Record<string, number>>) => mixes.map((mix, i) => ({ time: i * 2 + 1, mix }));
+
+  it("is ok for a clear match: a high best score well above the 5th best", async () => {
+    const h = setupVisual();
+    const data = await find(h, { assetId: "a1", query: "a dog" }) as Confident;
+    expect(data.confidence).toBe("ok");
+    expect(data.hint).toBeUndefined();
+  });
+
+  it("is low, with a hint to look at a frame and rephrase, when nothing resembles the query", async () => {
+    const h = setupVisual();
+    const result = await h.call("find_visual_moments", { assetId: "a1", query: "a submarine" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const data = result.data as Confident;
+    expect(data.confidence).toBe("low");
+    expect(data.hint).toMatch(/render_frame/);
+    expect(result.summary).toContain("LOW CONFIDENCE");
+  });
+
+  it("is low when a mediocre best score is not separated from the 5th best", async () => {
+    const weak = { dog: 1, sky: 3.7 };
+    const h = setupVisual({ embeddings: [makeEmbeddings({ cuts: A1_CUTS, frames: frames([weak, weak, weak, weak, weak]) })] });
+    const data = await find(h, { assetId: "a1", query: "dog", minScore: 0.2 }) as Confident;
+    expect(data.bestScore).toBeGreaterThanOrEqual(CONFIDENT_BEST_SCORE);
+    expect(data.bestScore).toBeLessThan(0.28);
+    expect(data.margin).toBeLessThan(MIN_TOP_MARGIN);
+    expect(data.confidence).toBe("low");
+  });
+
+  it("is ok when the same mediocre score stands out from the rest", async () => {
+    const weak = { dog: 1, sky: 3.7 };
+    const h = setupVisual({ embeddings: [makeEmbeddings({ cuts: A1_CUTS, frames: frames([weak, { sky: 1 }, { sky: 1 }, { sky: 1 }, { sky: 1 }]) })] });
+    const data = await find(h, { assetId: "a1", query: "dog", minScore: 0.2 }) as Confident;
+    expect(data.confidence).toBe("ok");
+  });
+});
+
+describe("searchConfidence", () => {
+  it("applies the absolute thresholds first, then the margin, and a strong best overrides a small margin", () => {
+    expect(searchConfidence([]).confidence).toBe("low");
+    expect(searchConfidence([0.2, 0.1, 0.1, 0.1, 0.1]).confidence).toBe("low");
+    expect(searchConfidence([0.26, 0.255, 0.25, 0.25, 0.25]).confidence).toBe("low");
+    expect(searchConfidence([0.3, 0.3, 0.3, 0.3, 0.3]).confidence).toBe("ok");
+    expect(searchConfidence([0.26, 0.2, 0.19, 0.18, 0.17]).confidence).toBe("ok");
+    expect(searchConfidence([0.26, 0.255]).margin).toBeNull();
+    expect(searchConfidence([0.26, 0.255]).confidence).toBe("ok");
   });
 });
 

@@ -134,6 +134,23 @@ describe("plan and apply", () => {
     expect(h.editor.getState().canUndo).toBe(false);
   });
 
+  it("apply_cut_plan appends nothing and fails on an occupied main track, but replace:true swaps the clips in one undo step", async () => {
+    const h = setup();
+    await h.data("insert_media", { assetId: "a1" });
+    const plan = { shots: [{ assetId: "a1", in: 1, out: 3 }, { assetId: "a2", in: 0, out: 1 }] };
+    const refusal = await h.failure("apply_cut_plan", { plan });
+    expect(refusal.hint).toContain("replace:true");
+    const before = JSON.stringify(h.editor.getState().doc);
+    const applied = await h.data<{ clips: unknown[]; timelineDurationSeconds: number; replacedClips: number }>("apply_cut_plan", { plan, replace: true });
+    expect(applied.replacedClips).toBe(1);
+    expect(applied.clips).toHaveLength(2);
+    expect(applied.timelineDurationSeconds).toBeCloseTo(3, 1);
+    expect(tracksOf(h.editor).main.elements).toHaveLength(2);
+    h.editor.undo();
+    expect(JSON.stringify(h.editor.getState().doc)).toBe(before);
+    expect(tracksOf(h.editor).main.elements).toHaveLength(1);
+  });
+
   it("snaps planned cuts to beats when a beat source is given, and says so when not", async () => {
     const h = setup();
     await h.data("save_style_profile", { name: "ref", assetIds: ["ref"] });

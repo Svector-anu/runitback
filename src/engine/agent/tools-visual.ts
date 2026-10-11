@@ -28,6 +28,36 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
 
 type TaggedMoment = VisualMoment & { assetId: string };
 
+/** Measured true matches start at 0.24 (docs/VISUAL_SEARCH.md); a best score under it looks like background. */
+export const CONFIDENT_BEST_SCORE = 0.24;
+/** A best score this high is a real match even when the footage is full of look-alike frames. */
+export const STRONG_BEST_SCORE = 0.28;
+/** How far the best frame must stand above the 5th best, otherwise nothing singles out the hit. */
+export const MIN_TOP_MARGIN = 0.02;
+const MARGIN_RANK = 5;
+
+export interface SearchConfidence {
+  confidence: "low" | "ok";
+  /** Best score minus the 5th best, or null with fewer than five frames. */
+  margin: number | null;
+  /** Present when confidence is low: what to do about it. */
+  hint?: string;
+}
+
+/** Judges one search from all frame scores (best first, across every searched asset): absolute level, then separation. */
+export function searchConfidence(scoresBestFirst: ReadonlyArray<number>): SearchConfidence {
+  const best = scoresBestFirst[0];
+  if (best === undefined) return { confidence: "low", margin: null, hint: "No frames were scored." };
+  const fifth = scoresBestFirst[MARGIN_RANK - 1];
+  const margin = fifth === undefined ? null : score3(best - fifth);
+  const verify = "Do not trust the times yet: render_frame at the midpoint of the top moment and compare it with the request; if it does not match, rephrase the query as a short description of the picture and search again.";
+  if (best < CONFIDENT_BEST_SCORE) return { confidence: "low", margin, hint: `The best score ${score3(best)} is below ${CONFIDENT_BEST_SCORE}, the level of real matches. ${verify}` };
+  if (margin !== null && margin < MIN_TOP_MARGIN && best < STRONG_BEST_SCORE) {
+    return { confidence: "low", margin, hint: `The best frame (${score3(best)}) barely beats the 5th best (margin ${margin}, needs ${MIN_TOP_MARGIN}), so nothing singles out a match. ${verify}` };
+  }
+  return { confidence: "ok", margin };
+}
+
 export function createVisualTools(deps: VisualDeps): AgentTool[] {
   function requireVideo(env: ToolEnv, assetId: string): void {
     const asset = env.editor.getAsset(assetId);
@@ -82,7 +112,7 @@ export function createVisualTools(deps: VisualDeps): AgentTool[] {
   const find = defineTool<{ query: string; assetId?: string; allAssets?: boolean; limit?: number; minScore?: number; sort?: VisualMomentSort }>({
     name: "find_visual_moments",
     description:
-      "Find moments in video by what they LOOK like, from a plain-language description such as 'a dog', 'a whiteboard' or 'someone laughing'. Compares the description with sampled frames of the video (needs index_visuals first, allAssets skips videos without one). Consecutive matching frames merge into one moment. Each result has SOURCE seconds, a similarity score (about 0.2-0.35 for real matches; higher is better) and, for every clip of the asset that plays it, where it sits on the timeline. Frames are sampled about every 2 s and per shot, so edges are approximate: verify with render_frame if it matters. Pass the results to cut_to_moments to assemble them. Read-only.",
+      "Find moments in video by what they LOOK like, from a plain-language description such as 'a dog', 'a whiteboard' or 'someone laughing'. Compares the description with sampled frames of the video (needs index_visuals first, allAssets skips videos without one). Consecutive matching frames merge into one moment. Each result has SOURCE seconds, a similarity score (about 0.2-0.35 for real matches; higher is better) and, for every clip of the asset that plays it, where it sits on the timeline. Frames are sampled about every 2 s and per shot, so edges are approximate: verify with render_frame if it matters. The data has confidence 'ok' or 'low' (low: the best frame is weak or barely beats the 5th best) with a hint; on low, render_frame at the top moment's midpoint and rephrase and search again before using it. Pass the results to cut_to_moments to assemble them. Read-only.",
     inputSchema: {
       type: "object",
       properties: {
@@ -165,10 +195,15 @@ export function createVisualTools(deps: VisualDeps): AgentTool[] {
       const note = skipped.length > 0 ? ` Not searched (${skipped.map((s) => `${s.assetId}: ${s.reason}`).join(", ")}).` : "";
       const lines = moments.map((m, i) => `#${i + 1} ${m.assetId} ${m.startSeconds}s-${m.endSeconds}s score ${m.score} (${m.frames} frame${m.frames === 1 ? "" : "s"})`);
       const best = score3(bestScore);
+      const confidence = searchConfidence(ranked.flatMap((r) => r.frames.map((f) => f.score)).sort((a, b) => b - a));
+      const warning = confidence.hint ? ` LOW CONFIDENCE: ${confidence.hint}` : "";
       const summary = moments.length === 0
-        ? `No frame looks like "${query}": the best similarity was ${best}, below ${minScore}.${note}`
-        : `${moments.length} moment(s) for "${query}"${truncated ? ` (more exist; raise limit up to ${MAX_LIMIT})` : ""}, SOURCE seconds, best score ${best}.${note}\n${lines.join("\n")}`;
-      return ok(summary, { unit: "source seconds", query, moments, truncated, bestScore: best, minScore, skipped });
+        ? `No frame looks like "${query}": the best similarity was ${best}, below ${minScore}.${note}${warning}`
+        : `${moments.length} moment(s) for "${query}"${truncated ? ` (more exist; raise limit up to ${MAX_LIMIT})` : ""}, SOURCE seconds, best score ${best}, confidence ${confidence.confidence}.${note}${warning}\n${lines.join("\n")}`;
+      return ok(summary, {
+        unit: "source seconds", query, moments, truncated, bestScore: best, minScore, skipped,
+        confidence: confidence.confidence, margin: confidence.margin, ...(confidence.hint ? { hint: confidence.hint } : {}),
+      });
     },
   });
 

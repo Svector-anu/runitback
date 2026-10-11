@@ -43,6 +43,10 @@ Shot midpoints come from the asset's scene cuts (the analysis, computed on deman
 
 CLIP cosine similarities are small and relative. Measured with the real model (4 natural images, 8 queries, plus solid red/blue frames): true matches 0.24 to 0.30 (tiger 0.302, football match 0.263, dog 0.242, city street 0.243), unrelated pairs 0.17 to 0.22. So `DEFAULT_MIN_SCORE = 0.22`, and `DEFAULT_WITHIN_OF_BEST = 0.04`: a frame must also be within 0.04 of the best frame for the query (across all searched assets), otherwise every frame above the floor would be a "match". These two numbers come from that small sample and are not tuned on real footage; both are overridable per call (`minScore`), and results always include the score so the agent can judge, and the tool description tells it to verify weak ones with `render_frame`. Text-only queries about abstract things ("someone laughing") score lower than object queries; expect fewer, weaker hits.
 
+### Confidence
+
+`find_visual_moments` results carry `confidence: 'low' | 'ok'`, `margin` (best score minus the 5th best score over all searched frames, null with fewer than five frames) and, when low, a `hint` (also in the summary as `LOW CONFIDENCE`). Rule (`searchConfidence`, `tools-visual.ts`): low when the best score is below 0.24 (the bottom of the measured true-match range); or when the margin is below 0.02 and the best score is below 0.28 (nothing singles out a hit, and the score is not strong enough to be a real match among many look-alike frames). Otherwise ok. These numbers come from the same small sample as the thresholds above and are not tuned on real footage. On low, the agent is told to `render_frame` at the top moment's midpoint and rephrase and search again; the system prompt also requires that midpoint check after placing any moment.
+
 ## Agent tools (`createVisualTools({ store, searcher, indexer? })`)
 
 Opt-in like the transcript and temporal tools: exported from `#/engine/agent`, absent from `createAgentTools()`, wired in `src/app/agent/visual-wiring.ts` for the in-app session and the MCP bridge.

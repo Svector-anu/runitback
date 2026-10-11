@@ -351,7 +351,7 @@ type MomentPick = { assetId: string; startSeconds: number; endSeconds: number };
 const toPicks = (found: FoundMoments): MomentPick[] => found.moments.map(({ assetId, startSeconds, endSeconds }) => ({ assetId, startSeconds, endSeconds }));
 
 /** Locates the sentences with the quoted word through find_moments, then assembles them with cut_to_moments. */
-function findAndCut(options: { mode: "keyword" | "first-only" | "all-speech" | "reversed" }): () => Turn[] {
+function findAndCut(options: { mode: "keyword" | "first-only" | "all-speech" | "reversed" | "highlight" | "appended-copy" }): () => Turn[] {
   return () => {
     let assetId = "";
     return [
@@ -364,9 +364,9 @@ function findAndCut(options: { mode: "keyword" | "first-only" | "all-speech" | "
       (seen, use) => {
         const picks = toPicks(seen.data<FoundMoments>("find_moments"));
         const chosen = options.mode === "first-only" ? picks.slice(0, 1) : options.mode === "reversed" ? [...picks].reverse() : picks;
-        return [say(`Assembling ${chosen.length} moment(s).`), use("cut_to_moments", { moments: chosen }), use("get_timeline")];
+        return [say(`Assembling ${chosen.length} moment(s).`), use("cut_to_moments", { moments: chosen, ...(options.mode === "highlight" ? { replace: true } : {}) }), use("get_timeline")];
       },
-      () => [say("Built the sequence from the matching moments, back to back.")],
+      () => [say(options.mode === "appended-copy" ? "Done: the highlight is on the timeline." : "Built the sequence from the matching moments, back to back.")],
     ];
   };
 }
@@ -510,6 +510,9 @@ const SPECS: PolicySpec[] = [
   { id: "all-speech", caseId: "find-and-cut-phrase-moments", kind: "mutation", description: "Assembles every sentence, matching or not.", mustFail: ["nothing-else-kept"], turns: findAndCut({ mode: "all-speech" }) },
   { id: "reversed", caseId: "find-and-cut-phrase-moments", kind: "mutation", description: "Assembles the matching sentences in reverse order.", mustFail: ["spoken-order-back-to-back"], turns: findAndCut({ mode: "reversed" }) },
 
+  { id: "oracle", caseId: "highlight-around-phrase", kind: "oracle", description: "find_moments for the quoted word, cut_to_moments with replace:true so the highlight becomes the timeline.", turns: findAndCut({ mode: "highlight" }) },
+  { id: "appended-copy", caseId: "highlight-around-phrase", kind: "mutation", description: "The real failure: cut_to_moments without replace appends the highlight after the untouched original (a 41.5 s timeline), then claims it is done.", mustFail: ["timeline-is-the-highlight", "original-removed"], turns: findAndCut({ mode: "appended-copy" }) },
+
   { id: "oracle", caseId: "loudest-shot-first", kind: "oracle", description: "find_moments sorted by time and by loudness, cut_to_moments with the loudest shot first.", turns: loudestFirst({ lead: "loudest", keepOthers: true }) },
   { id: "original-order", caseId: "loudest-shot-first", kind: "mutation", description: "Cuts the shots but leaves them in their original order.", mustFail: ["loudest-leads"], turns: loudestFirst({ lead: "none", keepOthers: true }) },
   { id: "quietest-first", caseId: "loudest-shot-first", kind: "mutation", description: "Leads with the quietest shot instead.", mustFail: ["loudest-leads"], turns: loudestFirst({ lead: "quietest", keepOthers: true }) },
@@ -546,6 +549,7 @@ const LAZY_FAILS: Record<string, string[]> = {
   "impossible-request": ["asks-or-declines"],
   "delete-spoken-sentence": ["sentence-removed"],
   "find-and-cut-phrase-moments": ["keyword-sentences-kept"],
+  "highlight-around-phrase": ["timeline-is-the-highlight", "original-removed"],
   "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
   "find-visual-moment": ["subject-footage-kept"],
   "reframe-to-speaker": ["canvas-is-vertical", "speaker-in-frame"],
@@ -564,6 +568,7 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "impossible-request": ["project-unchanged"],
   "delete-spoken-sentence": ["other-speech-retained"],
   "find-and-cut-phrase-moments": ["keyword-sentences-kept"],
+  "highlight-around-phrase": ["highlight-sentences-kept"],
   "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
   "find-visual-moment": ["subject-footage-kept"],
   "reframe-to-speaker": ["canvas-is-vertical", "speaker-in-frame", "whole-clip-kept"],

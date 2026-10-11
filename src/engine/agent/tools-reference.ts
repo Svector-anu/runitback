@@ -1,5 +1,5 @@
 import { analyzeTimelinePacing, trackInputsFromScene, type MediaAnalysis, type TimelineTrackInput } from "#/engine/analysis";
-import { batch, insertElement } from "#/engine/commands";
+import { batch, deleteElements, insertElement } from "#/engine/commands";
 import { buildMediaElement } from "#/engine/model";
 import {
   buildStyleProfile, beatTimes, compareToProfile, describeStyleProfile,
@@ -196,13 +196,14 @@ export function createReferenceTools(deps: ReferenceDeps): AgentTool[] {
     },
   });
 
-  const apply = defineTool<{ plan: { startSeconds?: number; shots: Array<{ assetId: string; in: number; out: number }> } }>({
+  const apply = defineTool<{ plan: { startSeconds?: number; shots: Array<{ assetId: string; in: number; out: number }> }; replace?: boolean }>({
     name: "apply_cut_plan",
     description:
-      "Build the rough cut from a plan returned by plan_cuts_to_style: each shot becomes a video clip trimmed to its in/out, placed back to back on the main track starting at plan.startSeconds (default 0). Nothing is rippled or moved; fails without changes if the main track is occupied in that span or a shot exceeds its source. One undo step. Times in SECONDS, snapped to the frame grid.",
+      "Build the rough cut from a plan returned by plan_cuts_to_style: each shot becomes a video clip trimmed to its in/out, placed back to back on the main track starting at plan.startSeconds (default 0). Nothing is rippled or moved; fails without changes if the main track is occupied in that span or a shot exceeds its source. One undo step. Times in SECONDS, snapped to the frame grid. Pass replace:true when the rough cut must BE the timeline (the footage is already on the main track and should not stay): the existing main-track clips are removed and the cut starts at 0, in the same undo step. Overlay and audio tracks are untouched.",
     inputSchema: {
       type: "object",
       properties: {
+        replace: { type: "boolean", description: "Remove the existing main-track clips and build the cut from 0 in the same undo step (default false: fail if the span is occupied)." },
         plan: {
           type: "object",
           properties: {
@@ -219,25 +220,43 @@ export function createReferenceTools(deps: ReferenceDeps): AgentTool[] {
       env.requireProject();
       const { shots } = input.plan;
       if (shots.length === 0) throw new ToolError("plan.shots is empty.", "Call plan_cuts_to_style first.");
-      const startTicks = env.snap(input.plan.startSeconds ?? 0);
+      const replace = input.replace === true;
+      const startTicks = env.snap(replace ? 0 : input.plan.startSeconds ?? 0);
+      if (replace && (input.plan.startSeconds ?? 0) > 0) throw new ToolError("replace:true rebuilds the main track from 0, so plan.startSeconds must be 0 or omitted.", "Drop plan.startSeconds, or drop replace to place the cut later.");
       const elements = buildPlanElements({ shots, startTicks, env });
       const last = elements[elements.length - 1];
       if (!last) throw new ToolError("The plan produced no clips.", "Call plan_cuts_to_style first.");
       const spans = [{ start: startTicks, duration: elementEnd(last) - startTicks }];
-      if (!canPlaceSpans(env.tracks.main, spans)) {
+      if (!replace && !canPlaceSpans(env.tracks.main, spans)) {
         throw new ToolError(
           `The main track is occupied between ${toSec(startTicks)}s and ${toSec(elementEnd(last))}s.`,
-          "Set plan.startSeconds past the existing clips (see get_timeline) or delete them first.",
+          "Pass replace:true to swap the existing main-track clips for the cut, set plan.startSeconds past them (see get_timeline), or delete them first.",
         );
       }
       const mainId = env.tracks.main.id;
-      env.editor.execute(batch("Apply cut plan", elements.map((element) => insertElement({ element, placement: { mode: "explicit", trackId: mainId } }))));
+      const replaced = env.atomically("Apply cut plan", () => {
+        const removed = replace ? clearMainTrack(env) : 0;
+        env.editor.execute(batch("Apply cut plan", elements.map((element) => insertElement({ element, placement: { mode: "explicit", trackId: mainId } }))));
+        return removed;
+      });
       const clips = elements.map((e) => ({ elementId: e.id, assetId: "mediaId" in e ? e.mediaId : "", start: toSec(e.startTime), end: toSec(elementEnd(e)) }));
-      return ok(`Placed ${clips.length} clips on the main track from ${toSec(startTicks)}s to ${toSec(elementEnd(last))}s.`, { clips, durationSeconds: toSec(env.editor.duration()) });
+      const timelineDurationSeconds = toSec(env.editor.duration());
+      return ok(
+        `Placed ${clips.length} clips on the main track from ${toSec(startTicks)}s to ${toSec(elementEnd(last))}s${replaced > 0 ? `, replacing ${replaced} existing main-track clip(s)` : ""}. The whole timeline is now ${timelineDurationSeconds}s long.`,
+        { clips, durationSeconds: timelineDurationSeconds, timelineDurationSeconds, replacedClips: replaced },
+      );
     },
   });
 
   return [save, get, list, compare, plan, apply];
+}
+
+/** Deletes every clip on the main track; call inside a transaction together with the insert that replaces them. */
+export function clearMainTrack(env: ToolEnv): number {
+  const main = env.tracks.main;
+  const refs = main.elements.map((e) => ({ trackId: main.id, elementId: e.id }));
+  if (refs.length > 0) env.editor.execute(deleteElements(refs));
+  return refs.length;
 }
 
 export function buildPlanElements(input: {

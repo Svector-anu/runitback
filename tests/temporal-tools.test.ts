@@ -196,6 +196,77 @@ describe("cut_to_moments", () => {
     expect(snapshotForUndo(h.editor)).toBe(after);
   });
 
+  describe("replace", () => {
+    const momentsOf = (...ranges: Array<[number, number]>) => ranges.map(([startSeconds, endSeconds]) => ({ assetId: "a1", startSeconds, endSeconds }));
+    const mainIds = (h: TemporalHarness): string[] => h.editor.tracks().main.elements.map((e) => e.id);
+
+    it("swaps the existing main-track clips for the sequence from 0 and reports the whole-timeline duration", async () => {
+      const h = setupTemporal();
+      const original = await h.data<InsertedData>("insert_media", { assetId: "a3" });
+      const data = await h.data<CutData & { timelineDurationSeconds: number; replacedClips: number }>("cut_to_moments", { replace: true, moments: momentsOf([1, 3], [5, 6]) });
+      expect(data.replacedClips).toBe(1);
+      expect(data.clips.map((c) => [c.start, c.end])).toEqual([[0, 2], [2, 3]]);
+      expect(data.timelineDurationSeconds).toBe(3);
+      expect(data.durationSeconds).toBe(3);
+      expect(mainIds(h)).not.toContain(original.elementId);
+      expect(mainIds(h)).toHaveLength(2);
+      assertEditorHealthy(h.editor, "after replace");
+    });
+
+    it("the default still appends, so the timeline keeps the original and grows", async () => {
+      const h = setupTemporal();
+      await h.data("insert_media", { assetId: "a3" });
+      const data = await h.data<CutData & { replacedClips: number }>("cut_to_moments", { moments: momentsOf([1, 3]) });
+      expect(data.replacedClips).toBe(0);
+      expect(data.clips[0]?.start).toBe(6);
+      expect(data.durationSeconds).toBe(8);
+      expect(mainIds(h)).toHaveLength(2);
+    });
+
+    it("is one undo step that restores the original clips, and redo reapplies it", async () => {
+      const h = setupTemporal();
+      await h.data("insert_media", { assetId: "a3" });
+      const before = snapshotForUndo(h.editor);
+      await h.data("cut_to_moments", { replace: true, moments: momentsOf([1, 2], [3, 4]) });
+      const after = snapshotForUndo(h.editor);
+      expect(h.editor.undo()).toBe(true);
+      expect(snapshotForUndo(h.editor)).toBe(before);
+      expect(h.editor.redo()).toBe(true);
+      expect(snapshotForUndo(h.editor)).toBe(after);
+    });
+
+    it("works on an empty main track and rejects a later startSeconds without changing anything", async () => {
+      const h = setupTemporal();
+      const data = await h.data<CutData & { replacedClips: number }>("cut_to_moments", { replace: true, moments: momentsOf([1, 2]) });
+      expect(data.replacedClips).toBe(0);
+      const before = snapshotForUndo(h.editor);
+      const failure = await h.failure("cut_to_moments", { replace: true, startSeconds: 4, moments: momentsOf([1, 2]) });
+      expect(failure.error).toContain("startSeconds must be 0");
+      expect(snapshotForUndo(h.editor)).toBe(before);
+    });
+
+    it("keeps the original clips when the new sequence cannot be built", async () => {
+      const h = setupTemporal();
+      await h.data("insert_media", { assetId: "a3" });
+      const before = snapshotForUndo(h.editor);
+      await h.failure("cut_to_moments", { replace: true, moments: [{ assetId: "a1", startSeconds: 1, endSeconds: 999 }] });
+      expect(snapshotForUndo(h.editor)).toBe(before);
+    });
+
+    it("the occupied-span error tells the model about replace", async () => {
+      const h = setupTemporal();
+      await h.data("insert_media", { assetId: "a3" });
+      const failure = await h.failure("cut_to_moments", { startSeconds: 2, moments: momentsOf([0, 1]) });
+      expect(failure.hint).toContain("replace:true");
+    });
+
+    it("the tool description says when to use replace", () => {
+      const description = setupTemporal().tools.get("cut_to_moments")?.description ?? "";
+      expect(description).toMatch(/APPENDING IS THE DEFAULT/);
+      expect(description).toMatch(/highlight.*replace:true/s);
+    });
+  });
+
   it("find_moments then cut_to_moments plays exactly the found sentences", async () => {
     const h = setupTemporal();
     const { moments } = await find(h, { assetId: "a1", speaking: true, sort: "time" });
