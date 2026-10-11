@@ -118,6 +118,7 @@ export interface ToolSpec<I> {
   description: string;
   inputSchema: JsonSchema;
   readOnly: boolean;
+  destructive?: boolean;
   run(input: I, env: ToolEnv): ToolResult | Promise<ToolResult>;
 }
 
@@ -137,6 +138,7 @@ export function defineTool<I>(spec: ToolSpec<I>): AgentTool {
     description: spec.description,
     inputSchema: spec.inputSchema,
     readOnly: spec.readOnly,
+    ...(spec.destructive ? { destructive: true } : {}),
     async run(input: unknown, ctx: ToolContext): Promise<ToolResult> {
       const validation = validateInput(spec.inputSchema, input);
       if (!validation.ok) return fail(validation.error, validation.hint);

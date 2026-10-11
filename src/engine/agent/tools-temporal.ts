@@ -199,6 +199,7 @@ export function createTemporalTools(deps: TemporalDeps): AgentTool[] {
       required: ["moments"],
     },
     readOnly: false,
+    destructive: true,
     run(input, env) {
       env.requireProject();
       if (input.moments.length === 0) throw new ToolError("moments is empty.", "Call find_moments first and pass its results.");

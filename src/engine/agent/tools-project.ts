@@ -44,6 +44,7 @@ const deleteTrack = defineTool<{ trackId: string }>({
   description: "Delete a whole track and every clip on it (undoable). The main track cannot be deleted; delete its clips instead.",
   inputSchema: { type: "object", properties: { trackId: { type: "string" } }, required: ["trackId"] },
   readOnly: false,
+  destructive: true,
   run(input, env) {
     env.requireProject();
     const track = env.requireTrack(input.trackId);
@@ -77,6 +78,7 @@ const setProject = defineTool<{
     },
   },
   readOnly: false,
+  destructive: true,
   run(input, env) {
     env.requireProject();
     const patch: Partial<ProjectSettings> = {};
@@ -147,6 +149,7 @@ const importCaptions = defineTool<{ srt?: string; ass?: string; offset?: number 
     },
   },
   readOnly: false,
+  destructive: true,
   run(input, env) {
     env.requireProject();
     if ((input.srt === undefined) === (input.ass === undefined)) {
@@ -226,6 +229,7 @@ function stepper(direction: "undo" | "redo") {
       : "Redo the last `steps` (default 1) undone steps.",
     inputSchema: { type: "object", properties: { steps: { type: "integer", minimum: 1, maximum: 50 } } },
     readOnly: false,
+    destructive: true,
     run(input, env) {
       env.requireProject();
       const wanted = input.steps ?? 1;

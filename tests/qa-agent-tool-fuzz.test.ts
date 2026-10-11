@@ -67,7 +67,7 @@ describe("QA: every agent tool survives schema-shaped hostile arguments", () => 
 
   it("reports acceptance rate", () => { console.log(JSON.stringify(OK)); });
 
-  it.skip("QA-P3-1 prototype-key names are not accepted as unknown fields silently", async () => {
+  it("QA-P3-1 prototype-key names are not accepted as unknown fields silently", async () => {
     const tools = createAgentTools();
     const { editor } = makeEditor({ assets: ASSETS });
     const result = await callTool({ tools, name: "get_timeline", args: { constructor: 1, toString: 2 }, ctx: { editor, nowMs: () => 0 } });

@@ -9,18 +9,28 @@ async function projectWithAsset(page: import("@playwright/test").Page): Promise<
   await page.getByRole("button", { name: "Add qa-a.webm to timeline" }).waitFor({ state: "attached" });
 }
 
-test.fixme("QA-P1-1: Enter on the focused 'Add to timeline' button adds exactly one clip", async ({ page }) => {
+test("QA-P1-1: Enter on the focused 'Add to timeline' button adds exactly one clip", async ({ page }) => {
   await projectWithAsset(page);
   await page.getByRole("button", { name: "Add qa-a.webm to timeline" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.locator("[data-clip-id]")).toHaveCount(1);
 });
 
-test.fixme("QA-P1-1b: Enter on 'Transcribe' does not also add the clip to the timeline", async ({ page }) => {
+test("QA-P1-1b: Enter on 'Transcribe' does not also add the clip to the timeline", async ({ page }) => {
   await projectWithAsset(page);
   await page.getByRole("button", { name: "Transcribe qa-a.webm" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.locator("[data-clip-id]")).toHaveCount(0);
+});
+
+test("QA-P1-1c: Enter and Space on the media card itself still add and select", async ({ page }) => {
+  await projectWithAsset(page);
+  const card = page.getByRole("group", { name: "video qa-a.webm" });
+  await card.focus();
+  await page.keyboard.press("Space");
+  await expect(card).toHaveAttribute("data-selected", "true");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("[data-clip-id]")).toHaveCount(1);
 });
 
 test.fixme("QA-P2-1: renaming a project that is open in another tab is not silently reverted", async ({ browser }) => {

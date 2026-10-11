@@ -43,6 +43,11 @@ export interface AgentTool {
   inputSchema: JsonSchema;
   /** True when the tool never changes the project (safe to call freely, never creates history). */
   readOnly: boolean;
+  /**
+   * True when one call can remove or rewrite more than the single element it names, or change project-wide state
+   * (history, canvas, whole tracks, bulk imports). Such a call needs an approved plan; it never gets the unplanned allowance.
+   */
+  destructive?: boolean;
   run(input: unknown, ctx: ToolContext): ToolResult | Promise<ToolResult>;
 }
 

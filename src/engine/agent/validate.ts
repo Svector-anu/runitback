@@ -93,11 +93,13 @@ function check(schema: JsonSchema, value: unknown, path: string): Issue | null {
   return null;
 }
 
+const hasOwn = (target: object, key: string): boolean => Object.prototype.hasOwnProperty.call(target, key);
+
 function checkObject(schema: JsonSchema, value: Record<string, unknown>, path: string): Issue | null {
   const properties = schema.properties;
   const prefix = path === "" ? "" : `${path}.`;
   for (const key of schema.required ?? []) {
-    if (value[key] === undefined) {
+    if (!hasOwn(value, key) || value[key] === undefined) {
       const known = Object.keys(properties ?? {});
       const near = Object.keys(value).map((k) => ({ k, guess: didYouMean(k, [key]) })).find((x) => x.guess);
       return {
@@ -109,7 +111,7 @@ function checkObject(schema: JsonSchema, value: Record<string, unknown>, path: s
   if (properties) {
     const known = Object.keys(properties);
     for (const key of Object.keys(value)) {
-      if (properties[key] === undefined && schema.additionalProperties !== true) {
+      if (!hasOwn(properties, key) && schema.additionalProperties !== true) {
         const near = didYouMean(key, known);
         return {
           message: `Unknown field "${prefix}${key}"`,
@@ -118,7 +120,7 @@ function checkObject(schema: JsonSchema, value: Record<string, unknown>, path: s
       }
     }
     for (const [key, sub] of Object.entries(properties)) {
-      if (value[key] === undefined) continue;
+      if (!hasOwn(value, key) || value[key] === undefined) continue;
       const issue = check(sub, value[key], `${prefix}${key}`);
       if (issue) return issue;
     }

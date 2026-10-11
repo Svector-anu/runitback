@@ -1,6 +1,6 @@
 import {
   PLAN_TOOL_SCHEMAS, PROPOSE_PLAN_DESCRIPTION, PROPOSE_PLAN_TOOL, UPDATE_PLAN_STEP_DESCRIPTION, UPDATE_PLAN_STEP_TOOL,
-  callTool, formatPlan, parsePlan, parseStepUpdate,
+  callTool, formatPlan, isSingleTargetedEdit, parsePlan, parseStepUpdate, planScopeViolation,
   type AgentToolRegistry, type Plan, type PlanStepStatus, type ToolContext, type ToolResult,
 } from "#/engine/agent";
 import type { Editor } from "#/engine/editor";
@@ -272,6 +272,8 @@ interface PlanGate {
   /** A plan was proposed at least once in this run. */
   proposed: boolean;
   approved: boolean;
+  /** Element and track ids that existed when the plan was approved; the plan's targets bind only these. */
+  approvedIds: ReadonlySet<string>;
   unplannedEdits: number;
   /** Documents around the unplanned edit (its own committed undo step); a later plan reverts it only if nothing changed since. */
   docBeforeUnplanned: unknown;
@@ -296,12 +298,32 @@ interface EditGate {
   unplanned: boolean;
 }
 
-function gateEdit(input: { name: string; tools: AgentToolRegistry; gate: PlanGate; editor: Editor }): EditGate {
+function documentIds(editor: Editor): Set<string> {
+  const found = new Set<string>();
+  for (const scene of editor.getState().doc.scenes) {
+    for (const track of [...scene.tracks.overlay, scene.tracks.main, ...scene.tracks.audio]) {
+      found.add(track.id);
+      for (const element of track.elements) found.add(element.id);
+    }
+  }
+  return found;
+}
+
+function gateEdit(input: { name: string; args: unknown; tools: AgentToolRegistry; gate: PlanGate; editor: Editor }): EditGate {
   const { gate } = input;
   const tool = input.tools.get(input.name);
   if (!tool || tool.readOnly) return { refusal: null, mutating: false, unplanned: false };
-  if (gate.approved) return { refusal: null, mutating: true, unplanned: false };
+  if (gate.approved && gate.plan) {
+    const violation = planScopeViolation({ plan: gate.plan, tool, args: input.args, existingIds: gate.approvedIds });
+    return violation ? { refusal: violation, mutating: false, unplanned: false } : { refusal: null, mutating: true, unplanned: false };
+  }
   if (gate.proposed) return { refusal: "Refused: the plan has not been approved, so nothing may be edited yet. Wait for the user's answer to propose_plan.", mutating: false, unplanned: false };
+  if (!isSingleTargetedEdit(tool, input.args)) {
+    return {
+      refusal: `Refused: "${input.name}" as called touches more than one element, is destructive, or changes the whole project, so it needs an approved plan. Call propose_plan (it changes nothing), then execute after the user approves. Only a single edit of one named element may skip the plan.`,
+      mutating: false, unplanned: false,
+    };
+  }
   if (gate.unplannedEdits >= UNPLANNED_EDIT_LIMIT) {
     return {
       refusal: "Refused: more than one edit needs an approved plan. Call propose_plan (it changes nothing; the edit you already made is undone first if the project is unchanged since, so include it in the plan), then execute after the user approves.",
@@ -360,6 +382,7 @@ async function proposePlan(input: {
     };
   }
   gate.approved = true;
+  gate.approvedIds = documentIds(options.editor);
   emit({ type: "plan_decision", decision: "approved" });
   return {
     block: textResult(
@@ -397,7 +420,7 @@ async function drive(input: {
       { name: UPDATE_PLAN_STEP_TOOL, description: UPDATE_PLAN_STEP_DESCRIPTION, inputSchema: PLAN_TOOL_SCHEMAS[UPDATE_PLAN_STEP_TOOL] },
     );
   }
-  const gate: PlanGate = { plan: null, proposed: false, approved: false, unplannedEdits: 0, docBeforeUnplanned: null, docAfterUnplanned: null, revision: 0, running: null };
+  const gate: PlanGate = { plan: null, proposed: false, approved: false, approvedIds: new Set(), unplannedEdits: 0, docBeforeUnplanned: null, docAfterUnplanned: null, revision: 0, running: null };
   let lastText = "";
 
   const stop = (status: LoopEnd["status"], reason: string): LoopEnd => {
@@ -458,7 +481,7 @@ async function drive(input: {
         if (handled.rejected) rejection = "Plan rejected. No changes were made.";
         continue;
       }
-      const edit: EditGate = planning ? gateEdit({ name: call.name, tools: options.tools, gate, editor: options.editor }) : { refusal: null, mutating: false, unplanned: false };
+      const edit: EditGate = planning ? gateEdit({ name: call.name, args: call.input, tools: options.tools, gate, editor: options.editor }) : { refusal: null, mutating: false, unplanned: false };
       const refusal = edit.refusal;
       if (refusal) {
         emit({ type: "tool_call", id: call.id, name: call.name, args: call.input });

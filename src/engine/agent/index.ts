@@ -11,3 +11,4 @@ export { validateInput, didYouMean, type Validation } from "./validate";
 export { paramSpecsFor, paramEditCommand, animationPathFor, type ParamSpec } from "./params";
 export { toSec } from "./env";
 export * from "./plan";
+export * from "./plan-scope";

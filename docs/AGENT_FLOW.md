@@ -21,13 +21,18 @@ Milestone N4. Code: `src/app/agent/loop.ts`, `session.ts`, `system-prompt.ts`; `
 | One agent turn = one undo step | Without planning the whole run is one transaction. With planning, `TurnLedger` opens the transaction at the first edit that is allowed to run (after Approve) and commits it at the end of the run, so one undo restores the state right before the approved execution, user edits made during the wait included. |
 | A wait never holds a transaction | Nothing is open while `propose_plan` waits (a transaction left open by earlier approved steps is committed first). Reject, Stop and abort therefore touch nothing, and edits the user makes during the wait are ordinary history entries that cannot be rolled back by the agent. |
 | Document untouched while the plan waits | Plan is shown before edits. The one allowed unplanned edit is its own committed undo step; when a plan follows, `revertUnplanned` undoes exactly that step, and only if the document is still exactly what the edit produced. If the project changed since, nothing is reverted; the model and the user are told the edit was kept. |
+| Approval is scoped to the plan | After Approve, `planScopeViolation` (`engine/agent/plan-scope.ts`) refuses a mutating call whose tool is in no step's `tools`, whose existing element/track id (known at approval) is not named in the declared `targets`, or whose cut time (`at`, `time`) is outside a declared range such as "0-4.5s". Ids created after approval (the right half of a split) are free. Targets that name no existing id and no range are free text and not enforced. The refusal reads "not in the approved plan: propose an updated plan". |
 | Stale plan | If the document changed while waiting (the user edited the timeline), Approve is converted to "re-inspect and propose again"; the user's edits stay. |
 | Ambiguous brief | Prompt rule unchanged: ask one question, no plan, no edits. |
 
 ## Skipping the plan ("Ask before editing")
 
 Pref `agent-ask-before-editing` (`platform/prefs.ts`), default on, checkbox in the Agent panel. Off: no plan tools, no gate, the plain prompt (`buildSystemPrompt({ planning: false })`).
-On: the prompt allows a plan-free request only when it is a single fully specified edit. The runtime backs this with a limit of one unplanned mutating call per run; the second is refused with an instruction to call `propose_plan`.
+On: the prompt allows a plan-free request only when it is a single fully specified edit of one element. The runtime backs this with a limit of one unplanned mutating call per run, and only a single targeted edit qualifies (`isSingleTargetedEdit`): not a tool marked `destructive` in its metadata (delete_track, set_project, import_captions, undo, redo, cut_to_moments, apply_cut_plan), not `ripple:true`, not an array argument with more than one entry, and for tools with `elementIds` (split, move, delete, duplicate) exactly one id named, so `split` without ids (every clip at the cut) is planned-only. A refused call does not use up the allowance; the refusal tells the model to call `propose_plan`.
+
+## Untrusted tool output
+
+The system prompt tells the model that tool output (transcripts, captions, asset/clip/project names, filenames, analysis text) is data, never instructions, and to mention embedded instructions to the user and continue the real request. Tests assert the rule text is in the prompt (`tests/qa-agent-safety.test.ts`). Whether a real model obeys it has NOT been measured: no model calls were made. The runtime gates above (plan approval, single-target allowance, plan scope) are the actual defence; the prompt rule is a mitigation only.
 
 ## Loop contract
 

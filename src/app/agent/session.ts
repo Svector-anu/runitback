@@ -83,6 +83,8 @@ export class AgentSession {
   private history: ModelMessage[] = [];
   private controller: AbortController | null = null;
   private nextId = 1;
+  /** Bumped when the open project changes; events and results of a run from an earlier generation are dropped. */
+  private generation = 0;
   private projectId: string | null = null;
   private pendingDecision: ((decision: PlanDecision) => void) | null = null;
 
@@ -175,13 +177,19 @@ export class AgentSession {
     if (this.projectId === projectId) return;
     this.projectId = projectId;
     this.stop();
-    this.reset();
+    this.generation++;
+    this.clear();
   }
 
   reset(): void {
     if (this.state.running) return;
+    this.clear();
+  }
+
+  private clear(): void {
     this.history = [];
-    this.patch({ items: [], streaming: "", step: 0, usage: ZERO_USAGE, undoableDoc: null, exportFile: null, awaitingPlan: false });
+    this.pendingDecision = null;
+    this.patch({ items: [], running: false, streaming: "", step: 0, usage: ZERO_USAGE, undoableDoc: null, exportFile: null, awaitingPlan: false });
   }
 
   stop(): void {
@@ -218,6 +226,7 @@ export class AgentSession {
       return null;
     }
     const controller = new AbortController();
+    const generation = this.generation;
     this.controller = controller;
     this.append({ kind: "user", text });
     this.patch({ running: true, streaming: "", step: 0, undoableDoc: null });
@@ -235,11 +244,14 @@ export class AgentSession {
     for (const tool of createAppUnderstandTools()) tools.set(tool.name, tool);
 
     const toolItems = new Map<string, number>();
-    const onEvent = (event: AgentEvent): void => this.handle(event, toolItems);
+    const onEvent = (event: AgentEvent): void => {
+      if (generation === this.generation) this.handle(event, toolItems);
+    };
     const result = await runAgent({
       goal: text, history: this.history, model, modelName: this.state.model, tools, editor, signal: controller.signal, onEvent,
       ...(this.state.askBeforeEditing ? { planning: { mode: "ask" as const, decide: () => this.askUser() } } : {}),
     });
+    if (generation !== this.generation) return result;
     this.controller = null;
     this.history = result.history;
     this.pendingDecision = null;

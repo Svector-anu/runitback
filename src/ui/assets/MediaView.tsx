@@ -260,7 +260,11 @@ export function MediaView(): ReactNode {
                 draggable role="group" tabIndex={0} aria-label={`${asset.type} ${asset.name}`} aria-roledescription="media item"
                 onDragStart={(e) => beginDrag(e, { kind: "media", assetId: asset.id, mediaType: asset.type })} onDragEnd={endDrag}
                 onClick={(e) => select(e, asset.id)}
-                onKeyDown={(e) => { if (e.key === "Enter") add(asset); if (e.key === " ") { e.preventDefault(); select(e as unknown as React.MouseEvent, asset.id); } }}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === "Enter") add(asset);
+                  if (e.key === " ") { e.preventDefault(); select(e as unknown as React.MouseEvent, asset.id); }
+                }}
                 onContextMenu={(e) => { e.preventDefault(); if (!selected.includes(asset.id)) uiStore.set({ selectedAssetIds: [asset.id] }); setMenu({ x: e.clientX, y: e.clientY }); }}>
                 <div className="media-item__tile">
                   <Tile asset={asset} />

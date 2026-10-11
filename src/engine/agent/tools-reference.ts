@@ -216,6 +216,7 @@ export function createReferenceTools(deps: ReferenceDeps): AgentTool[] {
       required: ["plan"],
     },
     readOnly: false,
+    destructive: true,
     run(input, env) {
       env.requireProject();
       const { shots } = input.plan;
