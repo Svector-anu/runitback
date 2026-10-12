@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { PlanItemStatus, PlanStepView } from "#/app/agent/session";
 import type { Plan, PlanStepStatus } from "#/engine/agent";
 import { Icon } from "../icons";
@@ -12,6 +12,8 @@ interface PlanCardProps {
   steps: PlanStepView[];
   verification: string;
   feedback: string;
+  /** Pinned above the composer: focuses Approve and caps its height so the actions never leave the viewport. */
+  docked?: boolean;
   onApprove(): void;
   onRevise(feedback: string): void;
   onReject(): void;
@@ -28,12 +30,31 @@ const STATUS_LABEL: Record<PlanItemStatus, string> = {
   cancelled: "Stopped before it was approved. Nothing was changed.",
 };
 
+/** First-run explanation shown while a plan waits for approval; it lives in the chat log so the docked card stays short. */
+export function PlanHint(): ReactNode {
+  const intro = useHint("plan-card");
+  if (!intro.visible) return null;
+  return (
+    <div className="hint-card hint-card--inline" data-testid="plan-hint">
+      <div className="hint-card__head">
+        <strong>This is a plan, not an edit yet</strong>
+        <Button variant="text" size="icon" label="Dismiss this tip" onClick={intro.dismiss}><Icon name="x" size={14} /></Button>
+      </div>
+      <p>Nothing on your timeline has changed. Approve runs the steps, Edit lets you ask for changes first, and Reject cancels. One undo reverts everything the agent did.</p>
+    </div>
+  );
+}
+
 export function PlanCard(props: PlanCardProps): ReactNode {
   const { plan, status } = props;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const awaiting = status === "awaiting";
-  const intro = useHint("plan-card");
+  const approveRef = useRef<HTMLButtonElement>(null);
+  const docked = props.docked === true;
+  useEffect(() => {
+    if (docked && awaiting && !editing) approveRef.current?.focus();
+  }, [docked, awaiting, editing]);
   const sendRevision = (): void => {
     const text = draft.trim();
     if (!text) return;
@@ -43,20 +64,12 @@ export function PlanCard(props: PlanCardProps): ReactNode {
   };
 
   return (
-    <section className={`agent-plan agent-plan--${status}`} aria-label={`Plan, revision ${props.revision}`} data-testid="agent-plan" data-status={status}>
+    <section className={`agent-plan agent-plan--${status}${docked ? " agent-plan--docked" : ""}`} aria-label={`Plan, revision ${props.revision}`} data-testid="agent-plan" data-status={status}>
       <header className="agent-plan__head">
-        <strong>Plan</strong>
+        <strong>Plan{props.revision > 1 ? ` (revision ${props.revision})` : ""} <span className="agent-plan__count">{plan.steps.length} {plan.steps.length === 1 ? "step" : "steps"}</span></strong>
         <span className="agent-plan__status" data-testid="agent-plan-status">{STATUS_LABEL[status]}</span>
       </header>
-      {awaiting && intro.visible ? (
-        <div className="hint-card hint-card--inline" data-testid="plan-hint">
-          <div className="hint-card__head">
-            <strong>This is a plan, not an edit yet</strong>
-            <Button variant="text" size="icon" label="Dismiss this tip" onClick={intro.dismiss}><Icon name="x" size={14} /></Button>
-          </div>
-          <p>Nothing on your timeline has changed. Approve runs the steps, Edit lets you ask for changes first, and Reject cancels. One undo reverts everything the agent did.</p>
-        </div>
-      ) : null}
+      <div className="agent-plan__body">
       <p className="agent-plan__summary">{plan.summary}</p>
       <ol className="agent-plan__steps">
         {plan.steps.map((step, i) => {
@@ -65,11 +78,13 @@ export function PlanCard(props: PlanCardProps): ReactNode {
           return (
             <li key={i} className={`agent-plan__step agent-plan__step--${stepStatus}`} data-testid="agent-plan-step" data-status={stepStatus}>
               <div className="agent-plan__intent">
-                <span className="agent-plan__badge">{STEP_LABEL[stepStatus]}</span> {step.intent}
+                <span className={`agent-plan__badge agent-plan__badge--${stepStatus}`}>{STEP_LABEL[stepStatus]}</span> {step.intent}
               </div>
-              <div className="agent-plan__meta">Tools: {step.tools.join(", ") || "none"}</div>
-              {step.targets.length > 0 ? <div className="agent-plan__meta">Targets: {step.targets.join("; ")}</div> : null}
-              <div className="agent-plan__meta">Check: {step.check}</div>
+              <div className="agent-plan__meta">
+                <span>Tools: {step.tools.join(", ") || "none"}</span>
+                {step.targets.length > 0 ? <span>Targets: {step.targets.join("; ")}</span> : null}
+                <span>Check: {step.check}</span>
+              </div>
               {view?.note ? <div className="agent-plan__note" data-testid="agent-plan-note">{view.note}</div> : null}
               {view?.results.map((r, j) => (
                 <div key={j} className={r.ok ? "agent-plan__result" : "agent-plan__result agent-plan__result--error"}>{r.summary}</div>
@@ -79,14 +94,15 @@ export function PlanCard(props: PlanCardProps): ReactNode {
         })}
       </ol>
       {props.feedback && status === "revising" ? <p className="agent-plan__meta">Your changes: {props.feedback}</p> : null}
-      {props.verification ? <p className="agent-plan__verification" data-testid="agent-plan-verification">Verification: {props.verification}</p> : null}
+      {props.verification ? <p className="agent-plan__verification" data-testid="agent-plan-verification"><Icon name="check" size={12} /><span>Verification: {props.verification}</span></p> : null}
+      </div>
       {awaiting ? (
         <div className="agent-plan__actions">
           {editing ? (
             <>
               <label className="agent-sr-only" htmlFor="agent-plan-feedback">What should change in the plan?</label>
               <textarea
-                id="agent-plan-feedback" className="textarea" rows={3} value={draft} placeholder="What should change in the plan?"
+                id="agent-plan-feedback" className="textarea" rows={2} autoFocus value={draft} placeholder="What should change in the plan?"
                 onChange={(e) => setDraft(e.target.value)}
               />
               <div className="agent-actions">
@@ -96,9 +112,9 @@ export function PlanCard(props: PlanCardProps): ReactNode {
             </>
           ) : (
             <div className="agent-actions">
-              <Button size="sm" onClick={props.onApprove}>Approve</Button>
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit</Button>
-              <Button size="sm" variant="destructive-outline" onClick={props.onReject}>Reject</Button>
+              <Button ref={approveRef} size="sm" tooltip="Run these steps on your timeline" onClick={props.onApprove}>Approve</Button>
+              <Button size="sm" variant="outline" tooltip="Ask for changes before anything runs" onClick={() => setEditing(true)}>Edit</Button>
+              <Button size="sm" variant="destructive-outline" tooltip="Cancel this plan. Nothing changes" onClick={props.onReject}>Reject</Button>
             </div>
           )}
         </div>

@@ -58,6 +58,7 @@ test("the in-app agent edits the timeline, shows a rendered frame and one undo r
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("agent-empty")).toBeVisible();
   await expect(panel.getByRole("list", { name: "Example prompts" }).getByRole("button")).toHaveCount(4);
+  await panel.getByText("Privacy and cost").click();
   await expect(panel.getByText(/kept in this browser only and is sent only to Anthropic/)).toBeVisible();
   await expect(panel.getByLabel("Anthropic API key")).toHaveAttribute("type", "password");
   await expect(panel.getByRole("button", { name: "Undo agent changes" })).toBeDisabled();
@@ -97,7 +98,7 @@ test("without a key and without a test model the panel asks for the key and edit
   await panel.getByLabel("Anthropic API key").fill("sk-ant-test");
   await expect(panel.getByTestId("agent-key-hint")).toHaveCount(0);
   await expect(panel.getByTestId("agent-settings-summary")).toBeVisible();
-  await panel.getByRole("button", { name: "Change", exact: true }).click();
+  await panel.getByRole("button", { name: "Agent settings", exact: true }).click();
   await panel.getByLabel("Anthropic API key").fill("");
   await expect(panel.getByTestId("agent-key-hint")).toBeVisible();
   await panel.getByLabel("Message to the agent").fill("hello");
@@ -118,8 +119,8 @@ test("settings collapse to a compact row once a key is set, keep the chat log re
   await page.getByRole("tab", { name: "Agent" }).click();
   const panel = page.getByTestId("agent-panel");
 
-  // No key yet: full settings block, same as before this change.
-  await expect(panel.getByLabel("Model")).toBeVisible();
+  // No key yet: just the key field and one hint line; model and ask-before-editing sit behind the gear.
+  await expect(panel.getByLabel("Model")).toHaveCount(0);
   await expect(panel.getByLabel("Anthropic API key")).toBeVisible();
   await expect(panel.getByTestId("agent-settings-summary")).toHaveCount(0);
 
@@ -130,7 +131,7 @@ test("settings collapse to a compact row once a key is set, keep the chat log re
   await expect(summary).toBeVisible();
   await expect(summary).not.toContainText("sk-ant-test");
   await expect(panel.getByLabel("Anthropic API key")).toHaveCount(0);
-  const toggle = panel.getByRole("button", { name: "Change", exact: true });
+  const toggle = panel.getByRole("button", { name: "Agent settings", exact: true });
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
 
   // Chat log reclaims the space the settings block used to occupy.
@@ -152,7 +153,9 @@ test("settings collapse to a compact row once a key is set, keep the chat log re
 test("with Ask before editing on, the panel shows the plan, edits nothing until Approve, then runs it with verified steps", async ({ page }) => {
   await openProjectWithClip(page);
   const panel = page.getByTestId("agent-panel");
+  await panel.getByRole("button", { name: "Agent settings", exact: true }).click();
   await expect(panel.getByLabel("Ask before editing")).toBeChecked();
+  await panel.getByRole("button", { name: "Done", exact: true }).click();
 
   await page.evaluate(async (intent) => {
     const url = "/src/app/agent/model-client.ts";
@@ -257,10 +260,13 @@ test("Edit sends free-text changes back for a revised plan; Reject leaves the pr
 test("turning Ask before editing off persists and the agent edits directly without plan tools", async ({ page }) => {
   await openProjectWithClip(page);
   const panel = page.getByTestId("agent-panel");
+  await panel.getByRole("button", { name: "Agent settings", exact: true }).click();
   await panel.getByLabel("Ask before editing").uncheck();
   await page.reload();
   await page.getByRole("tab", { name: "Agent" }).click();
+  await panel.getByRole("button", { name: "Agent settings", exact: true }).click();
   await expect(panel.getByLabel("Ask before editing")).not.toBeChecked();
+  await panel.getByRole("button", { name: "Done", exact: true }).click();
 
   await page.evaluate(async () => {
     const url = "/src/app/agent/model-client.ts";
