@@ -1,6 +1,6 @@
 import { mediaTime } from "#/engine/time";
 import { PROJECT_SCHEMA_VERSION, type Project } from "#/engine/model";
-import { ProjectFormatError } from "./types";
+import { ProjectFormatError, type UnreadableProject } from "./types";
 import { repairProject } from "./repair";
 
 export interface ProjectMigration {
@@ -21,7 +21,7 @@ export function migrateProject(
 ): Record<string, unknown> {
   let current = raw;
   let version = typeof current.version === "number" ? current.version : 0;
-  if (version > target) throw new ProjectFormatError(`Project was saved by a newer version (v${version})`);
+  if (version > target) throw new ProjectFormatError(`Project was saved by a newer version (v${version})`, "newer-version");
   while (version < target) {
     const step = migrations.find((m) => m.from === version);
     if (!step) throw new ProjectFormatError(`No migration from project version ${version}`);
@@ -94,4 +94,18 @@ export function deserializeProject(json: string | unknown): Project {
   });
   const sceneId = repaired.scenes.some((s) => s.id === repaired.currentSceneId) ? repaired.currentSceneId : (repaired.scenes.find((s) => s.isMain) ?? repaired.scenes[0])!.id;
   return { ...repaired, currentSceneId: sceneId, ...(repairs.length > 0 ? { repairNotes: repairs } : {}) };
+}
+
+/** Describes a stored row that `deserializeProject` rejected, without reading anything that could throw. */
+export function describeUnreadable(id: string, json: string, error: unknown): UnreadableProject {
+  let name: string | null = null;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    const metadata = isRecord(parsed) ? parsed.metadata : undefined;
+    if (isRecord(metadata) && typeof metadata.name === "string") name = metadata.name;
+  } catch {
+    name = null;
+  }
+  const newer = error instanceof ProjectFormatError && error.kind === "newer-version";
+  return { id, reason: newer ? "newer-version" : "damaged", detail: error instanceof Error ? error.message : "Unreadable project data", name };
 }

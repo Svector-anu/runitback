@@ -72,3 +72,7 @@ Real-model injection susceptibility, 30-minute timeline export (fixture `l1800.m
 - `tests/qa-mcp-bridge.test.ts` (passing)
 - `e2e/qa-adversarial.spec.ts` (QA-P1-1, P1-1b live; `test.fixme` remain for P2-1, P2-5)
 Typecheck and lint are clean on these files.
+
+
+## Status update
+QA-P2-1 (rename vs another tab) and QA-P2-5 (unreadable projects hidden) are fixed: see docs/PERSISTENCE.md and the un-fixme tests in e2e/qa-adversarial.spec.ts.

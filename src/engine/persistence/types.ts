@@ -1,9 +1,31 @@
 import type { MediaAssetInfo, Project, ProjectMetadata } from "#/engine/model";
 
+/** Why a stored project row cannot be opened. Rows are never repaired or deleted automatically. */
+export type UnreadableReason = "newer-version" | "damaged";
+
+export interface UnreadableProject {
+  id: string;
+  reason: UnreadableReason;
+  detail: string;
+  /** Best effort: the stored name when the row is still JSON with a string name. */
+  name: string | null;
+}
+
+export interface ProjectLibrary {
+  projects: ProjectMetadata[];
+  unreadable: UnreadableProject[];
+}
+
 export interface ProjectRepository {
   list(): Promise<ProjectMetadata[]>;
+  /** One pass over storage: readable projects (newest first) plus rows that failed to load. */
+  listLibrary(): Promise<ProjectLibrary>;
+  /** The stored JSON text exactly as persisted, readable or not. */
+  loadRaw(id: string): Promise<string | null>;
   load(id: string): Promise<Project | null>;
   save(project: Project): Promise<void>;
+  /** Atomically saves only if the stored row still has `expectedUpdatedAt`. Resolves false (writing nothing) when it changed or vanished. */
+  saveIfUnchanged(project: Project, expectedUpdatedAt: string): Promise<boolean>;
   delete(id: string): Promise<void>;
 }
 
@@ -32,7 +54,7 @@ export class StorageQuotaError extends Error {
 }
 
 export class ProjectFormatError extends Error {
-  constructor(message: string) {
+  constructor(message: string, readonly kind: "newer-version" | "invalid" = "invalid") {
     super(message);
     this.name = "ProjectFormatError";
   }
@@ -51,6 +73,14 @@ export class ProjectLockedError extends Error {
   constructor(readonly projectId: string) {
     super("This project is open in another tab");
     this.name = "ProjectLockedError";
+  }
+}
+
+/** The stored project changed between reading it and writing the edit back; nothing was written. */
+export class ProjectChangedError extends Error {
+  constructor(readonly projectId: string) {
+    super("This project changed while it was being updated. Try again.");
+    this.name = "ProjectChangedError";
   }
 }
 

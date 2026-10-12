@@ -1,6 +1,6 @@
 import { createProject, type IdGenerator, type MediaAssetInfo, type Project, type ProjectMetadata } from "#/engine/model";
 import { allElements } from "#/engine/timeline";
-import { ProjectLockedError, type AssetRepository, type DerivedDataPurger, type ProjectLocks, type ProjectRepository } from "./types";
+import { ProjectChangedError, ProjectLockedError, type AssetRepository, type ProjectLibrary, type DerivedDataPurger, type ProjectLocks, type ProjectRepository } from "./types";
 
 export type ProjectSortKey = "createdAt" | "updatedAt" | "name" | "duration";
 export type SortOrder = "asc" | "desc";
@@ -51,30 +51,61 @@ export class ProjectsService {
     return project;
   }
 
+  /** Readable projects plus rows that could not be read, so the library never hides stored data. */
+  listLibrary(): Promise<ProjectLibrary> {
+    return this.deps.projects.listLibrary();
+  }
+
+  /** The stored text of a project row, for saving a copy of data this version cannot open. */
+  loadRaw(id: string): Promise<string | null> {
+    return this.deps.projects.loadRaw(id);
+  }
+
+  /**
+   * Runs `work` while holding the project's cross-tab lock. The tab that has a project open owns the lock for its
+   * whole session and autosaves over the row, so any other writer would be reverted or would revert it.
+   */
+  private async withProjectLock<T>(id: string, work: () => Promise<T>): Promise<T> {
+    const lock = await this.deps.locks?.tryAcquire(id);
+    if (lock === null) throw new ProjectLockedError(id);
+    try {
+      return await work();
+    } finally {
+      lock?.release();
+    }
+  }
+
+  /** Refuses (ProjectLockedError) while another tab has the project open. The write is also compare-and-set on `updatedAt`, so a stale copy can never replace newer edits even where Web Locks are unavailable. */
   async rename(id: string, name: string): Promise<void> {
-    const project = await this.deps.projects.load(id);
-    if (!project) throw new Error(`Project ${id} not found`);
-    await this.deps.projects.save({ ...project, metadata: { ...project.metadata, name, updatedAt: this.deps.now() } });
+    await this.withProjectLock(id, async () => {
+      const project = await this.deps.projects.load(id);
+      if (!project) throw new Error(`Project ${id} not found`);
+      const renamed = { ...project, metadata: { ...project.metadata, name, updatedAt: this.deps.now() } };
+      if (!(await this.deps.projects.saveIfUnchanged(renamed, project.metadata.updatedAt))) throw new ProjectChangedError(id);
+    });
   }
 
   async duplicate(ids: ReadonlyArray<string>): Promise<string[]> {
     const existing = (await this.deps.projects.list()).map((p) => p.name);
     const created: string[] = [];
     for (const id of new Set(ids)) {
-      const source = await this.deps.projects.load(id);
-      if (!source) throw new Error(`Project ${id} not found`);
-      const now = this.deps.now();
-      const name = duplicateName(source.metadata.name, existing);
-      existing.push(name);
-      const copy: Project = { ...source, metadata: { ...source.metadata, id: this.deps.newId(), name, createdAt: now, updatedAt: now } };
-      try {
-        await this.deps.assets.copyAll(id, copy.metadata.id);
-        await this.deps.projects.save(copy);
-      } catch (error) {
-        await this.deps.assets.removeAll(copy.metadata.id).catch(() => undefined);
-        throw error;
-      }
-      created.push(copy.metadata.id);
+      const copyId = await this.withProjectLock(id, async () => {
+        const source = await this.deps.projects.load(id);
+        if (!source) throw new Error(`Project ${id} not found`);
+        const now = this.deps.now();
+        const name = duplicateName(source.metadata.name, existing);
+        existing.push(name);
+        const copy: Project = { ...source, metadata: { ...source.metadata, id: this.deps.newId(), name, createdAt: now, updatedAt: now } };
+        try {
+          await this.deps.assets.copyAll(id, copy.metadata.id);
+          await this.deps.projects.save(copy);
+        } catch (error) {
+          await this.deps.assets.removeAll(copy.metadata.id).catch(() => undefined);
+          throw error;
+        }
+        return copy.metadata.id;
+      });
+      created.push(copyId);
     }
     return created;
   }

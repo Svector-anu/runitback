@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { filterProjects, sortProjects, type ProjectSortKey, type SortOrder } from "#/engine/persistence";
+import { filterProjects, sortProjects, type ProjectSortKey, type SortOrder, type UnreadableProject } from "#/engine/persistence";
 import type { ProjectMetadata } from "#/engine/model";
 import { getServices } from "#/app/services";
 import type { BundleProgress } from "#/platform/bundle";
@@ -14,6 +14,7 @@ import { Dialog } from "../primitives/Dialog";
 import { ContextMenu, DropdownMenu, type ContextMenuState, type MenuEntry } from "../primitives/Menu";
 import { toast } from "../primitives/toast";
 import { formatDuration } from "../assets/MediaView";
+import { UnreadableProjectCard } from "./UnreadableProjectCard";
 
 interface ViewPrefs { mode: "grid" | "list"; key: ProjectSortKey; order: SortOrder }
 const isPrefs = (v: unknown): v is ViewPrefs => typeof v === "object" && v !== null && ["grid", "list"].includes((v as ViewPrefs).mode)
@@ -86,6 +87,8 @@ export function ProjectsPage(): ReactNode {
   const prefs = prefsStore.use((s) => s);
   const theme = uiStore.use((s) => s.theme);
   const [projects, setProjects] = useState<ProjectMetadata[] | null>(null);
+  const [unreadable, setUnreadable] = useState<UnreadableProject[]>([]);
+  const [discarding, setDiscarding] = useState<UnreadableProject | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [menu, setMenu] = useState<{ state: ContextMenuState; project: ProjectMetadata } | null>(null);
@@ -99,7 +102,9 @@ export function ProjectsPage(): ReactNode {
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      setProjects(await services.projects.list());
+      const library = await services.projects.listLibrary();
+      setProjects(library.projects);
+      setUnreadable(library.unreadable);
     } catch (error) {
       toast.error("Could not load projects", error instanceof Error ? error.message : undefined);
       setProjects([]);
@@ -208,6 +213,24 @@ export function ProjectsPage(): ReactNode {
     }
   };
 
+  const exportRaw = async (project: UnreadableProject): Promise<void> => {
+    try {
+      const raw = await services.projects.loadRaw(project.id);
+      if (raw === null) throw new Error("The stored data is gone");
+      downloadBlob(new Blob([raw], { type: "application/json" }), `${project.name ?? project.id}.raw.json`);
+    } catch (error) {
+      toast.error("Could not export the raw data", error instanceof Error ? error.message : undefined);
+    }
+  };
+  const discard = async (project: UnreadableProject): Promise<void> => {
+    try {
+      await services.projects.delete([project.id]);
+      await load();
+    } catch (error) {
+      toast.error("Failed to delete", error instanceof Error ? error.message : undefined);
+    }
+  };
+
   const menuEntries = (project: ProjectMetadata): MenuEntry[] => {
     const list = targets(project);
     return [
@@ -221,8 +244,8 @@ export function ProjectsPage(): ReactNode {
   };
 
   const loading = projects === null;
-  const empty = !loading && projects.length === 0;
-  const noResults = !loading && !empty && visible.length === 0;
+  const empty = !loading && projects.length === 0 && unreadable.length === 0;
+  const noResults = !loading && !empty && visible.length === 0 && projects.length > 0;
   const selectedProjects = visible.filter((p) => selected.includes(p.id));
 
   return (
@@ -270,6 +293,13 @@ export function ProjectsPage(): ReactNode {
         ) : null}
       </div>
       <main className="page__main">
+        {unreadable.length > 0 ? (
+          <section aria-label="Projects that cannot be opened" className="project-grid" style={{ marginBottom: 24 }}>
+            {unreadable.map((u) => (
+              <UnreadableProjectCard key={u.id} project={u} onRetry={() => void load()} onExportRaw={() => void exportRaw(u)} onDelete={() => setDiscarding(u)} />
+            ))}
+          </section>
+        ) : null}
         {loading ? (
           <div className="project-grid" aria-busy="true" aria-label="Loading projects">
             {Array.from({ length: 8 }, (_, i) => <div key={i}><div className="skeleton" style={{ aspectRatio: "16/9" }} /><div className="skeleton" style={{ height: 16, width: "75%", marginTop: 16 }} /><div className="skeleton" style={{ height: 16, width: 96, marginTop: 8 }} /></div>)}
@@ -313,6 +343,10 @@ export function ProjectsPage(): ReactNode {
         title={dialog?.projects.length === 1 ? `Delete '${dialog.projects[0]?.name}'?` : `Delete ${dialog?.projects.length ?? 0} projects?`}
         footer={<><Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button><Button variant="destructive" onClick={() => { const list = dialog?.projects ?? []; setDialog(null); void remove(list); }}>Delete project</Button></>}>
         <div className="alert alert--destructive" role="alert"><div><strong>Warning</strong><br />This will permanently delete the project and all associated media from this browser.</div></div>
+      </Dialog>
+      <Dialog open={discarding !== null} onClose={() => setDiscarding(null)} title={`Delete '${discarding?.name ?? discarding?.id ?? ""}'?`}
+        footer={<><Button variant="outline" onClick={() => setDiscarding(null)}>Cancel</Button><Button variant="destructive" onClick={() => { const p = discarding; setDiscarding(null); if (p) void discard(p); }}>Delete project</Button></>}>
+        <div className="alert alert--destructive" role="alert"><div><strong>Warning</strong><br />This permanently deletes the unreadable project and its media from this browser. Export the raw data first if you may want it.</div></div>
       </Dialog>
       <Dialog open={dialog?.kind === "export"} onClose={() => setDialog(null)} title={`Export '${dialog?.projects[0]?.name ?? ""}'`}
         footer={<><Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button><Button onClick={() => { const p = dialog?.projects[0]; setDialog(null); if (p) void exportProject(p); }}>Export</Button></>}>

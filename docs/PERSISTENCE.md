@@ -9,6 +9,23 @@
 | Derived data, keyed by asset id | IndexedDB `runitback-analysis` (key `<assetId>:<size>:<lastModified>`), `runitback-transcripts`, `runitback-visual`, `runitback-faces` | the four `Idb*Store`s |
 | Preferences, incl. the persist-storage result | localStorage via `platform/prefs.ts` only | `PrefsStore` |
 
+## Project locks and library metadata writes
+
+The tab that has a project open holds its Web Lock (`platform/project-locks.ts`) for the whole session and autosaves over the stored row. Every other writer of that row goes through `ProjectsService` and must hold the same lock for the duration of its read-modify-write:
+
+- `rename`, `duplicate` (source read) and `delete` call `tryAcquire`; when another tab holds the lock they throw `ProjectLockedError` ("This project is open in another tab") and write nothing. There is no cross-tab message routing: refusing is the simplest design that cannot lose either side's data.
+- `rename` additionally writes with `ProjectRepository.saveIfUnchanged(project, expectedUpdatedAt)`, an atomic compare-and-set on `metadata.updatedAt` (one IndexedDB readwrite transaction). A stale copy therefore never overwrites newer edits even where Web Locks are unavailable (`UncontendedProjectLocks`); the failure is `ProjectChangedError` and nothing is written.
+
+## Unreadable projects
+
+`ProjectRepository.listLibrary()` makes one pass over the stored rows and returns `{ projects, unreadable }`; `list()` is its `projects` half. A row that fails `deserializeProject` (corrupt JSON, empty, missing scenes, schema newer than `PROJECT_SCHEMA_VERSION`) becomes an `UnreadableProject { id, reason: "newer-version" | "damaged", detail, name }` (`name` only if the row is still JSON with a string name). The projects page shows these as "Cannot open: ..." cards above the library with:
+
+- Retry: reloads the library (e.g. after updating the app).
+- Export raw: downloads the stored JSON text byte for byte (`ProjectRepository.loadRaw`).
+- Delete: confirmed, then the normal `ProjectsService.delete` (lock respected, media and derived data removed).
+
+Nothing is deleted or rewritten automatically, and the empty state "No projects yet" only shows when there are neither readable nor unreadable rows.
+
 ## Derived data lifecycle
 
 Every store of per-asset derived data is registered in a `DerivedDataRegistry` (`platform/derived-data.ts`; the browser set is built by `browserDerivedData()` in `derived-data-adapters.ts`). A new kind of derived data is only correct once it is registered: it then gets purge, stray collection, export and import for free.

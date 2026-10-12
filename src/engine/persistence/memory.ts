@@ -1,6 +1,6 @@
 import type { MediaAssetInfo, Project, ProjectMetadata } from "#/engine/model";
-import { deserializeProject, serializeProject } from "./serialization";
-import type { AssetRepository, ProjectRepository, StoredAsset } from "./types";
+import { describeUnreadable, deserializeProject, serializeProject } from "./serialization";
+import type { AssetRepository, ProjectLibrary, ProjectRepository, StoredAsset } from "./types";
 
 /** In-memory repositories for tests and as a no-storage fallback. Projects round-trip through JSON like real storage. */
 export class MemoryProjectRepository implements ProjectRepository {
@@ -9,8 +9,26 @@ export class MemoryProjectRepository implements ProjectRepository {
   failNextSaves = 0;
 
   async list(): Promise<ProjectMetadata[]> {
-    return [...this.records.values()].map((json) => deserializeProject(json).metadata)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return (await this.listLibrary()).projects;
+  }
+  async listLibrary(): Promise<ProjectLibrary> {
+    const projects: ProjectMetadata[] = [];
+    const unreadable: ProjectLibrary["unreadable"] = [];
+    for (const [id, json] of this.records) {
+      try {
+        projects.push(deserializeProject(json).metadata);
+      } catch (error) {
+        unreadable.push(describeUnreadable(id, json, error));
+      }
+    }
+    return { projects: projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), unreadable };
+  }
+  async loadRaw(id: string): Promise<string | null> {
+    return this.records.get(id) ?? null;
+  }
+  /** Test hook: stores text verbatim, bypassing serialization. */
+  putRaw(id: string, json: string): void {
+    this.records.set(id, json);
   }
   async load(id: string): Promise<Project | null> {
     const json = this.records.get(id);
@@ -23,6 +41,12 @@ export class MemoryProjectRepository implements ProjectRepository {
     }
     this.saveCount++;
     this.records.set(project.metadata.id, serializeProject(project));
+  }
+  async saveIfUnchanged(project: Project, expectedUpdatedAt: string): Promise<boolean> {
+    const json = this.records.get(project.metadata.id);
+    if (json === undefined || deserializeProject(json).metadata.updatedAt !== expectedUpdatedAt) return false;
+    await this.save(project);
+    return true;
   }
   async delete(id: string): Promise<void> {
     this.records.delete(id);

@@ -1,7 +1,7 @@
 import type { MediaAssetInfo, Project, ProjectMetadata } from "#/engine/model";
 import {
-  StorageQuotaError, deserializeProject, isQuotaExceededError, serializeProject,
-  type AssetRepository, type ProjectRepository, type StoredAsset,
+  StorageQuotaError, describeUnreadable, deserializeProject, isQuotaExceededError, serializeProject,
+  type AssetRepository, type ProjectLibrary, type ProjectRepository, type StoredAsset,
 } from "#/engine/persistence";
 import { CURRENT } from "./legacy-migration";
 import { openDatabase, KeyValueStore, prefixRange } from "./idb";
@@ -32,16 +32,26 @@ export class IdbProjectRepository implements ProjectRepository {
   constructor(private readonly db: Database) {}
 
   async list(): Promise<ProjectMetadata[]> {
+    return (await this.listLibrary()).projects;
+  }
+
+  async listLibrary(): Promise<ProjectLibrary> {
     const rows = await this.db.projects.getAll();
-    const out: ProjectMetadata[] = [];
+    const projects: ProjectMetadata[] = [];
+    const unreadable: ProjectLibrary["unreadable"] = [];
     for (const row of rows) {
       try {
-        out.push(deserializeProject(row.json).metadata);
+        projects.push(deserializeProject(row.json).metadata);
       } catch (error) {
-        console.warn(`Skipping unreadable project ${row.id}`, error);
+        unreadable.push(describeUnreadable(row.id, typeof row.json === "string" ? row.json : "", error));
       }
     }
-    return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return { projects: projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), unreadable };
+  }
+
+  async loadRaw(id: string): Promise<string | null> {
+    const row = await this.db.projects.get(id);
+    return row ? (typeof row.json === "string" ? row.json : JSON.stringify(row)) : null;
   }
 
   async load(id: string): Promise<Project | null> {
@@ -51,6 +61,18 @@ export class IdbProjectRepository implements ProjectRepository {
 
   async save(project: Project): Promise<void> {
     await this.db.projects.put({ id: project.metadata.id, json: serializeProject(project) });
+  }
+
+  async saveIfUnchanged(project: Project, expectedUpdatedAt: string): Promise<boolean> {
+    return this.db.projects.update(project.metadata.id, (row) => {
+      if (!row) return undefined;
+      try {
+        if (deserializeProject(row.json).metadata.updatedAt !== expectedUpdatedAt) return undefined;
+      } catch {
+        return undefined;
+      }
+      return { id: project.metadata.id, json: serializeProject(project) };
+    });
   }
 
   async delete(id: string): Promise<void> {

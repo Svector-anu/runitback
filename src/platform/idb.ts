@@ -52,6 +52,19 @@ export class KeyValueStore<T> {
     await done(tx);
   }
 
+  /** Atomic read-modify-write in one transaction; `decide` returns the value to store, or undefined to leave the row alone. Resolves whether it wrote. */
+  async update(key: IDBValidKey, decide: (current: T | undefined) => T | undefined): Promise<boolean> {
+    const db = await this.dbPromise;
+    const tx = db.transaction(this.store, "readwrite");
+    const objectStore = tx.objectStore(this.store);
+    const current = await asPromise(objectStore.get(key) as IDBRequest<T | undefined>);
+    const next = decide(current);
+    if (next === undefined) return false;
+    objectStore.put(next);
+    await done(tx);
+    return true;
+  }
+
   async delete(key: IDBValidKey): Promise<void> {
     const db = await this.dbPromise;
     const tx = db.transaction(this.store, "readwrite");
