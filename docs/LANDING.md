@@ -9,7 +9,7 @@ The landing page is `/` (the real pathname, no hash). The app is `/app` and `/#/
 | All copy, links, FAQ, feature cards, steps, image paths | `src/ui/pages/landing-content.ts` (the only file a non-engineer needs) |
 | Lazy entry (keeps the landing out of the editor bundle) | `src/ui/pages/Landing.tsx` |
 | Section order (one line per section) | `src/ui/pages/landing/LandingPage.tsx` |
-| Sections | `src/ui/pages/landing/` : `Nav`, `Hero`, `WorksWith`, `Product`, `Features`, `How`, `Plan`, `Faq`, `FinalCta`, `Footer` |
+| Sections | `src/ui/pages/landing/` : `Nav`, `Hero`, `WorksWith`, `Product`, `Features`, `How`, `Plan`, `Compare`, `OpenSource`, `Faq`, `FinalCta`, `Footer` |
 | Shared bits (arrow icons, eyebrow, section header, anchor handling) | `src/ui/pages/landing/parts.tsx` |
 | Scroll reveal | `src/ui/pages/landing/use-reveal.ts` (IntersectionObserver, no dependency) |
 | Page layout CSS (prefix `lp-`) | `src/ui/styles/landing.css` |
@@ -20,11 +20,39 @@ The landing page is `/` (the real pathname, no hash). The app is `/app` and `/#/
 | Tests | `e2e/landing-page.spec.ts`, `e2e/landing-app-split.spec.ts`, `e2e/ux-guidance.spec.ts`, `tests/landing-content.test.ts` |
 | Generators (opt-in) | `e2e/landing-shots.spec.ts` (product screenshots), `e2e/landing-brand.spec.ts` (logo sheet, apple-touch-icon, og-image) |
 
-Section anchors: `#product`, `#features`, `#how-it-works`, `#faq`. Anchor clicks are intercepted and scrolled by `scrollToSection`; they must never write `location.hash`, because `App.tsx` treats any non-empty hash on `/` as an app route and would unmount the landing page.
+Section anchors: `#product`, `#features`, `#how-it-works`, `#compare`, `#open-source`, `#faq`. Anchor clicks are intercepted and scrolled by `scrollToSection`; they must never write `location.hash`, because `App.tsx` treats any non-empty hash on `/` as an app route and would unmount the landing page.
+
+## Positioning and messaging (open source, CapCut alternative)
+
+Owner decision: RunItBack launches as open source under the MIT license (repo `https://github.com/Svector-anu/runitback`, private until the owner makes it public; the star and README, CONTRIBUTING, LICENSE links work from then on). Positioning: the open-source CapCut alternative with an AI agent.
+
+Headline options considered:
+
+1. The open-source video editor you can just talk to (now the footer tagline)
+2. The open-source CapCut alternative. Tell your video editor what to do. (chosen)
+3. Don't use CapCut again (rejected: reads as an attack, fails the do-not-disparage rule)
+4. Edit video by describing it. Free, open source, in your browser.
+
+Chosen: the h1 is a small first line (`hero.kicker`, "The open-source CapCut alternative") plus the large line "Tell your video editor what to do" (`hero.headline`). The CapCut-alternative line gives the stranger the category in one glance, and the large line keeps the plain-English promise. The phrase "Tell your video editor what to do" stays inside the h1 because `landing-app-split` and `ux-guidance` specs locate the heading by that text. Status pill: "Open source · MIT".
+
+New content fields in `landing-content.ts`: `github` (repo, starLabel, readme, contributing, license, notice, issues), `license`, `trademarkNote` (rendered in the footer, verbatim), plus the `compare` and `openSource` sections. Star affordances (all plain links, `target=_blank rel="noopener noreferrer"`, star icon is inline SVG): nav pill (icon only between 901 and 1240 px, in the menu on mobile), hero secondary CTA, Open source panel, final CTA, footer column.
+
+No live star count: the CSP `connect-src` does not allow `api.github.com` and the page must not call third parties. To add one later, fetch the count at build time (a script in `tools/` that writes `public/landing/stars.json`, run before `vite build`, rendered by the nav pill), or add `https://api.github.com` to `connect-src` in `vercel.json` and `index.html` deliberately and accept the runtime call. Never hard-code a number.
+
+### CapCut facts used (verified in real Chrome, 12 October 2026)
+
+Sources: `https://www.capcut.com/` and `https://www.capcut.com/pricing`.
+
+- Products listed on the home page: CapCut Desktop, CapCut Online, CapCut Pad, CapCut Mobile. Used for "Runs in your browser: yes (CapCut Online), also desktop apps" and "Mobile app: yes, on mobile, tablet and desktop".
+- Pricing page: a Free plan ("Free templates to start fast", "Basic editing tools") and paid Pro, Ultra and Teams plans. Used for "A free plan, plus paid Pro, Ultra and Teams plans". No prices, credit counts or limits are quoted (they vary by region and change).
+- Home page: "Templates for Everything", AI editing tools, auto captions, caption templates, an AI video editor chat. Used for "A large library of templates, effects and AI tools" and "AI tools that generate and edit".
+- Feature naming learned from the pages (names only, no copy reused): "Auto captions", "Caption templates", "Remove video BG", "Enhance voice", "Try online for free" as CTA, feature grids grouped by Image / Video / Text & Audio / Creative Templates. OpenCut (opencut.app) pairs a short "The open source video editor" headline with a "Try early beta" CTA and a star pill in the nav.
+- Not asserted, because not verified: CapCut's data handling and privacy (the table says "Check CapCut's privacy policy"), whether its source is published (the table says "No", based on it being a commercial product with a License Agreement page; recheck before launch), exact prices and limits, how its AI editing works.
+- Re-check these before each release; the page carries "checked on 12 October 2026" in `compare.checked`.
 
 ## Change copy
 
-Edit `landing-content.ts`. Everything visible is a string or array there: hero text, nav links, trust line, the six feature cards (`features.items`), the five steps (`how.steps`), the plan panel bullets, FAQ entries (`faq.items`), footer columns. `tests/landing-content.test.ts` guards the shape: headline, step names (the e2e specs match them), FAQ topics, section targets, image files exist, no licence or metric claims. Honesty rule: describe only what ships; unfinished items take `soonNote` ("... coming soon"). Do not add logos, ratings, testimonials or numbers unless they are real.
+Edit `landing-content.ts`. Everything visible is a string or array there: hero text, nav links, trust line, the six feature cards (`features.items`), the five steps (`how.steps`), the plan panel bullets, FAQ entries (`faq.items`), footer columns. `tests/landing-content.test.ts` guards the shape: headline, step names (the e2e specs match them), FAQ topics, section targets, image files exist, MIT and GitHub fields consistent, the verbatim trademark note, CapCut marked ahead where it is, no customer, rating, metric or star-count claims. Honesty rule: describe only what ships; unfinished items take `soonNote` ("... coming soon"). Do not add logos, ratings, testimonials or numbers unless they are real.
 
 ## Remove a section
 

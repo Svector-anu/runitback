@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
 import { LANDING_CONTENT } from "../landing-content";
-import { ArrowUpRight, Check, sectionLinkProps, stagger, startEditing } from "./parts";
+import { ArrowUpRight, Check, EXTERNAL_LINK_PROPS, StarIcon, stagger, startEditing } from "./parts";
 
-const { hero } = LANDING_CONTENT;
+const { hero, github } = LANDING_CONTENT;
 
 export function Hero(): ReactNode {
   return (
@@ -10,11 +10,11 @@ export function Hero(): ReactNode {
       <div className="lp-hero__frame zn-frame">
         <div className="lp-hero__copy">
           <p className="zn-tag zn-reveal"><i className="zn-dot" aria-hidden="true" />{hero.status}</p>
-          <h1 className="zn-h1 lp-hero__title zn-reveal" style={stagger(1)}>{hero.headline}</h1>
+          <h1 className="zn-h1 lp-hero__title zn-reveal" style={stagger(1)}><span className="lp-hero__kicker">{hero.kicker}</span> {hero.headline}</h1>
           <p className="zn-lead lp-hero__sub zn-reveal" style={stagger(2)}>{hero.sub}</p>
           <div className="lp-hero__ctas zn-reveal" style={stagger(3)}>
             <button type="button" className="zn-btn zn-btn--primary" onClick={startEditing}>{hero.primaryCta}<span className="zn-btn__circle"><ArrowUpRight /></span></button>
-            <a className="zn-btn zn-btn--secondary" {...sectionLinkProps(hero.secondaryCta.target)}>{hero.secondaryCta.label}</a>
+            <a className="zn-btn zn-btn--secondary lp-star" href={github.repo} {...EXTERNAL_LINK_PROPS}><StarIcon />{hero.githubCta}</a>
           </div>
           <ul className="lp-trust zn-reveal" style={stagger(4)} aria-label="Why it is safe to try">
             {hero.trust.map((item) => <li key={item}><Check size={13} />{item}</li>)}

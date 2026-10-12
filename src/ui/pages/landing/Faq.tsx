@@ -33,7 +33,7 @@ export function Faq(): ReactNode {
 
   return (
     <section id="faq" className="lp-section lp-wrap" aria-labelledby="faq-title" tabIndex={-1}>
-      <SectionHead index={6} eyebrow={faq.eyebrow} title={faq.title} titleId="faq-title" />
+      <SectionHead index={8} eyebrow={faq.eyebrow} title={faq.title} titleId="faq-title" />
       <div className="zn-frame lp-faq">
         <div className="lp-faq__list">
           {faq.items.map((item, index) => {

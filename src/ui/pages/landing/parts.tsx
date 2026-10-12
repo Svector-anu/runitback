@@ -40,6 +40,17 @@ export function ArrowUpRight({ size = 14 }: { size?: number }): ReactNode {
   );
 }
 
+export function StarIcon({ size = 16 }: { size?: number }): ReactNode {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 1.9l1.78 3.8 4.14.5-3.05 2.84.8 4.1L8 11.1l-3.67 2.04.8-4.1L2.08 6.2l4.14-.5L8 1.9z" />
+    </svg>
+  );
+}
+
+/** Plain external link to the repository. No live star count: the CSP blocks api.github.com (see docs/LANDING.md). */
+export const EXTERNAL_LINK_PROPS = { target: "_blank", rel: "noopener noreferrer" } as const;
+
 export function ArrowDown(): ReactNode {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

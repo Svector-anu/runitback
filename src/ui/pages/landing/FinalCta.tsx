@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { LANDING_CONTENT } from "../landing-content";
-import { ArrowUpRight, sectionLinkProps, stagger, startEditing } from "./parts";
+import { ArrowUpRight, EXTERNAL_LINK_PROPS, StarIcon, stagger, startEditing } from "./parts";
 
-const { finalCta } = LANDING_CONTENT;
+const { finalCta, github } = LANDING_CONTENT;
 
 export function FinalCta(): ReactNode {
   return (
@@ -14,7 +14,7 @@ export function FinalCta(): ReactNode {
           <p className="zn-lead zn-reveal" style={stagger(2)}>{finalCta.body}</p>
           <div className="lp-hero__ctas zn-reveal" style={stagger(3)}>
             <button type="button" className="zn-btn zn-btn--primary" onClick={startEditing}>{finalCta.primaryCta}<span className="zn-btn__circle"><ArrowUpRight /></span></button>
-            <a className="zn-btn zn-btn--secondary" {...sectionLinkProps("faq")}>{finalCta.secondaryCta}</a>
+            <a className="zn-btn zn-btn--secondary lp-star" href={github.repo} {...EXTERNAL_LINK_PROPS}><StarIcon />{finalCta.githubCta}</a>
           </div>
         </div>
         <figure className="lp-cta__shot zn-reveal" style={stagger(2)}>

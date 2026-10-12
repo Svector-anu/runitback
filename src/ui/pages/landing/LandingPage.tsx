@@ -4,10 +4,12 @@ import "../../styles/landing.css";
 import { Faq } from "./Faq";
 import { Features } from "./Features";
 import { FinalCta } from "./FinalCta";
+import { Compare } from "./Compare";
 import { Footer } from "./Footer";
 import { Hero } from "./Hero";
 import { How } from "./How";
 import { Nav } from "./Nav";
+import { OpenSource } from "./OpenSource";
 import { Plan } from "./Plan";
 import { Product } from "./Product";
 import { WorksWith } from "./WorksWith";
@@ -42,6 +44,8 @@ export function LandingPage(): ReactNode {
         <Features />
         <How />
         <Plan />
+        <Compare />
+        <OpenSource />
         <Faq />
         <FinalCta />
       </main>

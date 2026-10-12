@@ -7,8 +7,10 @@
  * as "Coming soon". Do not add customer logos, ratings, testimonials or metrics unless they are real.
  */
 
+const REPO = "https://github.com/Svector-anu/runitback";
+
 export interface NavLink { label: string; target: SectionId }
-export type SectionId = "product" | "features" | "how-it-works" | "faq";
+export type SectionId = "product" | "features" | "how-it-works" | "compare" | "open-source" | "faq";
 
 export interface ShotImage {
   src: string;
@@ -36,17 +38,35 @@ export interface FeatureItem {
 
 export interface StepItem { title: string; body: string }
 export interface FaqItem { question: string; answer: string }
-export interface FooterColumn { title: string; links: Array<{ label: string; href: string; target?: SectionId }> }
+export interface FooterColumn { title: string; links: Array<{ label: string; href: string; target?: SectionId; external?: boolean }> }
+export interface CompareRow {
+  feature: string;
+  runitback: string;
+  capcut: string;
+  /** Which side is ahead on this row. Omit when neither is. Rendered as a small "ahead" tag. */
+  ahead?: "runitback" | "capcut";
+}
+export interface OpenSourcePart { title: string; body: string }
+export interface ExternalLink { label: string; href: string }
 
 export interface LandingContent {
   brand: string;
+  /**
+   * GitHub links. The repository is private until the owner makes it public; the star link works from then on.
+   * There is deliberately no live star count: the CSP blocks api.github.com. See docs/LANDING.md.
+   */
+  github: { repo: string; starLabel: string; readme: string; contributing: string; license: string; notice: string; issues: string };
+  license: { name: string; badge: string; url: string };
+  trademarkNote: string;
   nav: { links: NavLink[]; cta: string; menuLabel: string };
   hero: {
     status: string;
+    /** First line of the h1, set smaller above the headline. */
+    kicker: string;
     headline: string;
     sub: string;
     primaryCta: string;
-    secondaryCta: { label: string; target: SectionId };
+    githubCta: string;
     trust: string[];
     strip: ShotImage[];
   };
@@ -63,29 +83,61 @@ export interface LandingContent {
   features: { eyebrow: string; title: string; intro: string; items: FeatureItem[] };
   how: { eyebrow: string; title: string; intro: string; steps: StepItem[] };
   plan: { eyebrow: string; title: string; points: string[]; image: ShotImage };
+  compare: {
+    eyebrow: string;
+    title: string;
+    intro: string;
+    columns: { feature: string; runitback: string; capcut: string };
+    rows: CompareRow[];
+    aheadLabel: string;
+    checked: string;
+  };
+  openSource: {
+    eyebrow: string;
+    title: string;
+    intro: string;
+    openLabel: string;
+    parts: OpenSourcePart[];
+    contribute: { title: string; body: string; links: ExternalLink[] };
+    credit: { text: string; noticeLabel: string };
+  };
   faq: { eyebrow: string; title: string; items: FaqItem[]; aside: { title: string; body: string; cta: string } };
-  finalCta: { status: string; title: string; body: string; primaryCta: string; secondaryCta: string; image: ShotImage };
+  finalCta: { status: string; title: string; body: string; primaryCta: string; githubCta: string; image: ShotImage };
   footer: { tagline: string; columns: FooterColumn[]; card: { title: string; body: string; cta: string }; note: string; legal: string };
 }
 
 export const LANDING_CONTENT: LandingContent = {
   brand: "RunItBack",
+  github: {
+    repo: REPO,
+    starLabel: "Star on GitHub",
+    readme: `${REPO}#readme`,
+    contributing: `${REPO}/blob/main/CONTRIBUTING.md`,
+    license: `${REPO}/blob/main/LICENSE`,
+    notice: `${REPO}/blob/main/NOTICE.md`,
+    issues: `${REPO}/issues`,
+  },
+  license: { name: "MIT", badge: "MIT licensed", url: `${REPO}/blob/main/LICENSE` },
+  trademarkNote: "CapCut is a trademark of its respective owner. RunItBack is not affiliated with or endorsed by it.",
   nav: {
     links: [
       { label: "Features", target: "features" },
       { label: "How it works", target: "how-it-works" },
+      { label: "Compare", target: "compare" },
+      { label: "Open source", target: "open-source" },
       { label: "FAQ", target: "faq" },
     ],
     cta: "Start editing",
     menuLabel: "Menu",
   },
   hero: {
-    status: "Free in your browser · Chrome",
+    status: "Open source · MIT",
+    kicker: "The open-source CapCut alternative",
     headline: "Tell your video editor what to do",
-    sub: "RunItBack is a video editor with an AI agent built in. Import your clips, describe the edit in plain words, review the plan, and export. Your media never leaves your browser.",
+    sub: "RunItBack is a free video editor with an AI agent built in. Describe the edit in plain words, review the plan, and export. It runs in your browser, and the code is yours to read and change.",
     primaryCta: "Start editing",
-    secondaryCta: { label: "See how it works", target: "how-it-works" },
-    trust: ["100% local", "No upload", "Works in Chrome"],
+    githubCta: "Star on GitHub",
+    trust: ["Open source", "100% local", "No upload", "Works in Chrome"],
     strip: [
       { src: "/landing/card-timeline.webp", alt: "A close view of the timeline with three clips", width: 1200, height: 245, position: "0% 50%", ratio: 1.3 },
       { src: "/landing/card-preview.webp", alt: "The RunItBack preview window showing a sunset clip", width: 900, height: 687, position: "50% 100%", ratio: 1.5 },
@@ -188,6 +240,44 @@ export const LANDING_CONTENT: LandingContent = {
     ],
     image: { src: "/landing/card-plan.webp", alt: "The agent panel with a plan: three steps, each with tools, targets and a check, waiting for approval.", width: 800, height: 1107, position: "50% 0%" },
   },
+  compare: {
+    eyebrow: "Compare",
+    title: "RunItBack vs CapCut",
+    intro: "CapCut is a well-known editor with a lot behind it. Here is where RunItBack is different, and where it is not there yet.",
+    columns: { feature: "", runitback: "RunItBack", capcut: "CapCut" },
+    rows: [
+      { feature: "Open source", runitback: "Yes, MIT licensed", capcut: "No", ahead: "runitback" },
+      { feature: "Runs in your browser", runitback: "Yes, nothing to install", capcut: "Yes, with CapCut Online. It also has desktop apps." },
+      { feature: "Files stay on your device while editing", runitback: "Yes, stored in your browser. The agent sends text and the frames it looks at to Anthropic, with your own key.", capcut: "Check CapCut's privacy policy." },
+      { feature: "Edit by describing it", runitback: "Yes. An agent proposes a plan, you approve it, and one undo reverts it.", capcut: "AI tools that generate and edit. Check CapCut for how they work." },
+      { feature: "Price", runitback: "Free. The agent uses your own Anthropic API key.", capcut: "A free plan, plus paid Pro, Ultra and Teams plans." },
+      { feature: "Mobile app", runitback: "Not yet. Desktop Chrome for now.", capcut: "Yes, on mobile, tablet and desktop.", ahead: "capcut" },
+      { feature: "Templates, stickers and effects", runitback: "Core effects and filters are coming soon to the editor. No template library.", capcut: "A large library of templates, effects and AI tools.", ahead: "capcut" },
+    ],
+    aheadLabel: "Ahead",
+    checked: "CapCut details checked on capcut.com on 12 October 2026. Plans and features change, so check CapCut for the latest.",
+  },
+  openSource: {
+    eyebrow: "Open source",
+    title: "Built in the open.",
+    intro: "RunItBack is released under the MIT license. Read it, run it, change it, and ship your own version.",
+    openLabel: "What is open",
+    parts: [
+      { title: "The editor", body: "Timeline, preview and export, plus the editing engine underneath them." },
+      { title: "The agent", body: "The tools it edits with, how plans are made and the prompts it runs on." },
+      { title: "The evals", body: "Scored briefs that check what the agent does. They run with no network and no key." },
+    ],
+    contribute: {
+      title: "Want to help?",
+      body: "Star the repository, pick an issue and open a pull request. Bug reports, small fixes, new evals and docs are all welcome.",
+      links: [
+        { label: "README", href: `${REPO}#readme` },
+        { label: "CONTRIBUTING", href: `${REPO}/blob/main/CONTRIBUTING.md` },
+        { label: "LICENSE", href: `${REPO}/blob/main/LICENSE` },
+      ],
+    },
+    credit: { text: "RunItBack started from OpenCut, also MIT licensed. Credit is in", noticeLabel: "the NOTICE file" },
+  },
   faq: {
     eyebrow: "FAQ",
     title: "Questions, answered plainly.",
@@ -214,7 +304,15 @@ export const LANDING_CONTENT: LandingContent = {
       },
       {
         question: "Is it open source?",
-        answer: "Not yet. The licence has not been decided, so today the code is not published. Source available soon.",
+        answer: "Yes. RunItBack is released under the MIT license, so you can use, change and share it freely. The code is on GitHub, and it started from OpenCut, which is also MIT.",
+      },
+      {
+        question: "Why not just use CapCut?",
+        answer: "You may well like CapCut. It has mobile apps and a big library of templates and effects, and RunItBack does not. Choose RunItBack if you want an editor whose code you can read and change, that runs in your browser, and an agent that shows a plan before it edits anything. It is free, and the agent uses your own Anthropic key.",
+      },
+      {
+        question: "How do I contribute?",
+        answer: "Star the repository on GitHub, read CONTRIBUTING, then open an issue or a pull request. Bug reports, small fixes, new evals and docs are all welcome.",
       },
     ],
     aside: {
@@ -224,22 +322,32 @@ export const LANDING_CONTENT: LandingContent = {
     },
   },
   finalCta: {
-    status: "Free in your browser · Chrome",
+    status: "Open source · MIT",
     title: "Your next edit starts with a sentence.",
     body: "Open the editor, drop in a clip and tell it what to do. Your media stays on your machine.",
     primaryCta: "Open the editor",
-    secondaryCta: "Read the FAQ",
+    githubCta: "Star on GitHub",
     image: { src: "/landing/editor-dark.webp", alt: "The RunItBack editor in the dark theme with a three-clip timeline.", width: 1800, height: 1125, position: "50% 30%" },
   },
   footer: {
-    tagline: "Tell your video editor what to do.",
+    tagline: "The open-source video editor you can just talk to.",
     columns: [
       {
         title: "Product",
         links: [
           { label: "Features", href: "#features", target: "features" },
           { label: "How it works", href: "#how-it-works", target: "how-it-works" },
+          { label: "Compare", href: "#compare", target: "compare" },
           { label: "FAQ", href: "#faq", target: "faq" },
+        ],
+      },
+      {
+        title: "Open source",
+        links: [
+          { label: "GitHub", href: REPO, external: true },
+          { label: "README", href: `${REPO}#readme`, external: true },
+          { label: "CONTRIBUTING", href: `${REPO}/blob/main/CONTRIBUTING.md`, external: true },
+          { label: "LICENSE", href: `${REPO}/blob/main/LICENSE`, external: true },
         ],
       },
       {
@@ -251,7 +359,7 @@ export const LANDING_CONTENT: LandingContent = {
       },
     ],
     card: { title: "Got footage? Start cutting.", body: "Open the editor and import a clip. Nothing to install, nothing to upload.", cta: "Start editing" },
-    note: "Source available soon.",
+    note: "Open source under the MIT license.",
     legal: "RunItBack. Made for Chrome.",
   },
 };

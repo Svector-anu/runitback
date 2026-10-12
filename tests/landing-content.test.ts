@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { LANDING_CONTENT, type ShotImage } from "../src/ui/pages/landing-content";
 
 const PUBLIC = join(__dirname, "..", "public");
-const SECTION_IDS = ["product", "features", "how-it-works", "faq"];
+const SECTION_IDS = ["product", "features", "how-it-works", "compare", "open-source", "faq"];
 
 function allShots(): ShotImage[] {
   const c = LANDING_CONTENT;
@@ -27,7 +27,6 @@ describe("landing content shape", () => {
 
   it("only links to sections that exist", () => {
     for (const link of LANDING_CONTENT.nav.links) expect(SECTION_IDS).toContain(link.target);
-    expect(SECTION_IDS).toContain(LANDING_CONTENT.hero.secondaryCta.target);
     for (const column of LANDING_CONTENT.footer.columns) for (const link of column.links) if (link.target) expect(SECTION_IDS).toContain(link.target);
   });
 
@@ -46,20 +45,50 @@ describe("landing content shape", () => {
 
   it("answers every FAQ question and covers the required topics", () => {
     const faq = LANDING_CONTENT.faq.items;
-    expect(faq.length).toBeGreaterThanOrEqual(6);
+    expect(faq.length).toBeGreaterThanOrEqual(8);
     for (const item of faq) {
       expect(item.question.trim().endsWith("?")).toBe(true);
       expect(item.answer.trim().length).toBeGreaterThan(20);
     }
     const questions = faq.map((f) => f.question).join(" | ");
-    for (const topic of ["uploaded", "cost", "browsers", "models", "Understand download", "open source"]) expect(questions).toContain(topic);
+    for (const topic of ["uploaded", "cost", "browsers", "models", "Understand download", "open source", "CapCut", "contribute"]) expect(questions).toContain(topic);
   });
 
-  it("does not claim an open source licence, ratings, customers or metrics", () => {
+  it("declares the MIT license and GitHub links consistently", () => {
+    const c = LANDING_CONTENT;
+    expect(c.license.name).toBe("MIT");
+    expect(c.hero.status).toMatch(/open source/i);
+    expect(c.hero.status).toMatch(/MIT/);
+    for (const url of [c.github.repo, c.github.readme, c.github.contributing, c.github.license, c.github.notice, c.github.issues, c.license.url]) {
+      expect(url.startsWith("https://github.com/Svector-anu/runitback")).toBe(true);
+    }
+    expect(c.github.starLabel).toBe("Star on GitHub");
+    const answer = c.faq.items.find((f) => /open source/i.test(f.question))?.answer ?? "";
+    expect(answer).toMatch(/MIT/);
+    expect(answer).not.toMatch(/not yet|soon/i);
+  });
+
+  it("keeps the CapCut trademark note verbatim and never disparages", () => {
+    expect(LANDING_CONTENT.trademarkNote).toBe("CapCut is a trademark of its respective owner. RunItBack is not affiliated with or endorsed by it.");
+    const text = JSON.stringify(LANDING_CONTENT.compare).toLowerCase();
+    expect(text).not.toMatch(/worse|bad|spyware|steal|scam|bloat|trash|terrible/);
+  });
+
+  it("compares honestly: CapCut is marked ahead on mobile and templates, with the check date", () => {
+    const { rows, checked } = LANDING_CONTENT.compare;
+    expect(rows.map((r) => r.feature)).toEqual([
+      "Open source", "Runs in your browser", "Files stay on your device while editing", "Edit by describing it", "Price", "Mobile app", "Templates, stickers and effects",
+    ]);
+    expect(rows.find((r) => r.feature === "Mobile app")?.ahead).toBe("capcut");
+    const templates = rows.find((r) => r.feature.startsWith("Templates"));
+    expect(templates?.ahead).toBe("capcut");
+    expect(templates?.runitback).toMatch(/coming soon/i);
+    expect(checked).toMatch(/\d{4}/);
+  });
+
+  it("does not claim customers, ratings, metrics or star counts", () => {
     const text = JSON.stringify(LANDING_CONTENT).toLowerCase();
-    expect(text).not.toMatch(/mit licen|apache|gpl|trusted by|\d+k\+? users|rated \d|testimonial|stars/);
-    const openSource = LANDING_CONTENT.faq.items.find((f) => /open source/i.test(f.question));
-    expect(openSource?.answer).toMatch(/not yet|soon/i);
+    expect(text).not.toMatch(/trusted by|\d+k\+? users|rated \d|testimonial|\d+k?\+?\s*stars|apache|gpl/);
   });
 
   it("marks unfinished work as coming soon and does not promise transitions or filters as shipped", () => {

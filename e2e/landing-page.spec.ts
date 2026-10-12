@@ -12,7 +12,7 @@ async function openLanding(page: Page): Promise<void> {
 test("nav anchors scroll to their section without leaving the landing page", async ({ page }) => {
   await openLanding(page);
   const nav = page.getByRole("navigation", { name: "Page sections" });
-  for (const [label, id] of [["Features", "features"], ["How it works", "how-it-works"], ["FAQ", "faq"]] as const) {
+  for (const [label, id] of [["Features", "features"], ["How it works", "how-it-works"], ["Compare", "compare"], ["Open source", "open-source"], ["FAQ", "faq"]] as const) {
     await nav.getByRole("link", { name: label }).click();
     await expect.poll(async () => page.evaluate((target) => Math.round(document.getElementById(target)?.getBoundingClientRect().top ?? 9999), id), { timeout: 5000 }).toBeLessThan(140);
     await expect(page.locator(`#${id}`)).toBeFocused();
@@ -47,7 +47,7 @@ test("the nav call to action is a link to /app", async ({ page }) => {
 test("FAQ accordion works from the keyboard", async ({ page }) => {
   await openLanding(page);
   const questions = page.locator("#faq h3 button");
-  await expect(questions).toHaveCount(6);
+  await expect(questions).toHaveCount(8);
   await expect(questions.nth(0)).toHaveAttribute("aria-expanded", "true");
   await questions.nth(0).focus();
   await page.keyboard.press("Enter");
@@ -60,9 +60,9 @@ test("FAQ accordion works from the keyboard", async ({ page }) => {
   await expect(answer).toBeVisible();
   await expect(answer).toContainText("Anthropic");
   await page.keyboard.press("End");
-  await expect(questions.nth(5)).toBeFocused();
+  await expect(questions.nth(7)).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.locator("#faq-a-5")).toContainText(/source available soon/i);
+  await expect(page.locator("#faq-a-7")).toContainText(/CONTRIBUTING/);
   await expect(page.locator("#faq-a-1")).toBeHidden();
   await page.keyboard.press("Home");
   await expect(questions.nth(0)).toBeFocused();
@@ -164,4 +164,81 @@ test("the editor chunk is not pulled in by the landing page", async ({ page }) =
   page.on("request", (request) => requested.push(request.url()));
   await openLanding(page);
   expect(requested.some((url) => /EditorPage/.test(url))).toBe(false);
+});
+
+const REPO = "https://github.com/Svector-anu/runitback";
+
+test("GitHub star links are plain external links to the repository in the nav, hero, open source section, final CTA and footer", async ({ page }) => {
+  await openLanding(page);
+  const links = page.locator(`a[href="${REPO}"]`);
+  expect(await links.count()).toBeGreaterThanOrEqual(5);
+  for (const link of await links.all()) {
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", /noopener/);
+  }
+  await expect(page.getByRole("banner").getByRole("link", { name: "Star on GitHub" })).toHaveAttribute("href", REPO);
+  await expect(page.locator(".lp-hero").getByRole("link", { name: "Star on GitHub" })).toBeVisible();
+  await expect(page.getByText("Open source · MIT").first()).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("The open-source CapCut alternative");
+});
+
+test("open source section links README, CONTRIBUTING and LICENSE", async ({ page }) => {
+  await openLanding(page);
+  const section = page.locator("#open-source");
+  await expect(section.getByRole("heading", { name: "Built in the open." })).toBeVisible();
+  await expect(section.getByRole("link", { name: "MIT licensed" })).toHaveAttribute("href", `${REPO}/blob/main/LICENSE`);
+  for (const name of ["README", "CONTRIBUTING", "LICENSE"]) await expect(section.getByRole("link", { name, exact: true })).toBeVisible();
+});
+
+test("the comparison table is honest about where CapCut is ahead and carries the trademark note", async ({ page }) => {
+  await openLanding(page);
+  const table = page.locator("#compare table");
+  await expect(table.locator("tbody tr")).toHaveCount(7);
+  await expect(table.locator("tr", { hasText: "Mobile app" })).toContainText("Ahead");
+  await expect(table.locator("tr", { hasText: "Templates, stickers and effects" })).toContainText("coming soon");
+  await expect(page.getByRole("contentinfo")).toContainText("CapCut is a trademark of its respective owner. RunItBack is not affiliated with or endorsed by it.");
+});
+
+for (const width of [360, 390]) {
+  test(`mobile ${width}: new blocks do not overflow and tap targets are at least 44px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await openLanding(page);
+    await page.evaluate(async () => { for (let y = 0; y < document.documentElement.scrollHeight; y += 500) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 30)); } });
+    const { scroll, client } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+    expect(scroll).toBeLessThanOrEqual(client);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.getByRole("button", { name: "Menu" }).click();
+    const targets = [
+      page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Star on GitHub" }),
+      page.locator(".lp-hero").getByRole("link", { name: "Star on GitHub" }),
+      page.locator("#open-source").getByRole("link", { name: "Star on GitHub" }),
+      page.locator("#open-source").getByRole("link", { name: "CONTRIBUTING" }),
+      page.locator("#open-source").getByRole("link", { name: "README" }),
+    ];
+    for (const target of targets) {
+      await target.scrollIntoViewIfNeeded();
+      const box = await target.boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(43.5);
+    }
+    await page.getByRole("button", { name: "Close menu" }).click();
+  });
+}
+
+test("screenshots of the new positioning (opt-in)", async ({ page }) => {
+  test.skip(!process.env.LANDING_MSG_SHOTS, "set LANDING_MSG_SHOTS=1");
+  for (const [name, size] of [["desktop", { width: 1440, height: 900 }], ["mobile", { width: 390, height: 844 }]] as const) {
+    for (const theme of ["light", "dark"] as const) {
+      await page.setViewportSize(size);
+      await page.goto("/");
+      await page.evaluate((t) => { localStorage.setItem("theme", t); }, theme);
+      await page.emulateMedia({ colorScheme: theme });
+      await openLanding(page);
+      await page.evaluate(async (t) => {
+        document.documentElement.dataset.theme = t;
+        for (let y = 0; y < document.documentElement.scrollHeight; y += 500) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 40)); }
+        window.scrollTo(0, 0);
+      }, theme);
+      await page.screenshot({ path: `e2e/.artifacts/landing/msg/${name}-${theme}.png`, fullPage: true });
+    }
+  }
 });

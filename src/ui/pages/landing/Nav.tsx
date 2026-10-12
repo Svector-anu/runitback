@@ -3,9 +3,9 @@ import { setTheme, uiStore } from "#/app/ui-state";
 import { Icon } from "../../icons";
 import { Logo } from "../../brand/Logo";
 import { LANDING_CONTENT } from "../landing-content";
-import { APP_PATH, ArrowUpRight, sectionLinkProps } from "./parts";
+import { APP_PATH, ArrowUpRight, EXTERNAL_LINK_PROPS, StarIcon, sectionLinkProps } from "./parts";
 
-const { nav, brand } = LANDING_CONTENT;
+const { nav, brand, github } = LANDING_CONTENT;
 
 function ThemeButton({ className }: { className: string }): ReactNode {
   const theme = uiStore.use((s) => s.theme);
@@ -44,6 +44,7 @@ export function Nav(): ReactNode {
         </nav>
         <div className="lp-nav__actions">
           <ThemeButton className="lp-nav__theme" />
+          <a className="zn-btn zn-btn--secondary zn-btn--sm lp-nav__star" href={github.repo} aria-label={github.starLabel} {...EXTERNAL_LINK_PROPS}><StarIcon /><span>{github.starLabel}</span></a>
           <a className="zn-btn zn-btn--primary zn-btn--sm" href={APP_PATH}>{nav.cta}<span className="zn-btn__circle"><ArrowUpRight size={13} /></span></a>
           <button type="button" className="zn-icon-btn zn-icon-btn--ink lp-nav__menu" aria-expanded={open} aria-controls="lp-menu" aria-label={open ? "Close menu" : nav.menuLabel} onClick={() => setOpen(!open)}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
@@ -56,6 +57,7 @@ export function Nav(): ReactNode {
         <div className="lp-wrap lp-menu-wrap">
           <nav id="lp-menu" className="lp-menu zn-surface" aria-label="Menu">
             {nav.links.map((link) => <a key={link.target} className="lp-menu__link" {...sectionLinkProps(link.target, () => setOpen(false))}>{link.label}</a>)}
+            <a className="lp-menu__link lp-menu__star" href={github.repo} {...EXTERNAL_LINK_PROPS}><StarIcon size={18} />{github.starLabel}</a>
             <div className="lp-menu__row"><span className="zn-mono">Theme</span><ThemeButton className="lp-menu__theme" /></div>
           </nav>
         </div>

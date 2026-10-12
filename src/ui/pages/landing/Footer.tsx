@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { Logo } from "../../brand/Logo";
 import { LANDING_CONTENT } from "../landing-content";
-import { APP_PATH, ArrowUpRight, sectionLinkProps } from "./parts";
+import { APP_PATH, ArrowUpRight, EXTERNAL_LINK_PROPS, sectionLinkProps } from "./parts";
 
-const { footer } = LANDING_CONTENT;
+const { footer, trademarkNote } = LANDING_CONTENT;
 
 export function Footer(): ReactNode {
   return (
@@ -19,7 +19,7 @@ export function Footer(): ReactNode {
             <p className="lp-footer__title">{column.title}</p>
             <ul>
               {column.links.map((link) => (
-                <li key={link.label}>{link.target ? <a {...sectionLinkProps(link.target)}>{link.label}</a> : <a href={link.href}>{link.label}</a>}</li>
+                <li key={link.label}>{link.target ? <a {...sectionLinkProps(link.target)}>{link.label}</a> : <a href={link.href} {...(link.external ? EXTERNAL_LINK_PROPS : {})}>{link.label}</a>}</li>
               ))}
             </ul>
           </nav>
@@ -31,6 +31,7 @@ export function Footer(): ReactNode {
         </aside>
       </div>
       <p className="lp-footer__legal zn-mono">&copy; {new Date().getFullYear()} {footer.legal}</p>
+      <p className="lp-footer__trademark">{trademarkNote}</p>
     </footer>
   );
 }
