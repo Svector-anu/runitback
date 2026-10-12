@@ -21,7 +21,11 @@ type Entry = typeof import("../evals/browser-entry");
 /** Cases that run on real media; the rest of the suite is covered headlessly. */
 const REAL_MEDIA_CASES = ["remove-silences", "trim-to-duration", "reorder-clips", "captions-from-srt", "speed-to-fit", "title-fade", "cut-to-beat"] as const;
 
+const ASK_PREF_KEY = "runitback:agent-ask-before-editing";
+
 async function prepare(page: Page, evalCase: EvalCase): Promise<{ assetIds: Record<string, string> }> {
+  // The scripted oracle policies do not propose plans; the plan gate is covered by agent-panel.spec.ts.
+  await page.addInitScript((key) => localStorage.setItem(key, "false"), ASK_PREF_KEY);
   await page.goto("/#/projects");
   await page.getByRole("button", { name: "Create your first project" }).click();
   await expect(page).toHaveURL(/#\/editor\//);
