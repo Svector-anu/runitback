@@ -2,6 +2,27 @@
   "name": "runitback",
   "private": true,
   "version": "0.1.0",
+  "description": "Open-source, local-first video editor in the browser with a built-in AI agent: tell your video editor what to do.",
+  "license": "MIT",
+  "homepage": "https://github.com/Svector-anu/runitback",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Svector-anu/runitback.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Svector-anu/runitback/issues"
+  },
+  "keywords": [
+    "video-editor",
+    "video-editing",
+    "ai-agent",
+    "mcp",
+    "local-first",
+    "webcodecs",
+    "browser",
+    "open-source",
+    "typescript"
+  ],
   "type": "module",
   "packageManager": "pnpm@11.20.0",
   "scripts": {

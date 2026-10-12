@@ -8,3 +8,9 @@ playwright-report
 # Eval reports are generated; only the README is committed
 evals/reports/*
 !evals/reports/README.md
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+*.pem
