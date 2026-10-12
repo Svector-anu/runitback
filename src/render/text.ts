@@ -5,6 +5,12 @@ export interface Rect { left: number; top: number; width: number; height: number
 
 export interface TextLayout {
   lines: string[];
+  /** Measured width of every full line (before any typewriter reveal). */
+  lineWidths: number[];
+  /** Fraction of characters shown (1 = all). */
+  reveal: number;
+  /** Stroke and shadow sizes are authored at font size 15 and scale with the font. */
+  styleScale: number;
   font: string;
   scaledFontSize: number;
   lineHeightPx: number;
@@ -48,7 +54,8 @@ export function layoutText(input: { params: ParamValues; canvasHeight: number; m
   const align = stringParam(params, PARAM.textAlign, "center") as TextLayout["align"];
   const lines = stringParam(params, PARAM.content, "").split("\n");
 
-  const maxWidth = Math.max(0, ...lines.map((l) => input.measure(l, font, letterSpacing)));
+  const lineWidths = lines.map((l) => input.measure(l, font, letterSpacing));
+  const maxWidth = Math.max(0, ...lineWidths);
   const height = lines.length * lineHeightPx;
   const centerOffset = ((lines.length - 1) * lineHeightPx) / 2;
   const left = align === "left" ? 0 : align === "right" ? -maxWidth : -maxWidth / 2;
@@ -72,7 +79,8 @@ export function layoutText(input: { params: ParamValues; canvasHeight: number; m
 
   const decoration = stringParam(params, PARAM.textDecoration, "none") as TextLayout["decoration"];
   return {
-    lines, font, scaledFontSize: px, lineHeightPx, letterSpacing, align,
+    lines, lineWidths, reveal: Math.min(1, Math.max(0, numberParam(params, PARAM.reveal, 1))), styleScale: fontSize / 15,
+    font, scaledFontSize: px, lineHeightPx, letterSpacing, align,
     lineYs: lines.map((_, i) => i * lineHeightPx - centerOffset),
     textRect, backgroundRect, backgroundRadius,
     visualRect: backgroundRect ? union(textRect, backgroundRect) : textRect,
@@ -103,18 +111,87 @@ export function drawTextLayout(ctx: AnyContext, layout: TextLayout, params: Para
   }
   ctx.font = layout.font;
   (ctx as unknown as { letterSpacing: string }).letterSpacing = `${layout.letterSpacing}px`;
-  ctx.textAlign = layout.align;
   ctx.textBaseline = "middle";
-  ctx.fillStyle = stringParam(params, PARAM.color, "#ffffff");
-  layout.lines.forEach((line, i) => {
+  ctx.lineJoin = "round";
+  const fill = stringParam(params, PARAM.color, "#ffffff");
+  const strokeWidth = numberParam(params, PARAM.strokeWidth, 0) * layout.styleScale;
+  const strokeColor = stringParam(params, PARAM.strokeColor, "#000000");
+  const shadow = boolParam(params, PARAM.shadowEnabled, false) ? shadowOf(ctx, params, layout.styleScale) : null;
+  const shown = visibleCounts(layout.lines, layout.reveal);
+
+  layout.lines.forEach((full, i) => {
+    const chars = shown[i] as number;
+    if (chars === 0) return;
+    const line = chars >= [...full].length ? full : [...full].slice(0, chars).join("");
     const y = layout.lineYs[i] as number;
-    ctx.fillText(line, 0, y);
+    const width = layout.lineWidths[i] as number;
+    const revealing = layout.reveal < 1;
+    // While revealing, text is anchored where the finished line will sit so it grows in place instead of re-centring.
+    ctx.textAlign = revealing ? "left" : layout.align;
+    const x = revealing ? (layout.align === "left" ? 0 : layout.align === "right" ? -width : -width / 2) : 0;
+    if (strokeWidth > 0) {
+      applyShadow(ctx, shadow);
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth * 2;
+      ctx.strokeText(line, x, y);
+      clearShadow(ctx);
+      ctx.fillStyle = fill;
+      ctx.fillText(line, x, y);
+    } else {
+      applyShadow(ctx, shadow);
+      ctx.fillStyle = fill;
+      ctx.fillText(line, x, y);
+      clearShadow(ctx);
+    }
     if (layout.decoration === "none" || line.length === 0) return;
-    const width = ctx.measureText(line).width;
-    const x = layout.align === "left" ? 0 : layout.align === "right" ? -width : -width / 2;
+    const measured = ctx.measureText(line).width;
+    const left = revealing ? x : layout.align === "left" ? 0 : layout.align === "right" ? -measured : -measured / 2;
     const offset = layout.decoration === "underline" ? layout.scaledFontSize * 0.4 : -layout.scaledFontSize * 0.08;
-    ctx.fillRect(x, y + offset, width, layout.decorationThickness);
+    ctx.fillStyle = fill;
+    ctx.fillRect(left, y + offset, measured, layout.decorationThickness);
   });
+}
+
+/** How many characters of each line are visible when `reveal` of the whole text is shown (characters counted across lines). */
+export function visibleCounts(lines: ReadonlyArray<string>, reveal: number): number[] {
+  const lengths = lines.map((l) => [...l].length);
+  if (reveal >= 1) return lengths;
+  let remaining = Math.floor(lengths.reduce((a, b) => a + b, 0) * Math.max(0, reveal));
+  return lengths.map((length) => {
+    const take = Math.min(length, remaining);
+    remaining -= take;
+    return take;
+  });
+}
+
+interface ShadowSpec { color: string; blur: number; offsetX: number; offsetY: number }
+
+/** Canvas shadow offsets ignore the current transform; rotate/scale them by it so the shadow follows the text. */
+function shadowOf(ctx: AnyContext, params: ParamValues, scale: number): ShadowSpec {
+  const m = ctx.getTransform();
+  const dx = numberParam(params, PARAM.shadowOffsetX, 4) * scale;
+  const dy = numberParam(params, PARAM.shadowOffsetY, 4) * scale;
+  return {
+    color: stringParam(params, PARAM.shadowColor, "#000000b3"),
+    blur: numberParam(params, PARAM.shadowBlur, 8) * scale * Math.sqrt(Math.abs(m.a * m.d - m.b * m.c)),
+    offsetX: m.a * dx + m.c * dy,
+    offsetY: m.b * dx + m.d * dy,
+  };
+}
+
+function applyShadow(ctx: AnyContext, shadow: ShadowSpec | null): void {
+  if (!shadow) return;
+  ctx.shadowColor = shadow.color;
+  ctx.shadowBlur = shadow.blur;
+  ctx.shadowOffsetX = shadow.offsetX;
+  ctx.shadowOffsetY = shadow.offsetY;
+}
+
+function clearShadow(ctx: AnyContext): void {
+  ctx.shadowColor = "rgba(0,0,0,0)";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
 }
 
 export function drawText(input: {

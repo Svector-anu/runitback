@@ -1,5 +1,5 @@
 import { EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, MASK_DEFINITIONS, type ParamDef } from "./definitions";
-import { PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN } from "./params";
+import { CROP_MAX_EDGE, PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN } from "./params";
 import type { Effect, Mask, ParamValues, TimelineElement } from "./types";
 
 /** Letters, digits, spaces, underscores and hyphens: keeps document-supplied names out of URLs and CSS font shorthands. */
@@ -24,6 +24,10 @@ export const ELEMENT_NUMBER_LIMITS: Readonly<Record<string, NumberLimit>> = {
   [PARAM.rotate]: { min: -36_000, max: 36_000 },
   [PARAM.opacity]: { min: 0, max: 1 },
   [PARAM.volume]: { min: VOLUME_DB_MIN, max: VOLUME_DB_MAX },
+  [PARAM.cropLeft]: { min: 0, max: CROP_MAX_EDGE },
+  [PARAM.cropTop]: { min: 0, max: CROP_MAX_EDGE },
+  [PARAM.cropRight]: { min: 0, max: CROP_MAX_EDGE },
+  [PARAM.cropBottom]: { min: 0, max: CROP_MAX_EDGE },
 };
 
 export const TEXT_NUMBER_LIMITS: Readonly<Record<string, NumberLimit>> = {
@@ -35,6 +39,11 @@ export const TEXT_NUMBER_LIMITS: Readonly<Record<string, NumberLimit>> = {
   [PARAM.bgPaddingY]: { min: 0, max: 10_000 },
   [PARAM.bgOffsetX]: { min: -100_000, max: 100_000 },
   [PARAM.bgOffsetY]: { min: -100_000, max: 100_000 },
+  [PARAM.strokeWidth]: { min: 0, max: 200 },
+  [PARAM.shadowBlur]: { min: 0, max: 200 },
+  [PARAM.shadowOffsetX]: { min: -1000, max: 1000 },
+  [PARAM.shadowOffsetY]: { min: -1000, max: 1000 },
+  [PARAM.reveal]: { min: 0, max: 1 },
 };
 
 export function limitsOfDefinitions(defs: ReadonlyArray<ParamDef>): Record<string, NumberLimit> {

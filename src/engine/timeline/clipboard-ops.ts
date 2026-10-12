@@ -27,6 +27,7 @@ function cloneWithNewIds(input: { element: TimelineElement | (ClipboardElement &
   if (input.startTime !== undefined) clone.startTime = mediaTime(input.startTime);
   const animations = cloneAnimations({ animations: element.animations, regenerateIds: newId });
   delete clone.animations;
+  delete (clone as { transition?: unknown }).transition;
   if (animations) clone.animations = animations;
   return clone;
 }

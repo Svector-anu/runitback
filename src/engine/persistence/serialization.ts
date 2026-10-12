@@ -10,7 +10,16 @@ export interface ProjectMigration {
 }
 
 /** Migrations are additive: they add fields and never remove or rename persisted ones. */
-export const PROJECT_MIGRATIONS: ReadonlyArray<ProjectMigration> = [];
+export const PROJECT_MIGRATIONS: ReadonlyArray<ProjectMigration> = [
+  /** v2 added the optional clip `transition`; nothing to rewrite, the field is simply absent on older projects. */
+  { from: 1, to: 2, run: (project) => project },
+  /** v3 added the `adjust` effect type: a new value of an existing field. */
+  { from: 2, to: 3, run: (project) => project },
+  /** v4 added text stroke/shadow/reveal params (absent means the default) and the optional `textAnimation` record. */
+  { from: 3, to: 4, run: (project) => project },
+  /** v5 added `crop.*` params (absent means 0) and `freezeAt` on image clips (absent means an ordinary image). */
+  { from: 4, to: 5, run: (project) => project },
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

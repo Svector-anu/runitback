@@ -65,3 +65,12 @@ See `docs/RECONSTRUCTION_SPEC.md` §D table. In addition: whole-document undo sn
 ## Persistence additions
 
 Derived per-asset data is purged through `DerivedDataRegistry` (platform) when media bytes are swept or a project is deleted, and projects export/import as `.runitback` bundles (`engine/persistence/bundle.ts` pure format and id remap; `platform/bundle*.ts` zip, hashing, orchestration). See `docs/PERSISTENCE.md`.
+
+## CapCut-class additions (see `docs/CAPCUT_PARITY.md`)
+
+- **Transitions** are an optional `transition { type, duration }` on the *incoming* video/image clip. They never move a clip: the window is centred on the cut, so `buildFramePlan` emits both clips' layers (source time held on the first/last frame when there is no handle) with a `LayerTransition` (role + eased progress); `engine/render/transitions.ts` turns that into alpha/shift/scale/darkness/reveal and `Compositor.drawMediaLayer` applies it. `reconcileTransitions` runs in `CommandManager.settle` (with ripple and track pruning), so a move/trim/delete that breaks adjacency drops the transition inside the same undo step.
+- **Colour** is the `adjust` effect (shared by clip effects and scene effect layers). `engine/render/adjust.ts` maps its parameters to a CSS filter chain, colour casts, vignette and sharpen strengths; the compositor applies them on the GPU path (no pixel readback). Filter presets (`FILTER_PRESETS`) are parameter bundles, not a separate model.
+- **Text styling** adds `stroke.*`, `shadow.*` and `reveal` params to `drawTextLayout` (stroke is drawn first at twice the visible width, the shadow offset is rotated by the current transform). `textAnimation` records the in/out presets; `applyTextAnimation` rewrites the keyframes on opacity, position Y, scale and `reveal`.
+- **Crop** is four `crop.*` params resolved by `resolveCrop` into `MediaLayer.crop`; the compositor draws the sub-rectangle of the source into the matching sub-rectangle of the layer box, so the cropped part stays where it was and rotation/scale still pivot on the full box.
+- **Freeze frame** is an image clip with `freezeAt` (a source time of the video asset in `mediaId`); `buildFramePlan` turns it into a `video` layer at that fixed source time. It keeps every invariant because an image has no trims, audio or source length; the insert is a track-local ripple in one command.
+

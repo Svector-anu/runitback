@@ -54,7 +54,7 @@ Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (1190+ unit/integration tes
 | Bookmarks (add, drag, note, colour, duration) | yes | Same (notes are not drawn on the preview) | ◐ | `editor` | Preview note overlay not built |
 | Keyframe lanes/diamonds, drag, expand | yes | Diamonds on selected clip, drag-retime, expandable lanes, easing presets | ◐ | e2e (diamond+undo), `animation` | Box-select of keyframes and the free-form bezier handle editor are not built (presets only) |
 | Context menus (clip, track) | yes | Same | ✅ | indirect | Replace media / freeze frame omitted (stubs in classic) |
-| Transitions | none in either repo | none | ✖ | – | Not invented |
+| Transitions | none in either repo | Element-level `transition` on the incoming video/image clip; dissolve, fade-black, slide L/R, wipe L/R, zoom; frame-plan blend shared by preview and export; `set_transition`/`add_transition`/`remove_transition` agent tools | ◐ | `transitions`, fuzz, e2e `cc-transitions` | CapCut parity addition. No inspector/timeline UI yet; audio is not crossfaded |
 
 ### Preview and playback
 
@@ -123,3 +123,14 @@ Evidence: `pnpm typecheck`, `pnpm lint`, `pnpm test` (1190+ unit/integration tes
 
 - Engine is pure and headless-capable (`tests/architecture.test.ts` proves no DOM/React/storage); export already runs without UI imports, so a batch/headless entry point is a thin wrapper.
 - Defects found in classic and fixed rather than copied are listed in `RECONSTRUCTION_SPEC.md` §D; defects found in *this* implementation by tests during development: click did not select a clip; playback clock never ticked; hover-only add buttons were `display:none` (removed from the accessibility tree); `<button>` nested in `<button>` (section headers) and interactive children inside `role=button` cards.
+
+### CapCut-parity additions (not in classic)
+
+| Feature | Implementation | Status | Evidence | Gap |
+|---|---|---|---|---|
+| Colour adjust effect + 8 filter presets | `adjust` effect (brightness, contrast, saturation, exposure, temperature, tint, vignette, sharpen) on clips and effect layers; presets are parameter bundles; GPU-path Canvas2D in the shared compositor; `set_color_adjust`, `apply_filter` | ◐ | `color-adjust`, e2e `cc-color` | No LUT import; temperature/tint are colour casts, not a white-balance model; sharpen is a high-pass overlay; no inspector preset picker yet |
+| Text stroke, shadow, typewriter reveal | `stroke.*`, `shadow.*`, `reveal` params drawn by `drawTextLayout`; `set_text_style` | ◐ | `text-style`, e2e `cc-text` | Selection bounds ignore stroke/shadow; no inspector controls yet |
+| Text in/out animation presets | fade, slide-up, pop, typewriter written as keyframes on opacity, position Y, scale, reveal (`textAnimation` records which); `set_text_animation` | ◐ | `text-style`, e2e `cc-text` | Presets own those four paths; a later clip resize clamps keys rather than re-timing the preset |
+| Crop | `crop.left/top/right/bottom` params applied in `Compositor.drawMediaLayer` before the transform; `set_crop` | ◐ | `crop-freeze`, e2e `cc-crop-freeze` | Canvas selection box and hit-testing still use the uncropped box; no interactive crop handles |
+| Freeze frame | `freezeAt` on an image clip pointing at the video asset; `freezeFrameCommand` cuts, ripples the track, inserts; `freeze_frame` | ◐ | `crop-freeze`, e2e `cc-crop-freeze` | Clips on other tracks (incl. extracted audio) do not move; timeline thumbnails of a freeze clip are unverified |
+

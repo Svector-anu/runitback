@@ -1,5 +1,5 @@
 import { DEFAULT_FPS, mediaTime, mediaTimeFromSeconds, type MediaTime } from "#/engine/time";
-import { DEFAULT_NEW_ELEMENT_SECONDS, TEXT_DEFAULTS, TRANSFORM_DEFAULTS, VIDEO_DEFAULTS, AUDIO_DEFAULTS } from "./params";
+import { DEFAULT_NEW_ELEMENT_SECONDS, IMAGE_DEFAULTS, TEXT_DEFAULTS, TRANSFORM_DEFAULTS, VIDEO_DEFAULTS, AUDIO_DEFAULTS } from "./params";
 import type { IdGenerator } from "./ids";
 import type {
   AudioElement, AudioTrack, EffectElement, EffectTrack, GraphicElement, GraphicTrack, ImageElement, MediaAssetInfo,
@@ -7,7 +7,11 @@ import type {
   OverlayTrack, TimelineTrack,
 } from "./types";
 
-export const PROJECT_SCHEMA_VERSION = 1;
+/**
+ * v1: initial. v2: optional `transition` on video/image clips. v3: the `adjust` effect type. v4: text stroke/shadow/reveal
+ * params and `textAnimation`. v5: `crop.*` params and `freezeAt` on image clips. All additive; older projects need no data change.
+ */
+export const PROJECT_SCHEMA_VERSION = 5;
 export const MAIN_TRACK_NAME = "Main Track";
 export const CANVAS_PRESETS = [
   { width: 1920, height: 1080 },
@@ -89,7 +93,7 @@ export function buildMediaElement(input: Common & { asset: MediaAssetInfo }): Vi
     case "audio":
       return { ...base, type: "audio", mediaId: asset.id, sourceDuration: duration, params: { ...AUDIO_DEFAULTS } };
     case "image":
-      return { ...base, type: "image", mediaId: asset.id, hidden: false, params: { ...TRANSFORM_DEFAULTS } };
+      return { ...base, type: "image", mediaId: asset.id, hidden: false, params: { ...IMAGE_DEFAULTS } };
   }
 }
 

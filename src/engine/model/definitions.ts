@@ -38,13 +38,46 @@ export interface EffectDefinition {
   params: ReadonlyArray<ParamDef>;
 }
 
+const adjustNumber = (key: string, label: string, min: number, max: number): ParamDef =>
+  ({ type: "number", key, label, default: 0, min, max, step: 1 });
+
 export const EFFECT_DEFINITIONS: Record<string, EffectDefinition> = {
+  adjust: {
+    type: "adjust",
+    name: "Colour adjust",
+    params: [
+      adjustNumber("brightness", "Brightness", -100, 100),
+      adjustNumber("contrast", "Contrast", -100, 100),
+      adjustNumber("saturation", "Saturation", -100, 100),
+      adjustNumber("exposure", "Exposure", -100, 100),
+      adjustNumber("temperature", "Temperature", -100, 100),
+      adjustNumber("tint", "Tint", -100, 100),
+      adjustNumber("vignette", "Vignette", 0, 100),
+      adjustNumber("sharpen", "Sharpen", 0, 100),
+    ],
+  },
   blur: {
     type: "blur",
     name: "Blur",
     params: [{ type: "number", key: "intensity", label: "Intensity", default: 15, min: 0, max: 100, step: 1 }],
   },
 };
+
+export type AdjustParams = Partial<Record<"brightness" | "contrast" | "saturation" | "exposure" | "temperature" | "tint" | "vignette" | "sharpen", number>>;
+
+/** Named looks, expressed as `adjust` parameter bundles so they stay editable in the inspector. */
+export const FILTER_PRESETS = {
+  vivid: { name: "Vivid", params: { saturation: 40, contrast: 15, brightness: 5 } },
+  mono: { name: "Mono", params: { saturation: -100, contrast: 10 } },
+  warm: { name: "Warm", params: { temperature: 45, tint: 8, saturation: 8 } },
+  cool: { name: "Cool", params: { temperature: -45, tint: -4, saturation: 5 } },
+  fade: { name: "Fade", params: { contrast: -25, brightness: 10, saturation: -20 } },
+  noir: { name: "Noir", params: { saturation: -100, contrast: 40, brightness: -10, vignette: 40 } },
+  "teal-orange": { name: "Teal and orange", params: { temperature: 35, tint: -20, contrast: 15, saturation: 20 } },
+  sepia: { name: "Sepia", params: { saturation: -100, temperature: 100, tint: 15, contrast: -10 } },
+} as const satisfies Record<string, { name: string; params: AdjustParams }>;
+export type FilterPresetId = keyof typeof FILTER_PRESETS;
+export const FILTER_PRESET_IDS = Object.keys(FILTER_PRESETS) as FilterPresetId[];
 
 export function getEffectDefinition(type: string): EffectDefinition | undefined {
   return EFFECT_DEFINITIONS[type];

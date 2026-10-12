@@ -1,6 +1,6 @@
 import { batch, updateElements, upsertKeyframeCommand, type Command } from "#/engine/commands";
 import {
-  BLEND_MODES, EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, MASK_DEFINITIONS, PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN,
+  BLEND_MODES, CROP_MAX_EDGE, EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, MASK_DEFINITIONS, PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN,
   type ElementRef, type MaskType, type ParamDef, type ParamValue, type ParamValues, type TimelineElement,
 } from "#/engine/model";
 import { ToolError } from "./env";
@@ -33,6 +33,13 @@ const TRANSFORM_SPECS: ParamSpec[] = [
   choice(PARAM.blendMode, BLEND_MODES),
 ];
 
+const CROP_SPECS: ParamSpec[] = [
+  num(PARAM.cropLeft, { min: 0, max: CROP_MAX_EDGE, unit: "fraction of the source cut from the left" }),
+  num(PARAM.cropTop, { min: 0, max: CROP_MAX_EDGE, unit: "fraction cut from the top" }),
+  num(PARAM.cropRight, { min: 0, max: CROP_MAX_EDGE, unit: "fraction cut from the right" }),
+  num(PARAM.cropBottom, { min: 0, max: CROP_MAX_EDGE, unit: "fraction cut from the bottom" }),
+];
+
 const AUDIO_SPECS: ParamSpec[] = [
   num(PARAM.volume, { min: VOLUME_DB_MIN, max: VOLUME_DB_MAX, unit: "dB, 0 = unchanged" }),
   bool(PARAM.muted),
@@ -56,6 +63,14 @@ const TEXT_SPECS: ParamSpec[] = [
   num(PARAM.bgPaddingY, { min: 0 }),
   num(PARAM.bgOffsetX),
   num(PARAM.bgOffsetY),
+  num(PARAM.strokeWidth, { min: 0, max: 200, unit: "px at font size 15, scales with size" }),
+  color(PARAM.strokeColor),
+  bool(PARAM.shadowEnabled),
+  color(PARAM.shadowColor),
+  num(PARAM.shadowBlur, { min: 0, max: 200 }),
+  num(PARAM.shadowOffsetX, { min: -1000, max: 1000 }),
+  num(PARAM.shadowOffsetY, { min: -1000, max: 1000 }),
+  num(PARAM.reveal, { min: 0, max: 1, unit: "fraction of characters shown" }),
 ];
 
 export function specFromDef(def: ParamDef): ParamSpec {
@@ -86,8 +101,8 @@ export function textSpecs(): ParamSpec[] {
 /** Every param key an agent may set on this element, with its type and range. */
 export function paramSpecsFor(element: TimelineElement): ParamSpec[] {
   switch (element.type) {
-    case "video": return [...TRANSFORM_SPECS, ...AUDIO_SPECS];
-    case "image": return [...TRANSFORM_SPECS];
+    case "video": return [...TRANSFORM_SPECS, ...CROP_SPECS, ...AUDIO_SPECS];
+    case "image": return [...TRANSFORM_SPECS, ...CROP_SPECS];
     case "audio": return [...AUDIO_SPECS];
     case "text": return textSpecs();
     case "graphic": return [...TRANSFORM_SPECS, ...graphicSpecs(element.definitionId)];

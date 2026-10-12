@@ -27,6 +27,19 @@ export const PARAM = {
   bgPaddingY: "background.paddingY",
   bgOffsetX: "background.offsetX",
   bgOffsetY: "background.offsetY",
+  strokeWidth: "stroke.width",
+  strokeColor: "stroke.color",
+  shadowEnabled: "shadow.enabled",
+  shadowColor: "shadow.color",
+  shadowBlur: "shadow.blur",
+  shadowOffsetX: "shadow.offsetX",
+  shadowOffsetY: "shadow.offsetY",
+  cropLeft: "crop.left",
+  cropTop: "crop.top",
+  cropRight: "crop.right",
+  cropBottom: "crop.bottom",
+  /** Fraction of the characters shown, 0..1 (typewriter animation). */
+  reveal: "reveal",
 } as const;
 
 export const BLEND_MODES = [
@@ -72,10 +85,28 @@ export const TEXT_DEFAULTS: ParamValues = {
   [PARAM.bgPaddingY]: 42,
   [PARAM.bgOffsetX]: 0,
   [PARAM.bgOffsetY]: 0,
+  [PARAM.strokeWidth]: 0,
+  [PARAM.strokeColor]: "#000000",
+  [PARAM.shadowEnabled]: false,
+  [PARAM.shadowColor]: "#000000b3",
+  [PARAM.shadowBlur]: 8,
+  [PARAM.shadowOffsetX]: 4,
+  [PARAM.shadowOffsetY]: 4,
+  [PARAM.reveal]: 1,
 };
 
+/** Crop edges are fractions (0-1) of the source removed from each side before the transform; the rest stays in place. */
+export const CROP_DEFAULTS: ParamValues = {
+  [PARAM.cropLeft]: 0,
+  [PARAM.cropTop]: 0,
+  [PARAM.cropRight]: 0,
+  [PARAM.cropBottom]: 0,
+};
+export const CROP_MAX_EDGE = 0.95;
+
 export const AUDIO_DEFAULTS: ParamValues = { [PARAM.volume]: 0, [PARAM.muted]: false };
-export const VIDEO_DEFAULTS: ParamValues = { ...TRANSFORM_DEFAULTS, ...AUDIO_DEFAULTS };
+export const VIDEO_DEFAULTS: ParamValues = { ...TRANSFORM_DEFAULTS, ...CROP_DEFAULTS, ...AUDIO_DEFAULTS };
+export const IMAGE_DEFAULTS: ParamValues = { ...TRANSFORM_DEFAULTS, ...CROP_DEFAULTS };
 
 export function numberParam(params: ParamValues, key: string, fallback: number): number {
   const value = params[key];

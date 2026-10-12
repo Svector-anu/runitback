@@ -87,7 +87,7 @@ describe("fixtures: ground truth from declarations", () => {
 describe("timeline helpers", () => {
   const clip = (over: Partial<ClipView>): ClipView => ({
     id: "c", type: "video", trackId: "t", trackType: "video", lane: "main", name: "c", start: 10, end: 14, duration: 4, trimStart: 2, trimEnd: 0, rate: 2,
-    audible: true, params: {}, ...over,
+    audible: true, params: {}, effects: [], ...over,
   });
 
   it("maps source ranges and instants through trim and speed", () => {

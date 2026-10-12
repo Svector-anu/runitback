@@ -16,3 +16,4 @@ export * from "./selection";
 export * from "./animation-targets";
 export * from "./invariants";
 export * from "./input-guards";
+export * from "./transitions";

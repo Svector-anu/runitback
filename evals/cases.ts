@@ -825,9 +825,103 @@ const REFRAME: EvalCase = {
   ],
 };
 
+// 17. Transition between two clips -------------------------------------------------------------------------------
+
+const TRANSITION_SECONDS = 1;
+
+const ADD_TRANSITION: EvalCase = {
+  id: "add-transition-between-clips",
+  title: "Add a cross dissolve between two clips",
+  brief: "The timeline has red.mp4 followed by blue.mp4. Add a 1 second cross dissolve between them. Do not move, trim or retime either clip.",
+  fixtures: [
+    { id: "red", name: "red.mp4", kind: "video", durationSeconds: 4, placeAt: 0, audio: { kind: "none" }, blocks: [{ seconds: 4, rgb: RED }] },
+    { id: "blue", name: "blue.mp4", kind: "video", durationSeconds: 5, placeAt: 4, audio: { kind: "none" }, blocks: [{ seconds: 5, rgb: BLUE }] },
+  ],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "dissolve-between",
+      description: "blue.mp4 has a cross dissolve into it from red.mp4, 1 s long (+/- 0.1 s).",
+      run(input) {
+        const blue = clipsOfFixture(input, fixtureByName(input, "blue.mp4"))[0];
+        if (!blue?.transition) return fail("blue.mp4 has no transition");
+        const parts = {
+          "is a cross dissolve": blue.transition.type === "dissolve",
+          "is 1 s long": Math.abs(blue.transition.duration - TRANSITION_SECONDS) <= TARGET_TOLERANCE_SECONDS,
+        };
+        const met = Object.values(parts).filter(Boolean).length;
+        return { pass: met === 2, score: met / 2, detail: `${blue.transition.type} for ${blue.transition.duration.toFixed(2)}s` };
+      },
+    },
+    {
+      id: "clips-untouched",
+      description: "red.mp4 still plays 0-4 s and blue.mp4 4-9 s at normal speed, nothing else added.",
+      run(input) {
+        const clips = videoClips(input);
+        const [red, blue] = [clipsOfFixture(input, fixtureByName(input, "red.mp4"))[0], clipsOfFixture(input, fixtureByName(input, "blue.mp4"))[0]];
+        if (clips.length !== 2 || !red || !blue) return fail(`${clips.length} video clip(s); expected exactly red and blue`);
+        const intact = Math.abs(red.start) <= FRAME_SLACK && Math.abs(red.end - 4) <= FRAME_SLACK && Math.abs(blue.start - 4) <= FRAME_SLACK
+          && Math.abs(blue.end - 9) <= FRAME_SLACK && red.rate === 1 && blue.rate === 1;
+        return verdict(intact, `red ${red.start.toFixed(2)}-${red.end.toFixed(2)}s, blue ${blue.start.toFixed(2)}-${blue.end.toFixed(2)}s`);
+      },
+    },
+  ],
+};
+
+// 18. Warm filter on the title -----------------------------------------------------------------------------------
+
+const WARM_TITLE = "Golden Hour";
+const MIN_WARM_TEMPERATURE = 20;
+const isTitle = (c: ClipView): boolean => c.type === "text" && normalizeText(String(c.params["content"] ?? "")) === normalizeText(WARM_TITLE);
+const temperatureOf = (clip: ClipView): number => {
+  const adjust = clip.effects.find((e) => e.type === "adjust");
+  const value = adjust?.params["temperature"];
+  return typeof value === "number" ? value : 0;
+};
+
+const WARM_TITLE_CASE: EvalCase = {
+  id: "apply-warm-filter-to-title-clip",
+  title: "Warm filter on a title only",
+  brief: `Add the title "${WARM_TITLE}" at the start for 3 seconds and give that title clip the warm filter. Leave the video itself untouched.`,
+  fixtures: [{ id: "scene", name: "scene.mp4", kind: "video", durationSeconds: 10, placeAt: 0, audio: { kind: "tone" } }],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "title-present",
+      description: `Exactly one text clip reads "${WARM_TITLE}", starting at 0 and ending at 3 s (+/- 0.1 s).`,
+      run(input) {
+        const titles = clipsOf(input.final).filter(isTitle);
+        const title = titles[0];
+        if (titles.length !== 1 || !title) return fail(`${titles.length} text clip(s) read "${WARM_TITLE}"`);
+        return verdict(title.start <= TARGET_TOLERANCE_SECONDS && Math.abs(title.end - 3) <= TARGET_TOLERANCE_SECONDS, `title runs ${title.start.toFixed(2)}s to ${title.end.toFixed(2)}s`);
+      },
+    },
+    {
+      id: "title-is-warm",
+      description: `The title clip has a colour adjustment that warms it (temperature at least ${MIN_WARM_TEMPERATURE}).`,
+      run(input) {
+        const title = clipsOf(input.final).find(isTitle);
+        if (!title) return fail("no title clip");
+        const temperature = temperatureOf(title);
+        return graded({ score: clamp01(temperature / MIN_WARM_TEMPERATURE), threshold: 1, detail: `title temperature ${temperature}` });
+      },
+    },
+    {
+      id: "video-untouched",
+      description: "The video clip has no colour adjustment and still plays 0-10 s.",
+      run(input) {
+        const clip = videoClips(input)[0];
+        if (!clip) return fail("the video clip is gone");
+        const clean = clip.effects.every((e) => e.type !== "adjust") && Math.abs(clip.start) <= FRAME_SLACK && Math.abs(clip.end - 10) <= FRAME_SLACK;
+        return verdict(clean, `video ${clip.start.toFixed(2)}-${clip.end.toFixed(2)}s, ${clip.effects.length} effect(s)`);
+      },
+    },
+  ],
+};
+
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
-  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME,
+  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);

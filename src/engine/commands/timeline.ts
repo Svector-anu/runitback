@@ -2,14 +2,14 @@ import { mediaTime } from "#/engine/time";
 import { isSameFrameRate } from "#/engine/time";
 import {
   canElementHaveAudio, canTrackBeHidden, clampElementParams, canTrackHaveAudio, createTrack, buildMediaElement, isVisualElement,
-  EMPTY_SELECTION, InvalidInputError, type AudioElement, type ElementPatch, type ElementRef, type MediaAssetInfo, type SceneTracks,
+  EMPTY_SELECTION, InvalidInputError, type AudioElement, type ImageElement, type ElementPatch, type ElementRef, type MediaAssetInfo, type SceneTracks,
   type SelectionState, type TimelineElement, type TrackType, type VideoElement,
 } from "#/engine/model";
 import { cloneAnimations } from "#/engine/animation";
 import {
   allElements, applyElementUpdate, applyGroupMove, buildResizeMembers, computeGroupResize, elementEnd, applyPlacement, copyElements, defaultInsertIndex, duplicateElements,
   elementsStrictlyAt, getElement, requireTick, findTrack, insertTrack, mapTracks, pasteElements, removeElements, removeTrack, resolveTrackPlacement,
-  splitElements, trackTypeForElement, withElements, type ClipboardItem, type GroupMovePlan, type RetainSide,
+  splitElements, trackTypeForElement, withElements, resolveElementParams, sourceTimeAt, sourceSpanAtClipTime, MAX_TIMELINE_TICKS, type ClipboardItem, type GroupMovePlan, type RetainSide,
 } from "#/engine/timeline";
 import { isSaneCanvas, isSaneFrameRate } from "./limits";
 import { currentScene, mapCurrentTracks, type Command, type CommandResult, type EditorDocument } from "./types";
@@ -397,4 +397,68 @@ function pickVolumeAnimation(video: VideoElement): AudioElement["animations"] {
   const volume = video.animations?.volume;
   if (!volume) return undefined;
   return cloneAnimations({ animations: { volume }, regenerateIds: undefined });
+}
+
+// ---- Freeze frame --------------------------------------------------------------------------------------------
+
+/** Never ask a decoder for the very last instant of a source (4000 ticks is about one frame at 30 fps). */
+const FREEZE_END_GUARD_TICKS = 4000;
+const FREEZE_COPIED_PARAMS = [
+  "transform.positionX", "transform.positionY", "transform.scaleX", "transform.scaleY", "transform.rotate", "opacity", "blendMode",
+  "crop.left", "crop.top", "crop.right", "crop.bottom",
+] as const;
+
+/**
+ * Inserts a still of the video's frame at timeline time `at` for `duration` ticks, on the clip's own track. The clip is
+ * cut at `at` and everything from there on that track moves later by `duration` (a ripple insert), so no clip overlaps
+ * and no source mapping changes. The still is an image-like clip (`freezeAt` on an image element that points at the
+ * video asset), which keeps every invariant: it has no trims, no audio and may be any length. Clips on other tracks
+ * (including extracted audio) do not move.
+ */
+export function freezeFrameCommand(input: { ref: ElementRef; at: number; duration: number; elementId?: string }): Command {
+  return {
+    label: "Freeze frame",
+    run(doc, ctx) {
+      requireTick("at", input.at, 0);
+      requireTick("duration", input.duration, 1);
+      const scene = currentScene(doc);
+      const element = getElement(scene.tracks, input.ref);
+      if (!element) throw new InvalidInputError(`No element ${input.ref.elementId} on track ${input.ref.trackId}`);
+      if (element.type !== "video") throw new InvalidInputError(`A freeze frame needs a video clip, not ${element.type}`);
+      if (input.at < element.startTime || input.at >= elementEnd(element)) throw new InvalidInputError("The freeze time must fall inside the clip");
+      if (input.at + input.duration > MAX_TIMELINE_TICKS) throw new InvalidInputError("The freeze frame would end beyond the 24 hour limit");
+
+      const clipTime = input.at - element.startTime;
+      const sourceEnd = element.sourceDuration ?? element.trimStart + sourceSpanAtClipTime(element.duration, element.retime) + element.trimEnd;
+      const frameAt = Math.round(Math.min(Math.max(0, sourceTimeAt({ trimStart: element.trimStart, clipTime, retime: element.retime })), Math.max(0, sourceEnd - FREEZE_END_GUARD_TICKS)));
+      const resolved = resolveElementParams(element, clipTime);
+      const params: Record<string, string | number | boolean> = {};
+      for (const key of FREEZE_COPIED_PARAMS) { const value = resolved[key]; if (value !== undefined) params[key] = value; }
+
+      const freezeId = input.elementId ?? ctx.newId();
+      const atStart = input.at === element.startTime;
+      const freeze: ImageElement = {
+        id: freezeId, type: "image", name: "Freeze frame", mediaId: element.mediaId, freezeAt: mediaTime(frameAt),
+        startTime: mediaTime(input.at), duration: mediaTime(input.duration), trimStart: mediaTime(0), trimEnd: mediaTime(0),
+        params, hidden: element.hidden ?? false,
+        ...(element.effects ? { effects: element.effects.map((e) => ({ ...e, params: { ...e.params } })) } : {}),
+        ...(element.masks ? { masks: element.masks.map((m) => ({ ...m, params: { ...m.params } })) } : {}),
+        ...(atStart && element.transition ? { transition: element.transition } : {}),
+      };
+
+      const split = atStart ? { tracks: scene.tracks, selection: [] as ElementRef[] }
+        : splitElements({ tracks: scene.tracks, refs: [input.ref], splitTime: input.at, newId: ctx.newId });
+      const edited = mapTracks(split.tracks, (track) => {
+        if (track.id !== input.ref.trackId) return track;
+        const moved = (track.elements as TimelineElement[]).map((e) => {
+          if (e.startTime < input.at) return e;
+          const shifted = { ...e, startTime: mediaTime(e.startTime + input.duration) } as TimelineElement;
+          if (atStart && e.id === element.id) delete (shifted as { transition?: unknown }).transition;
+          return shifted;
+        });
+        return withElements(track, [...moved, freeze]);
+      });
+      return result(mapCurrentTracks(doc, ctx, () => edited), selectionOf([{ trackId: input.ref.trackId, elementId: freezeId }]));
+    },
+  };
 }

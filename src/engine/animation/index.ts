@@ -3,3 +3,4 @@ export * from "./bezier";
 export * from "./evaluate";
 export * from "./mutate";
 export * from "./easing";
+export * from "./text-presets";

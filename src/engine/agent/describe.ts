@@ -70,6 +70,7 @@ export function summarizeElement(located: LocatedElement): Record<string, unknow
     hasKeyframes: hasKeyframes(element),
     hasEffects: (element.effects?.length ?? 0) > 0,
     hasMasks: (element.masks?.length ?? 0) > 0,
+    ...("transition" in element && element.transition ? { transition: { type: element.transition.type, duration: toSec(element.transition.duration) } } : {}),
   };
 }
 

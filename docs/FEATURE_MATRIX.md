@@ -60,9 +60,9 @@ Source column: **C** = opencut-classic, **N** = current OpenCut. Paths are under
 | Extract/recover source audio | ADVANCED | 01§7.10 |
 | Empty-track dashed placeholder, drop line, snap indicator | CORE | 01§4 |
 | Keyframe lanes expand/collapse, diamonds, drag | ADVANCED | 01§7.13 |
-| Freeze frame | UNIMPLEMENTED | C disabled "coming soon" | 01§4 |
+| Freeze frame (image-like still of the source frame, ripple insert) | ADVANCED (CapCut parity; classic had a disabled stub) | `docs/CAPCUT_PARITY.md` |
 | Replace media | UNIMPLEMENTED | C stub | 01§5 |
-| Transitions | UNIMPLEMENTED | none in either repo | – |
+| Transitions (dissolve, fade through black, slide L/R, wipe L/R, zoom) | ADVANCED (CapCut parity; new, not in classic) | `docs/CAPCUT_PARITY.md` |
 
 ## 4. Playback & preview
 
@@ -94,9 +94,9 @@ Source column: **C** = opencut-classic, **N** = current OpenCut. Paths are under
 | Masks (rectangle, ellipse, split, cinematic-bars, heart, diamond, star; feather/invert/stroke) | ADVANCED (basic set) / OPTIONAL (text, freeform) | 03 |
 | Captions: SRT/ASS import → text elements | ADVANCED | 03 |
 | Whisper transcription | OPTIONAL | 03 (needs ~100 MB model download; deferred, documented) |
-| Crop | UNIMPLEMENTED | 03 |
-| Text stroke/shadow | UNIMPLEMENTED | 03 |
-| Colour grading / other effects | UNIMPLEMENTED | 03 |
+| Crop (normalized edges, before transform) | ADVANCED (CapCut parity; new) | `docs/CAPCUT_PARITY.md` |
+| Text stroke, drop shadow, typewriter reveal, in/out animation presets | ADVANCED (CapCut parity; new) | `docs/CAPCUT_PARITY.md` |
+| Colour adjust effect (brightness, contrast, saturation, exposure, temperature, tint, vignette, sharpen) + 8 filter presets | ADVANCED (CapCut parity; new, not in classic) | `docs/CAPCUT_PARITY.md` |
 
 ## 6. Animation
 

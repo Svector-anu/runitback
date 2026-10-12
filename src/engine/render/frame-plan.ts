@@ -1,10 +1,11 @@
 import {
-  BLEND_MODES, DEFAULT_GRAPHIC_SOURCE_SIZE, numberParam, stringParam, PARAM, type BlendMode, type CanvasSize,
+  BLEND_MODES, CROP_MAX_EDGE, DEFAULT_GRAPHIC_SOURCE_SIZE, numberParam, stringParam, PARAM, type BlendMode, type CanvasSize,
   type Background, type Effect, type Mask, type MediaAssetInfo, type ParamValues, type SceneTracks, type TimelineElement,
-  type TimelineTrack,
+  type TimelineTrack, type TransitionType,
 } from "#/engine/model";
 import { TICKS_PER_SECOND } from "#/engine/time";
-import { resolveEffectParams, resolveElementParams, sourceTimeAt } from "#/engine/timeline";
+import { effectiveRate, effectiveTransition, resolveEffectParams, resolveElementParams, sourceTimeAt } from "#/engine/timeline";
+import { easeTransition, isTransitionLayerVisible, type LayerTransition } from "./transitions";
 
 export interface LayerTransform {
   centerX: number;
@@ -38,11 +39,26 @@ interface LayerBase {
   effects: ResolvedEffect[];
 }
 
+/** Fractions of the source removed from each side; the remaining part is drawn where it was. */
+export interface LayerCrop { left: number; top: number; right: number; bottom: number }
+
+/** Crop from the `crop.*` params, clamped so something always remains; null when nothing is cropped. */
+export function resolveCrop(params: ParamValues): LayerCrop | null {
+  const edge = (key: string): number => Math.min(CROP_MAX_EDGE, Math.max(0, numberParam(params, key, 0)));
+  let { left, right, top, bottom } = { left: edge(PARAM.cropLeft), right: edge(PARAM.cropRight), top: edge(PARAM.cropTop), bottom: edge(PARAM.cropBottom) };
+  if (left + right > CROP_MAX_EDGE) { const k = CROP_MAX_EDGE / (left + right); left *= k; right *= k; }
+  if (top + bottom > CROP_MAX_EDGE) { const k = CROP_MAX_EDGE / (top + bottom); top *= k; bottom *= k; }
+  return left + right + top + bottom === 0 ? null : { left, top, right, bottom };
+}
+
 export interface MediaLayer extends LayerBase {
   kind: "layer";
   source: LayerSource;
   transform: LayerTransform;
   mask: ResolvedMask | null;
+  crop: LayerCrop | null;
+  /** Set while this clip is part of a transition (also outside its own start/end, using the media either side of the cut). */
+  transition: LayerTransition | null;
 }
 
 export interface TextLayer extends LayerBase {
@@ -83,6 +99,53 @@ const blendModeOf = (value: string): BlendMode => ((BLEND_MODES as readonly stri
 
 function isActive(element: TimelineElement, time: number): boolean {
   return element.startTime <= time && time < element.startTime + element.duration;
+}
+
+/** Last frame of a source is never requested exactly: a decoder seeking to the very end can return nothing. */
+const SOURCE_END_GUARD_TICKS = 4000;
+
+interface TransitionWindow {
+  outgoingId: string;
+  incomingId: string;
+  type: TransitionType;
+  start: number;
+  duration: number;
+}
+
+/** Windows are centred on the cut between a clip and its predecessor: half before it, half after. */
+function transitionWindows(elements: TimelineElement[]): TransitionWindow[] {
+  const out: TransitionWindow[] = [];
+  for (const element of elements) {
+    const transition = effectiveTransition(elements, element);
+    const outgoing = transition && elements.find((e) => e.id !== element.id && e.startTime + e.duration === element.startTime && (e.type === "video" || e.type === "image"));
+    if (!transition || !outgoing) continue;
+    out.push({
+      outgoingId: outgoing.id, incomingId: element.id, type: transition.type,
+      start: element.startTime - Math.floor(transition.duration / 2), duration: transition.duration,
+    });
+  }
+  return out;
+}
+
+function transitionRole(windows: TransitionWindow[], elementId: string, time: number): LayerTransition | null {
+  for (const w of windows) {
+    if (time < w.start || time >= w.start + w.duration) continue;
+    if (w.incomingId !== elementId && w.outgoingId !== elementId) continue;
+    return { type: w.type, role: w.incomingId === elementId ? "in" : "out", progress: easeTransition((time - w.start) / w.duration) };
+  }
+  return null;
+}
+
+/** Source time at an unclamped clip time; held on the first/last frame where the source runs out. */
+function heldSourceSeconds(input: { element: Extract<TimelineElement, { type: "video" }>; assetDuration: number | undefined; clipTime: number }): number {
+  const { element } = input;
+  const raw = sourceTimeAt({ trimStart: element.trimStart, clipTime: input.clipTime, retime: element.retime });
+  const known = element.sourceDuration ?? input.assetDuration;
+  const first = known === undefined ? element.trimStart : 0;
+  const last = known === undefined
+    ? element.trimStart + element.duration * effectiveRate(element.retime) - SOURCE_END_GUARD_TICKS
+    : known - SOURCE_END_GUARD_TICKS;
+  return Math.max(first, Math.min(raw, Math.max(first, last))) / TICKS_PER_SECOND;
 }
 
 function visibleElements(track: TimelineTrack): TimelineElement[] {
@@ -143,9 +206,15 @@ export function buildFramePlan(input: {
   const blurBackgrounds: BlurBackgroundItem[] = [];
 
   for (const track of drawOrder(tracks)) {
-    for (const element of visibleElements(track)) {
-      if (!isActive(element, time)) continue;
-      const clipTime = time - element.startTime;
+    const elements = visibleElements(track);
+    const windows = track.type === "video" ? transitionWindows(elements) : [];
+    for (const element of elements) {
+      const transition = windows.length > 0 ? transitionRole(windows, element.id, time) : null;
+      const active = isActive(element, time);
+      if (!active && !transition) continue;
+      if (transition && !isTransitionLayerVisible(transition)) continue;
+      const rawClipTime = time - element.startTime;
+      const clipTime = Math.min(Math.max(0, rawClipTime), Math.max(0, element.duration - 1));
       const params = resolveElementParams(element, clipTime);
       const opacity = numberParam(params, PARAM.opacity, 1);
       const blendMode = blendModeOf(stringParam(params, PARAM.blendMode, "normal"));
@@ -166,7 +235,7 @@ export function buildFramePlan(input: {
             kind: "layer", elementId: element.id, opacity, blendMode, effects: resolveEffects(element, clipTime),
             source: { type: "graphic", definitionId: element.definitionId, params: graphicParams, width: size, height: size },
             transform: computeVisualTransform({ canvas, sourceWidth: size, sourceHeight: size, params }),
-            mask: activeMask(element),
+            mask: activeMask(element), crop: null, transition: null,
           });
           break;
         }
@@ -179,14 +248,18 @@ export function buildFramePlan(input: {
           }
           const source = element.type === "video"
             ? ({ type: "video", mediaId: asset.id, width: asset.width, height: asset.height,
-              sourceSeconds: sourceTimeAt({ trimStart: element.trimStart, clipTime, retime: element.retime }) / TICKS_PER_SECOND } as const)
-            : ({ type: "image", mediaId: asset.id, width: asset.width, height: asset.height } as const);
+              sourceSeconds: transition
+                ? heldSourceSeconds({ element, assetDuration: asset.duration, clipTime: rawClipTime })
+                : sourceTimeAt({ trimStart: element.trimStart, clipTime, retime: element.retime }) / TICKS_PER_SECOND } as const)
+            : element.freezeAt !== undefined
+              ? ({ type: "video", mediaId: asset.id, width: asset.width, height: asset.height, sourceSeconds: element.freezeAt / TICKS_PER_SECOND } as const)
+              : ({ type: "image", mediaId: asset.id, width: asset.width, height: asset.height } as const);
           items.push({
             kind: "layer", elementId: element.id, opacity, blendMode, effects: resolveEffects(element, clipTime), source,
             transform: computeVisualTransform({ canvas, sourceWidth: asset.width, sourceHeight: asset.height, params }),
-            mask: activeMask(element),
+            mask: activeMask(element), crop: resolveCrop(params), transition,
           });
-          if (input.background.type === "blur" && track.id === tracks.main.id) {
+          if (active && input.background.type === "blur" && track.id === tracks.main.id) {
             blurBackgrounds.push({ kind: "blurBackground", elementId: element.id, source, intensity: input.background.blurIntensity ?? DEFAULT_BACKGROUND_BLUR_INTENSITY });
           }
           break;

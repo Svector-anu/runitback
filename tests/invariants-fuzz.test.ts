@@ -4,7 +4,7 @@ import {
   addTrack, createSceneCommand, deleteElements, deleteSceneCommand, duplicateCommand, insertElement, insertElementsOnLanes,
   insertMediaElement, moveElements, pasteCommand, removeAssetsCommand, removeTrackCommand, renameSceneCommand, setElementParams,
   setTrackFlags, splitCommand, toggleBookmark, toggleElementsHidden, toggleElementsMuted, toggleSourceAudio, trimElementCommand,
-  updateElements, updateSettings, upsertKeyframeCommand, addClipEffect, addMask,
+  updateElements, updateSettings, upsertKeyframeCommand, addClipEffect, addMask, setTransitionCommand, setTextAnimationCommand, freezeFrameCommand,
   type Command,
 } from "#/engine/commands";
 import { EngineError, orderedTracks, type TimelineElement } from "#/engine/model";
@@ -55,7 +55,9 @@ function randomCommand(editor: Editor, rng: Rng): Command {
   const tracks = editor.tracks();
   const ref = randomRef(editor, rng);
   const assets = editor.getState().doc.assets;
-  switch (rng.int(26)) {
+  switch (rng.int(29)) {
+    case 28: return freezeFrameCommand({ ref, at: tick(rng), duration: rng.chance(0.8) ? rng.int(4 * TICKS_PER_SECOND) : tick(rng) });
+    case 27: return setTextAnimationCommand({ ref, in: rng.chance(0.8) ? { preset: rng.pick(["fade", "pop", "typewriter", "slide-up", "bogus" as never]), duration: tick(rng) as never } : null, out: rng.chance(0.5) ? { preset: "fade", duration: tick(rng) as never } : undefined });
     case 0: case 1: return insertElement({ element: freshElement(editor, rng), placement: { mode: "auto" } });
     case 2: return insertElement({ element: freshElement(editor, rng), placement: { mode: "explicit", trackId: randomTrackId(editor, rng) } });
     case 3: return insertElement({ element: freshElement(editor, rng), placement: { mode: "newTrack", index: rng.int(5) - 1, trackId: rng.chance(0.2) ? randomTrackId(editor, rng) : undefined } });
@@ -79,7 +81,7 @@ function randomCommand(editor: Editor, rng: Rng): Command {
     case 19: return toggleSourceAudio(ref);
     case 20: return setElementParams({ refs: [ref], params: { opacity: rng.pick([0.3, 1, 5, -2, Number.NaN]) } });
     case 21: return upsertKeyframeCommand({ ref, path: "opacity", time: tick(rng), value: rng.pick([0, 0.5, 1]) });
-    case 22: return rng.chance(0.5) ? addClipEffect({ ref, effectType: "blur" }) : addMask(ref, "rectangle");
+    case 22: return rng.chance(0.5) ? addClipEffect({ ref, effectType: rng.pick(["blur", "adjust"]) }) : addMask(ref, "rectangle");
     case 23: return rng.pick<Command>([
       updateSettings({ canvasSize: { width: rng.pick([1920, 100000, Number.NaN, 640]), height: rng.pick([1080, 480, 0]) } }),
       updateSettings({ fps: { numerator: rng.pick([24, 30, 1000, 0, Number.NaN]), denominator: 1 } }),
@@ -91,6 +93,10 @@ function randomCommand(editor: Editor, rng: Rng): Command {
       renameSceneCommand(editor.getState().doc.currentSceneId, "renamed"),
       deleteSceneCommand(rng.pick(editor.getState().doc.scenes).id),
     ]);
+    case 25: return setTransitionCommand({
+      ref,
+      transition: rng.chance(0.2) ? null : { type: rng.pick(["dissolve", "fade-black", "slide-left", "wipe-right", "zoom", "bogus" as never]), duration: rng.chance(0.7) ? rng.int(8 * TICKS_PER_SECOND) : tick(rng) },
+    });
     default: return insertElementsOnLanes({ elements: Array.from({ length: 1 + rng.int(4) }, () => ({ ...text(editor.newId(), 0, 1 + rng.int(3)), startTime: frameAligned(rng, 8) as never })) });
   }
 }
@@ -152,7 +158,18 @@ function toolArgs(editor: Editor, rng: Rng): { name: string; args: Record<string
   const trackId = randomTrackId(editor, rng);
   const placement = rng.pick([{}, { newTrack: true }, { trackId }]);
   const assetId = rng.pick(["a1", "a2", "a3", "music", "photo", "missing"]);
-  switch (rng.int(24)) {
+  switch (rng.int(35)) {
+    case 32: return { name: "set_crop", args: { elementIds, left: rng.pick([0, 0.2, 0.9, 2]), ...(rng.chance(0.5) ? { right: rng.pick([0.1, 0.8]) } : {}), ...(rng.chance(0.3) ? { reset: true } : {}) } };
+    case 33: return { name: "freeze_frame", args: { elementId, ...(rng.chance(0.7) ? { at: seconds() } : {}), ...(rng.chance(0.7) ? { duration: seconds() } : {}) } };
+    case 34: return { name: "set_params", args: { elementIds, params: { "crop.left": rng.pick([0, 0.3, 1.5]) } } };
+    case 29: return { name: "set_text_style", args: { elementIds, stroke: { width: rng.pick([0, 3, 500]) }, shadow: rng.chance(0.5) ? { blur: rng.pick([0, 12]), offsetX: 3 } : { enabled: false } } };
+    case 30: return { name: "set_text_animation", args: { elementIds, ...(rng.chance(0.7) ? { in: { preset: rng.pick(["fade", "slide-up", "pop", "typewriter", "none"]), duration: seconds() } } : {}), ...(rng.chance(0.7) ? { out: { preset: rng.pick(["fade", "pop", "none"]), duration: seconds() } } : {}) } };
+    case 31: return { name: "set_params", args: { elementIds, params: { reveal: rng.pick([0, 0.5, 2]), "stroke.width": rng.pick([1, -3]) } } };
+    case 27: return { name: "apply_filter", args: { elementIds, filter: rng.pick(["vivid", "noir", "sepia", "none", "bogus"]), ...(rng.chance(0.3) ? { intensity: rng.next() } : {}) } };
+    case 28: return { name: "set_color_adjust", args: { elementIds, params: { brightness: rng.pick([-100, 0, 40, 500]), temperature: rng.pick([-60, 80]) }, reset: rng.chance(0.3) } };
+    case 24: return { name: "set_transition", args: { elementIds, type: rng.pick(["dissolve", "zoom", "slide-left"]), ...(rng.chance(0.7) ? { duration: seconds() } : {}) } };
+    case 25: return { name: "add_transition", args: { fromElementId: elementId, toElementId: rng.pick(ids.concat("ghost")), type: "wipe-left" } };
+    case 26: return { name: "remove_transition", args: { elementIds } };
     case 0: case 1: return { name: "insert_media", args: { assetId, start: seconds(), ...(rng.chance(0.4) ? { duration: seconds() } : {}), ...placement } };
     case 2: return { name: "insert_text", args: { text: "hi", start: seconds(), duration: seconds(), ...placement } };
     case 3: return { name: "insert_graphic", args: { shape: rng.pick(["rectangle", "star"]), start: seconds(), duration: seconds(), ...placement } };

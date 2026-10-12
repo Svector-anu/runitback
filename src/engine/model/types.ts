@@ -28,6 +28,22 @@ export interface Mask {
   params: ParamValues;
 }
 
+export const TRANSITION_TYPES = [
+  "dissolve", "fade-black", "slide-left", "slide-right", "wipe-left", "wipe-right", "zoom",
+] as const;
+export type TransitionType = (typeof TRANSITION_TYPES)[number];
+
+/**
+ * Blend from the previous clip on the same track into this one. Lives on the INCOMING clip, is centred on the cut
+ * (half before, half after) and never moves a clip: the previous clip plays on past its end and this one starts
+ * early, using the source media either side of the cut (held on its first/last frame when there is none).
+ */
+export interface Transition {
+  type: TransitionType;
+  /** Total length in ticks; at most half of the shorter of the two clips. */
+  duration: MediaTime;
+}
+
 interface BaseElement {
   id: string;
   name: string;
@@ -51,18 +67,41 @@ export interface VideoElement extends BaseElement {
   retime?: RetimeConfig;
   effects?: Effect[];
   masks?: Mask[];
+  transition?: Transition;
 }
 export interface ImageElement extends BaseElement {
   type: "image";
   mediaId: string;
+  /**
+   * Set on a freeze frame: `mediaId` is then a VIDEO asset and this is the source time (ticks) of the one frame shown
+   * for the whole clip. Otherwise the clip behaves like any image: no trims, no audio, any length.
+   */
+  freezeAt?: MediaTime;
   hidden?: boolean;
   effects?: Effect[];
   masks?: Mask[];
+  transition?: Transition;
 }
+export const TEXT_ANIMATION_PRESETS = ["fade", "slide-up", "pop", "typewriter"] as const;
+export type TextAnimationPreset = (typeof TEXT_ANIMATION_PRESETS)[number];
+
+export interface TextAnimationSpec {
+  preset: TextAnimationPreset;
+  /** Length in ticks of the in or out phase; at most half of the clip. */
+  duration: MediaTime;
+}
+
+/** Which presets generated the keyframes on opacity / position Y / scale / reveal (so setting one side keeps the other). */
+export interface TextAnimationState {
+  in?: TextAnimationSpec;
+  out?: TextAnimationSpec;
+}
+
 export interface TextElement extends BaseElement {
   type: "text";
   hidden?: boolean;
   effects?: Effect[];
+  textAnimation?: TextAnimationState;
 }
 export interface GraphicElement extends BaseElement {
   type: "graphic";
@@ -198,5 +237,6 @@ export interface ElementPatch {
   hidden?: boolean;
   effects?: Effect[] | undefined;
   masks?: Mask[] | undefined;
+  transition?: Transition | undefined;
   isSourceAudioEnabled?: boolean;
 }

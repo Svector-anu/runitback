@@ -27,6 +27,10 @@ export interface ClipView {
   audible: boolean;
   params: TimelineElement["params"];
   animations?: ElementAnimations;
+  /** The transition into this clip, with its length in seconds. */
+  transition?: { type: string; duration: number };
+  /** Effects attached to the clip, in order. */
+  effects: Array<{ type: string; params: TimelineElement["params"] }>;
 }
 
 export function sceneOf(project: Project): Scene {
@@ -68,6 +72,8 @@ export function clipsOf(project: Project): ClipView[] {
         audible: carriesSound && !muted,
         params: element.params,
         ...(element.animations ? { animations: element.animations } : {}),
+        ...("transition" in element && element.transition ? { transition: { type: element.transition.type, duration: toSeconds(element.transition.duration) } } : {}),
+        effects: ("effects" in element ? (element.effects ?? []) : []).filter((e) => e.enabled).map((e) => ({ type: e.type, params: e.params })),
       };
     }));
 }

@@ -1,10 +1,11 @@
 import { mediaTime, type FrameRate } from "#/engine/time";
 import {
-  clampElementParams, randomId, TRACK_TYPE_FOR_ELEMENT, type IdGenerator, type Project, type Scene, type SceneTracks,
+  clampElementParams, randomId, TEXT_ANIMATION_PRESETS, TRACK_TYPE_FOR_ELEMENT, type IdGenerator, type Project, type Scene, type SceneTracks,
   type TimelineElement, type TimelineTrack, type TrackType,
 } from "#/engine/model";
 import { isSaneCanvas, isSaneFrameRate } from "#/engine/commands/limits";
 import { MAX_TIMELINE_TICKS } from "#/engine/timeline/invariants";
+import { isTransitionType, reconcileTransitions } from "#/engine/timeline/transitions";
 
 type Raw = Record<string, unknown>;
 
@@ -115,6 +116,30 @@ function repairElement(raw: unknown, notes: Notes): TimelineElement | null {
   if (effects) el.effects = effects;
   const masks = cleanDecorations(raw.masks, owner, "masks", notes);
   if (masks) el.masks = masks;
+  if (el.freezeAt !== undefined) {
+    if (raw.type === "image" && isFiniteNumber(el.freezeAt) && el.freezeAt >= 0) el.freezeAt = mediaTime(Math.round(el.freezeAt));
+    else if (raw.type === "image") { el.freezeAt = mediaTime(0); notes.add(`${owner}: freeze frame had an invalid source time and was reset to the first frame`); }
+    else delete el.freezeAt;
+  }
+  if (el.textAnimation !== undefined) {
+    const valid = (spec: unknown): boolean => isRaw(spec) && TEXT_ANIMATION_PRESETS.includes(spec.preset as never) && isFiniteNumber(spec.duration) && spec.duration >= 1;
+    const t = el.textAnimation;
+    if (raw.type === "text" && isRaw(t) && (t.in === undefined || valid(t.in)) && (t.out === undefined || valid(t.out))) {
+      el.textAnimation = { ...(t.in ? { in: { preset: (t.in as Raw).preset, duration: mediaTime(Math.round((t.in as Raw).duration as number)) } } : {}), ...(t.out ? { out: { preset: (t.out as Raw).preset, duration: mediaTime(Math.round((t.out as Raw).duration as number)) } } : {}) };
+    } else {
+      delete el.textAnimation;
+      notes.add(`${owner}: dropped an unreadable text animation`);
+    }
+  }
+  if (el.transition !== undefined) {
+    const t = el.transition;
+    if (isRaw(t) && isTransitionType(t.type) && isFiniteNumber(t.duration) && Math.round(t.duration) >= 1) {
+      el.transition = { type: t.type, duration: mediaTime(Math.round(t.duration)) };
+    } else {
+      delete el.transition;
+      notes.add(`${owner}: dropped an unreadable transition`);
+    }
+  }
 
   const typed = el as unknown as TimelineElement;
   const clamped = clampElementParams(typed);
@@ -223,9 +248,11 @@ function repairScene(raw: Raw, newId: IdGenerator, sceneIds: Set<string>, notes:
     if (!ok) notes.add("dropped an unreadable bookmark");
     return ok;
   });
+  const reconciled = reconcileTransitions({ overlay, main, audio });
+  if (reconciled !== undefined && JSON.stringify(reconciled) !== JSON.stringify({ overlay, main, audio })) notes.add("removed transitions that no longer sit between touching clips");
   return {
     id, name: typeof raw.name === "string" ? raw.name : "Scene", isMain: raw.isMain === true,
-    tracks: { overlay, main, audio }, bookmarks,
+    tracks: reconciled, bookmarks,
     createdAt: typeof raw.createdAt === "string" ? raw.createdAt : "", updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : "",
   };
 }

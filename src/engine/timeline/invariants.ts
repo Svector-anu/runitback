@@ -1,6 +1,7 @@
 import { TICKS_PER_SECOND } from "#/engine/time";
 import { InvariantViolationError, orderedTracks, type Scene, type TimelineElement } from "#/engine/model";
 import { effectiveRate } from "./retime";
+import { transitionViolations } from "./transitions";
 
 /** No clip may start or end beyond 24 hours; keeps every tick count a safe integer and exports finite. */
 export const MAX_TIMELINE_TICKS = 24 * 3600 * TICKS_PER_SECOND;
@@ -62,6 +63,7 @@ export function sceneViolations(scene: Scene): string[] {
       out.push(...problems);
       if (problems.length === 0) valid.push(element);
     }
+    out.push(...transitionViolations(track));
     const sorted = [...valid].sort((a, b) => a.startTime - b.startTime);
     let reach: TimelineElement | undefined;
     for (const element of sorted) {

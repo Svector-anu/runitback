@@ -42,6 +42,9 @@ function cut(element: TimelineElement, splitTime: number, newId: IdGenerator): {
   }
   delete left.animations;
   delete right.animations;
+  delete (right as { transition?: unknown }).transition;
+  delete (left as { textAnimation?: unknown }).textAnimation;
+  delete (right as { textAnimation?: unknown }).textAnimation;
   if (anims.left) left.animations = anims.left;
   if (anims.right) right.animations = anims.right;
   return { left, right };

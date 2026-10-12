@@ -445,6 +445,56 @@ function reframeSpeaker(options: { mode: "faces" | "static-crop" | "wrong-canvas
   };
 }
 
+/** Adds a transition between red.mp4 and blue.mp4 through add_transition, or a plausible wrong substitute. */
+function addTransitionBetween(options: { mode: "dissolve" | "wrong-type" | "too-long" | "keyframes" }): () => Turn[] {
+  return () => [
+    (_seen, use) => orient(use),
+    (seen, use) => {
+      const timeline = seen.data<TimelineData>("get_timeline");
+      const assets = seen.data<{ assets: AssetRow[] }>("list_assets").assets;
+      const idOf = (name: string): string => {
+        const asset = assets.find((a) => a.name === name);
+        const element = elementsOf(timeline).find((e) => e.assetId === asset?.id);
+        if (!element) throw new Error(`policy: no clip for ${name}`);
+        return element.id;
+      };
+      const [from, to] = [idOf("red.mp4"), idOf("blue.mp4")];
+      if (options.mode === "keyframes") {
+        return [
+          say("Fading the second clip in with opacity keyframes."),
+          use("add_keyframe", { elementId: to, property: "opacity", time: 4, value: 0 }),
+          use("add_keyframe", { elementId: to, property: "opacity", time: 5, value: 1 }),
+        ];
+      }
+      const type = options.mode === "wrong-type" ? "wipe-left" : "dissolve";
+      const duration = options.mode === "too-long" ? 3 : 1;
+      return [say("Adding the transition between the two clips."), use("add_transition", { fromElementId: from, toElementId: to, type, duration }), use("get_timeline")];
+    },
+    () => [say("There is a cross dissolve between the two clips now.")],
+  ];
+}
+
+/** Adds the title, then gives a clip the warm (or another) filter. */
+function warmTitle(options: { filter: string; target: "title" | "video" }): () => Turn[] {
+  return () => {
+    let videoId = "";
+    return [
+      (_seen, use) => orient(use),
+      (seen, use) => {
+        const text = /"([^"]+)"/.exec(seen.brief)?.[1];
+        if (!text) throw new Error("policy: no quoted title in the brief");
+        videoId = elementsOf(seen.data<TimelineData>("get_timeline")).find((e) => e.type === "video")?.id ?? "";
+        return [use("insert_text", { text, start: 0, duration: numberFrom(seen.brief, /for (\d+) seconds/) })];
+      },
+      (seen, use) => {
+        const titleId = seen.data<{ elementId: string }>("insert_text").elementId;
+        return [say("Applying the filter."), use("apply_filter", { elementIds: [options.target === "title" ? titleId : videoId], filter: options.filter })];
+      },
+      () => [say("The title has the warm look; the video is as it was.")],
+    ];
+  };
+}
+
 function ask(reply: string, extra: Turn[] = []): () => Turn[] {
   return () => [(_seen, use) => orient(use), ...extra, () => [say(reply)]];
 }
@@ -523,6 +573,15 @@ const SPECS: PolicySpec[] = [
   { id: "oracle", caseId: "reframe-to-speaker", kind: "oracle", description: "describe_faces, set_project 9:16, reframe_to_faces on the interview clip.", turns: reframeSpeaker({ mode: "faces" }) },
   { id: "static-crop", caseId: "reframe-to-speaker", kind: "mutation", description: "Makes the canvas vertical and crops to the middle of the frame, never following the speaker.", mustFail: ["speaker-in-frame"], turns: reframeSpeaker({ mode: "static-crop" }) },
   { id: "wrong-canvas", caseId: "reframe-to-speaker", kind: "mutation", description: "Reframes onto the speaker but leaves the canvas 16:9.", mustFail: ["canvas-is-vertical"], turns: reframeSpeaker({ mode: "wrong-canvas" }) },
+
+  { id: "oracle", caseId: "add-transition-between-clips", kind: "oracle", description: "add_transition from red.mp4 to blue.mp4, dissolve, 1 s.", turns: addTransitionBetween({ mode: "dissolve" }) },
+  { id: "wrong-type", caseId: "add-transition-between-clips", kind: "mutation", description: "Adds a wipe instead of a cross dissolve.", mustFail: ["dissolve-between"], turns: addTransitionBetween({ mode: "wrong-type" }) },
+  { id: "too-long", caseId: "add-transition-between-clips", kind: "mutation", description: "Asks for a 3 s dissolve (the engine clamps it to half the shorter clip).", mustFail: ["dissolve-between"], turns: addTransitionBetween({ mode: "too-long" }) },
+  { id: "fake-with-keyframes", caseId: "add-transition-between-clips", kind: "mutation", description: "Fakes the blend with opacity keyframes on the second clip instead of a transition.", mustFail: ["dissolve-between"], turns: addTransitionBetween({ mode: "keyframes" }) },
+
+  { id: "oracle", caseId: "apply-warm-filter-to-title-clip", kind: "oracle", description: "insert_text for 3 s, apply_filter warm to the title only.", turns: warmTitle({ filter: "warm", target: "title" }) },
+  { id: "filter-on-video", caseId: "apply-warm-filter-to-title-clip", kind: "mutation", description: "Warms the video clip instead of the title.", mustFail: ["title-is-warm", "video-untouched"], turns: warmTitle({ filter: "warm", target: "video" }) },
+  { id: "cool-filter", caseId: "apply-warm-filter-to-title-clip", kind: "mutation", description: "Gives the title the cool filter.", mustFail: ["title-is-warm"], turns: warmTitle({ filter: "cool", target: "title" }) },
   {
     id: "oracle", caseId: "ambiguous-request", kind: "oracle", description: "Inspect, then ask what 'better' means.",
     turns: ask("What would you like me to improve: the pacing, the audio level, add titles or captions, or something else? Tell me what 'better' means for this video and I'll do it."),
@@ -553,6 +612,8 @@ const LAZY_FAILS: Record<string, string[]> = {
   "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
   "find-visual-moment": ["subject-footage-kept"],
   "reframe-to-speaker": ["canvas-is-vertical", "speaker-in-frame"],
+  "add-transition-between-clips": ["dissolve-between"],
+  "apply-warm-filter-to-title-clip": ["title-present", "title-is-warm"],
 };
 
 const OVERREACH_FAILS: Record<string, string[]> = {
@@ -572,6 +633,8 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "loudest-shot-first": ["loudest-leads", "all-shots-kept"],
   "find-visual-moment": ["subject-footage-kept"],
   "reframe-to-speaker": ["canvas-is-vertical", "speaker-in-frame", "whole-clip-kept"],
+  "add-transition-between-clips": ["dissolve-between", "clips-untouched"],
+  "apply-warm-filter-to-title-clip": ["title-present", "title-is-warm", "video-untouched"],
 };
 
 function generic(): PolicySpec[] {

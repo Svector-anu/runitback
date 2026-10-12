@@ -1,13 +1,16 @@
 import { mediaTime, type MediaTime } from "#/engine/time";
 import {
-  buildDefaultEffect, buildDefaultMask, clampParams, clampToLimit, isMaskable, limitForPath, limitsForEffect, limitsForMask, isVisualElement, type AnimationInterpolation, type ElementRef, type Effect, type Mask,
+  buildDefaultEffect, buildDefaultMask, InvalidInputError, TEXT_ANIMATION_PRESETS, type TextAnimationSpec, type TextAnimationState, type TransitionType, clampParams, clampToLimit, isMaskable, limitForPath, limitsForEffect, limitsForMask, isVisualElement, type AnimationInterpolation, type ElementRef, type Effect, type Mask,
   type MaskType, type ParamValue, type TimelineElement, type ParamValues,
 } from "#/engine/model";
 import {
-  keyframeIdAtTime, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
+  applyTextAnimation, keyframeIdAtTime, maxTextAnimationDuration, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
   type ScalarCurvePatch,
 } from "#/engine/animation";
-import { getBaseValue, requireFiniteParams, getElement, replaceElement, resolvePathValue, setBaseValue } from "#/engine/timeline";
+import {
+  canHaveTransition, getBaseValue, getElement, isTransitionType, maxTransitionDuration, replaceElement, requireFiniteParams,
+  requireTick, resolvePathValue, setBaseValue, transitionPartner, withoutTransition,
+} from "#/engine/timeline";
 import { mapCurrentTracks, type Command, type CommandContext, type EditorDocument } from "./types";
 import { updateElements } from "./timeline";
 
@@ -199,3 +202,76 @@ export const updateMaskParams = (ref: ElementRef, maskId: string, params: ParamV
 export const toggleMaskInverted = (ref: ElementRef, maskId: string): Command =>
   editMasks(ref, "Invert mask", (masks) => masks.map((m) => (m.id === maskId ? { ...m, params: { ...m.params, inverted: m.params.inverted !== true } } : m)));
 
+
+// ---- Transitions ---------------------------------------------------------------------------------------------
+
+/**
+ * Sets (or with `null` removes) the transition INTO a clip from the clip that ends exactly where it starts.
+ * Requested lengths above half of the shorter clip are clamped; a clip with no touching predecessor is rejected.
+ */
+export function setTransitionCommand(input: { ref: ElementRef; transition: { type: TransitionType; duration: number } | null }): Command {
+  return {
+    label: input.transition ? "Set transition" : "Remove transition",
+    run(doc, ctx) {
+      const { transition } = input;
+      if (transition) {
+        if (!isTransitionType(transition.type)) throw new InvalidInputError(`Unknown transition type "${String(transition.type)}"`);
+        requireTick("transition duration", Math.round(transition.duration), 1);
+      }
+      return { doc: mapCurrentTracks(doc, ctx, (tracks) => {
+        const element = getElement(tracks, input.ref);
+        if (!element) throw new InvalidInputError(`No element ${input.ref.elementId} on track ${input.ref.trackId}`);
+        if (!canHaveTransition(element)) throw new InvalidInputError(`A ${element.type} clip cannot have a transition (video and image clips only)`);
+        if (!transition) {
+          if (!element.transition) return tracks;
+          return replaceElement(tracks, input.ref, withoutTransition(element));
+        }
+        const siblings = [...tracks.overlay, tracks.main].find((t) => t.id === input.ref.trackId)?.elements as TimelineElement[] | undefined;
+        const partner = siblings ? transitionPartner(siblings, element) : null;
+        if (!partner) throw new InvalidInputError(`Clip ${element.id} has no clip ending exactly where it starts on its track, so there is nothing to transition from`);
+        const duration = Math.min(Math.round(transition.duration), maxTransitionDuration(partner, element));
+        if (duration < 1) throw new InvalidInputError("The neighbouring clips are too short for a transition");
+        return replaceElement(tracks, input.ref, { ...element, transition: { type: transition.type, duration: mediaTime(duration) } } as TimelineElement);
+      }) };
+    },
+  };
+}
+
+// ---- Text animation presets ----------------------------------------------------------------------------------
+
+/**
+ * Sets the in and/or out animation preset of a text clip (`undefined` keeps that side, `null` removes it). The presets
+ * are written as ordinary keyframes on opacity, position Y, scale and `reveal`, replacing whatever keyframes those
+ * parameters had; lengths clamp to half of the clip. One undo step.
+ */
+export function setTextAnimationCommand(input: { ref: ElementRef; in?: TextAnimationSpec | null; out?: TextAnimationSpec | null }): Command {
+  return {
+    label: "Text animation",
+    run(doc, ctx) {
+      for (const spec of [input.in, input.out]) {
+        if (!spec) continue;
+        if (!(TEXT_ANIMATION_PRESETS as readonly string[]).includes(spec.preset)) throw new InvalidInputError(`Unknown text animation "${String(spec.preset)}"`);
+        requireTick("text animation duration", Math.round(spec.duration), 1);
+      }
+      return { doc: editElement(doc, ctx, input.ref, (el) => {
+        if (el.type !== "text") throw new InvalidInputError(`Text animations apply to text clips, not ${el.type}`);
+        const limit = maxTextAnimationDuration(el.duration);
+        if (limit < 1) throw new InvalidInputError("The clip is too short for a text animation");
+        const clamp = (spec: TextAnimationSpec): TextAnimationSpec => ({ preset: spec.preset, duration: mediaTime(Math.min(Math.round(spec.duration), limit)) });
+        const next: TextAnimationState = {};
+        const incoming = input.in === undefined ? el.textAnimation?.in : input.in;
+        const outgoing = input.out === undefined ? el.textAnimation?.out : input.out;
+        if (incoming) next.in = clamp(incoming);
+        if (outgoing) next.out = clamp(outgoing);
+        const animations = applyTextAnimation({
+          animations: el.animations, state: next, clipDuration: el.duration, params: el.params, canvasHeight: doc.settings.canvasSize.height, newId: ctx.newId,
+        });
+        const out: TimelineElement = { ...el };
+        if (animations) out.animations = animations; else delete out.animations;
+        if (next.in || next.out) (out as { textAnimation?: TextAnimationState }).textAnimation = next;
+        else delete (out as { textAnimation?: TextAnimationState }).textAnimation;
+        return out;
+      }) };
+    },
+  };
+}

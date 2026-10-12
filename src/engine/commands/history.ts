@@ -1,5 +1,5 @@
 import { EMPTY_SELECTION, InvalidInputError, type IdGenerator, type MediaAssetInfo, type SelectionState } from "#/engine/model";
-import { assertNoNewViolations, pruneEmptyTracks, rippleEdit, pruneSelection } from "#/engine/timeline";
+import { assertNoNewViolations, pruneEmptyTracks, reconcileTransitions, rippleEdit, pruneSelection } from "#/engine/timeline";
 import { withAssetList } from "./project";
 import type { Command, CommandContext, CommandResult, EditorDocument } from "./types";
 
@@ -70,6 +70,7 @@ export class CommandManager {
     let tracks = afterScene.tracks;
     if (rippleEnabled) tracks = rippleEdit({ before: beforeScene.tracks, after: tracks });
     tracks = pruneEmptyTracks(tracks);
+    tracks = reconcileTransitions(tracks);
     if (tracks === afterScene.tracks) return after;
     return { ...after, scenes: after.scenes.map((s) => (s.id === sceneId ? { ...s, tracks } : s)) };
   }
