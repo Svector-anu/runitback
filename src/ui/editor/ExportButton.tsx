@@ -8,6 +8,7 @@ import { currentScene } from "#/engine/commands";
 import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
 import { Popover } from "../primitives/Popover";
+import { Tooltip } from "../primitives/Tooltip";
 import { Section } from "../primitives/fields";
 import { toast } from "../primitives/toast";
 
@@ -88,14 +89,22 @@ export function ExportButton(): ReactNode {
 
   const exportingPercent = state.kind === "exporting" ? Math.round(state.progress.progress * 100) : null;
 
+  const exportButton = (
+    <button ref={anchor} type="button" className="export-button" data-tour="export" disabled={empty} aria-haspopup="dialog" aria-expanded={open}
+      title={exportingPercent === null ? undefined : "Export in progress"} onClick={() => setOpen((o) => !o)}>
+      <span className="export-button__inner">
+        <Icon name="download" /><span>{exportingPercent === null ? "Export" : `Exporting ${exportingPercent}%`}</span>
+      </span>
+    </button>
+  );
+
   return (
     <>
-      <button ref={anchor} type="button" className="export-button" disabled={empty} aria-haspopup="dialog" aria-expanded={open}
-        title={empty ? "Add media to the timeline to export" : exportingPercent === null ? "Export" : "Export in progress"} onClick={() => setOpen((o) => !o)}>
-        <span className="export-button__inner">
-          <Icon name="download" /><span>{exportingPercent === null ? "Export" : `Exporting ${exportingPercent}%`}</span>
-        </span>
-      </button>
+      {empty ? (
+        <Tooltip content="Add a clip to the timeline to enable export" delay={150}>
+          <span style={{ display: "inline-flex" }}>{exportButton}</span>
+        </Tooltip>
+      ) : exportButton}
       <Popover open={open} onClose={close} anchor={anchor} align="end" label="Export project" className="popover--padded">
         <div style={{ width: 320 }}>
           <div style={{ padding: 12, borderBottom: "1px solid var(--border)", fontWeight: 500 }}>

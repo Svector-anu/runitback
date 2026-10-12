@@ -30,7 +30,7 @@ export function Tooltip({ content, side = "bottom", delay = 300, children }: Too
   const child = cloneElement(children, {
     onPointerEnter: (e) => { children.props.onPointerEnter?.(e); show(e.currentTarget as HTMLElement); },
     onPointerLeave: (e) => { children.props.onPointerLeave?.(e); hide(); },
-    onFocus: (e) => { children.props.onFocus?.(e); show(e.currentTarget as HTMLElement); },
+    onFocus: (e) => { children.props.onFocus?.(e); if ((e.currentTarget as HTMLElement).matches(":focus-visible")) show(e.currentTarget as HTMLElement); },
     onBlur: (e) => { children.props.onBlur?.(e); hide(); },
     "aria-describedby": rect ? id : undefined,
   });
@@ -38,6 +38,7 @@ export function Tooltip({ content, side = "bottom", delay = 300, children }: Too
   const style = rect
     ? side === "right" ? { left: rect.right + 8, top: rect.top + rect.height / 2, transform: "translateY(-50%)" }
       : side === "top" ? { left: rect.left + rect.width / 2, top: rect.top - 6, transform: "translate(-50%, -100%)" }
+      : rect.left + rect.width / 2 > window.innerWidth - 160 ? { right: Math.max(8, window.innerWidth - rect.right), top: rect.bottom + 6 }
       : { left: rect.left + rect.width / 2, top: rect.bottom + 6, transform: "translateX(-50%)" }
     : undefined;
   return (

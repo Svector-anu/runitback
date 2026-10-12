@@ -21,7 +21,7 @@ export function UnderstandDialog({ downloads, label, onConfirm, onClose }: { dow
       <ul>
         {(downloads ?? []).map((d) => <li key={d.stage}>{d.model} (about {d.approxMegabytes} MB)</li>)}
       </ul>
-      <p>The models are saved in this browser and reused afterwards. Your media stays on this device: silence, speech, frames and faces are analysed locally and nothing is uploaded.</p>
+      <p>We ask first because these are large downloads. The models are saved in this browser and reused afterwards. Your media stays on this device: silence, speech, frames and faces are analysed locally and nothing is uploaded.</p>
     </Dialog>
   );
 }

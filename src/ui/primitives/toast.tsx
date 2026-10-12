@@ -16,11 +16,13 @@ function emit(): void {
   for (const l of listeners) l();
 }
 
-function push(kind: ToastItem["kind"], title: string, description?: string): void {
+export interface ToastOptions { durationMs?: number }
+
+function push(kind: ToastItem["kind"], title: string, description?: string, options?: ToastOptions): void {
   const id = nextId++;
   items = [...items, { id, kind, title, description }].slice(-4);
   emit();
-  setTimeout(() => dismiss(id), kind === "error" ? 8000 : 4000);
+  setTimeout(() => dismiss(id), options?.durationMs ?? (kind === "error" ? 8000 : 4000));
 }
 
 export function dismiss(id: number): void {
@@ -29,7 +31,7 @@ export function dismiss(id: number): void {
 }
 
 export const toast = {
-  info: (title: string, description?: string) => push("info", title, description),
+  info: (title: string, description?: string, options?: ToastOptions) => push("info", title, description, options),
   success: (title: string, description?: string) => push("success", title, description),
   error: (title: string, description?: string) => push("error", title, description),
 };

@@ -39,7 +39,7 @@ function ToolbarButton({ icon, label, onClick, disabled, active, shortcut }: {
   icon: IconName; label: string; onClick: () => void; disabled?: boolean; active?: boolean; shortcut?: string;
 }): ReactNode {
   const button = (
-    <Button variant={active ? "secondary" : "ghost"} size="icon" label={label} aria-pressed={active} disabled={disabled} onClick={onClick} className={active ? "" : "btn--muted"}>
+    <Button variant={active ? "secondary" : "ghost"} size="icon" label={label} tooltip={false} aria-pressed={active} disabled={disabled} onClick={onClick} className={active ? "" : "btn--muted"}>
       <Icon name={icon} />
     </Button>
   );
@@ -69,6 +69,7 @@ export function Timeline(): ReactNode {
   const duration = totalDuration(tracks);
   const viewport = useViewport(duration);
   const geometry = useMemo(() => computeGeometry({ tracks, expanded }), [tracks, expanded]);
+  const sceneIsEmpty = geometry.boxes.every((box) => box.track.elements.length === 0);
   const [menu, setMenu] = useState<{ state: ContextMenuState; entries: MenuEntry[] } | null>(null);
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const dragDepth = useRef(0);
@@ -264,7 +265,7 @@ export function Timeline(): ReactNode {
   const bookmarkAtPlayhead = scene.bookmarks.some((b) => b.time === editor.playback.getState().currentTime);
 
   return (
-    <section className="timeline panel" aria-label="Timeline">
+    <section className="timeline panel" aria-label="Timeline" data-tour="timeline">
       <div className="timeline__toolbar" role="toolbar" aria-label="Timeline tools">
         <div className="timeline__group">
           <ToolbarButton icon="scissors" label="Split" shortcut="S" onClick={() => invokeAction("split")} />
@@ -282,7 +283,7 @@ export function Timeline(): ReactNode {
         </div>
         <div className="scene-select" role="group" aria-label="Scene">
           <span className="scene-select__name">{scene.name || "No scene"}</span>
-          <button type="button" aria-label="Scenes" onClick={() => setScenesOpen(true)}><Icon name="layers" /></button>
+          <Tooltip content="Scenes" delay={400}><button type="button" aria-label="Scenes" onClick={() => setScenesOpen(true)}><Icon name="layers" /></button></Tooltip>
         </div>
         <div className="timeline__group">
           <ToolbarButton icon="magnet" label="Auto snapping" shortcut="N" active={snappingEnabled} onClick={() => invokeAction("toggle-snapping")} />
@@ -307,12 +308,16 @@ export function Timeline(): ReactNode {
                 <div key={box.track.id}>
                   <div className="track-label" data-selected={hasSelected} style={{ top: box.top, height: box.baseHeight }} onContextMenu={(e) => openTrackMenu(e, box.track.id)}>
                     {canTrackHaveAudio(box.track) ? (
-                      <button type="button" data-off={muted} aria-label={muted ? "Unmute track" : "Mute track"} aria-pressed={muted}
-                        onClick={() => runEdit(editor, toggleTrackMuted(box.track.id))}><Icon name={muted ? "volume-off" : "volume"} /></button>
+                      <Tooltip content={muted ? "Unmute track" : "Mute track"} side="right" delay={400}>
+                        <button type="button" data-off={muted} aria-label={muted ? "Unmute track" : "Mute track"} aria-pressed={muted}
+                          onClick={() => runEdit(editor, toggleTrackMuted(box.track.id))}><Icon name={muted ? "volume-off" : "volume"} /></button>
+                      </Tooltip>
                     ) : null}
                     {canTrackBeHidden(box.track) ? (
-                      <button type="button" data-off={hidden} aria-label={hidden ? "Show track" : "Hide track"} aria-pressed={hidden}
-                        onClick={() => runEdit(editor, toggleTrackHidden(box.track.id))}><Icon name={hidden ? "eye-off" : "eye"} /></button>
+                      <Tooltip content={hidden ? "Show track" : "Hide track"} side="right" delay={400}>
+                        <button type="button" data-off={hidden} aria-label={hidden ? "Show track" : "Hide track"} aria-pressed={hidden}
+                          onClick={() => runEdit(editor, toggleTrackHidden(box.track.id))}><Icon name={hidden ? "eye-off" : "eye"} /></button>
+                      </Tooltip>
                     ) : null}
                     <span aria-label={`${box.track.type} track`} style={{ color: "var(--muted-foreground)", display: "grid" }}><Icon name={TRACK_ICON[box.track.type] ?? "video"} /></span>
                   </div>
@@ -351,6 +356,12 @@ export function Timeline(): ReactNode {
                   />
                 );
               })}
+              {sceneIsEmpty ? (
+                <div className="timeline__empty" data-testid="timeline-empty-hint">
+                  <Icon name="film" size={18} />
+                  <span>Drag a clip here, or press <kbd>+</kbd> on a media tile</span>
+                </div>
+              ) : null}
               {geometry.boxes.flatMap((box) => (box.track.elements as TimelineElement[]).flatMap((element) => {
                 const selected = selectedSet.has(`${box.track.id}/${element.id}`);
                 if (!selected && !intersectsWindow({ startPx: viewport.timeToX(element.startTime), endPx: viewport.timeToX(element.startTime + element.duration), window: mountWindow })) return [];

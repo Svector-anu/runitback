@@ -4,10 +4,12 @@ import { setTheme, uiStore } from "#/app/ui-state";
 import { Icon, Logo } from "../icons";
 import { Button } from "../primitives/Button";
 
-const FEATURES = [
-  { title: "Sees your footage", body: "The agent watches your clips, reads references, and knows what's on screen before it edits." },
-  { title: "Edits through real tools", body: "Every change runs through the same typed commands and undo stack a human uses — one agent turn, one undo step." },
-  { title: "Verifies its own work", body: "It renders and measures the result before calling a cut done, instead of guessing." },
+const STEPS = [
+  { title: "Import", body: "Drop in videos, photos and audio. They stay in your browser." },
+  { title: "Understand", body: "It finds silences, speech, scenes and faces, on your device." },
+  { title: "Tell it what to do", body: "Describe the edit in plain words, like \"cut the dead air\"." },
+  { title: "Review the plan", body: "The agent shows what it will change. You approve it first." },
+  { title: "Export", body: "Render an MP4 or WebM and keep it. One undo reverts any agent turn." },
 ];
 
 export function Landing(): ReactNode {
@@ -23,11 +25,19 @@ export function Landing(): ReactNode {
       </header>
       <main className="landing__hero">
         <h1>Tell your <em>video editor</em> what to do</h1>
-        <p>An agent-native video editor. It sees your footage, understands references, edits through the same tools you do, and verifies its own work. All in your browser.</p>
+        <p>RunItBack is a video editor with an AI agent built in. Import your clips, describe the edit in plain words, review the plan, and export. Your media never leaves your browser.</p>
         <Button size="lg" style={{ height: 44, fontSize: "var(--text-base)" }} onClick={() => location.assign("/app")}>Start editing<Icon name="arrow-right" /></Button>
+        <ul className="landing__facts" aria-label="Requirements">
+          <li>Works in Chrome</li>
+          <li>Bring your own Anthropic API key</li>
+          <li>No account, no upload</li>
+        </ul>
       </main>
-      <section className="landing__features" aria-label="Features">
-        {FEATURES.map((f) => <div key={f.title} className="landing__feature"><h3>{f.title}</h3><p>{f.body}</p></div>)}
+      <section className="landing__how" aria-label="How it works">
+        <h2>How it works</h2>
+        <ol className="landing__steps">
+          {STEPS.map((step) => <li key={step.title}><strong>{step.title}</strong><span>{step.body}</span></li>)}
+        </ol>
       </section>
     </div>
   );

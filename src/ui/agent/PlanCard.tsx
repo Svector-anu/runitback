@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
 import type { PlanItemStatus, PlanStepView } from "#/app/agent/session";
 import type { Plan, PlanStepStatus } from "#/engine/agent";
+import { Icon } from "../icons";
+import { useHint } from "../lib/hints";
 import { Button } from "../primitives/Button";
 
 interface PlanCardProps {
@@ -31,6 +33,7 @@ export function PlanCard(props: PlanCardProps): ReactNode {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const awaiting = status === "awaiting";
+  const intro = useHint("plan-card");
   const sendRevision = (): void => {
     const text = draft.trim();
     if (!text) return;
@@ -45,6 +48,15 @@ export function PlanCard(props: PlanCardProps): ReactNode {
         <strong>Plan</strong>
         <span className="agent-plan__status" data-testid="agent-plan-status">{STATUS_LABEL[status]}</span>
       </header>
+      {awaiting && intro.visible ? (
+        <div className="hint-card hint-card--inline" data-testid="plan-hint">
+          <div className="hint-card__head">
+            <strong>This is a plan, not an edit yet</strong>
+            <Button variant="text" size="icon" label="Dismiss this tip" onClick={intro.dismiss}><Icon name="x" size={14} /></Button>
+          </div>
+          <p>Nothing on your timeline has changed. Approve runs the steps, Edit lets you ask for changes first, and Reject cancels. One undo reverts everything the agent did.</p>
+        </div>
+      ) : null}
       <p className="agent-plan__summary">{plan.summary}</p>
       <ol className="agent-plan__steps">
         {plan.steps.map((step, i) => {

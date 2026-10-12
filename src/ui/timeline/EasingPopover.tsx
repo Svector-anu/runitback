@@ -72,7 +72,7 @@ export function EasingPopover({ disabled }: { disabled: boolean }): ReactNode {
     <>
       <Tooltip content={unavailable ? "Select a keyframe that has a following keyframe to edit easing" : "Easing"} delay={400}>
         <span style={{ display: "inline-flex" }}>
-          <Button ref={anchor} variant={open ? "secondary" : "ghost"} size="icon" label="Easing" className="btn--muted" disabled={disabled || unavailable} onClick={() => setOpen((o) => !o)}>
+          <Button ref={anchor} variant={open ? "secondary" : "ghost"} size="icon" label="Easing" tooltip={false} className="btn--muted" disabled={disabled || unavailable} onClick={() => setOpen((o) => !o)}>
             <Icon name="gauge" />
           </Button>
         </span>

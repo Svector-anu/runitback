@@ -13,6 +13,7 @@ import type { ModelDownload } from "#/engine/understand";
 import { beginDrag, endDrag, hasFiles } from "../dnd";
 import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
+import { Tooltip } from "../primitives/Tooltip";
 import { ContextMenu, DropdownMenu, type ContextMenuState } from "../primitives/Menu";
 import { toast } from "../primitives/toast";
 import { reportInsert } from "../lib/edit";
@@ -21,6 +22,7 @@ import { transcribeWithToast } from "./transcribe-action";
 import { UnderstandChip } from "./UnderstandChip";
 import { UnderstandDialog } from "./UnderstandDialog";
 import { understandWithToast } from "./understand-action";
+import { UnderstandIntro } from "./UnderstandIntro";
 import { VisualDialog } from "./VisualDialog";
 import { indexVisualsWithToast } from "./visual-action";
 
@@ -29,6 +31,11 @@ export function formatDuration(ticks: number): string {
   const m = Math.floor(total / 60);
   const s = String(total % 60).padStart(2, "0");
   return `${m}:${s}`;
+}
+
+/** After a mouse click, hand focus back to the page so Space plays the preview instead of pressing this button again. */
+function releasePointerFocus(e: React.MouseEvent<HTMLElement>): void {
+  if (e.detail > 0) e.currentTarget.blur();
 }
 
 export function shortName(name: string): string {
@@ -202,6 +209,7 @@ export function MediaView(): ReactNode {
     void understand(pending.assetIds.flatMap((id) => assets.filter((a) => a.id === id)));
   };
 
+  const hasPlayableMedia = assets.some((a) => a.type !== "image");
   const needsUnderstanding = assets.filter((a) => a.type !== "image" && understandStatuses[a.id]?.state !== "understood" && understandStatuses[a.id]?.state !== "not-applicable");
 
   const removeSelected = (ids: string[]): void => {
@@ -239,8 +247,8 @@ export function MediaView(): ReactNode {
           <DropdownMenu align="end" width={160}
             entries={(Object.keys(sortLabel) as Array<keyof typeof sortLabel>).map((k) => ({ label: `${sortLabel[k]}${k === sort ? (desc ? " ↓" : " ↑") : ""}`, onSelect: () => setSort(k) }))}
             trigger={(p) => <Button {...p} variant="ghost" size="icon" label={`Sort by ${sort} (${desc ? "descending" : "ascending"})`} disabled={!!progress}><Icon name="arrow-up-down" /></Button>} />
-          <Button variant="ghost" size="sm" disabled={!!progress || needsUnderstanding.length === 0} label="Understand all new media" onClick={() => void understand(needsUnderstanding)}><Icon name="wand" />Understand all</Button>
-          <Button variant="outline" size="sm" disabled={!!progress} onClick={() => input.current?.click()}><Icon name="upload" />Import</Button>
+          <Button variant="ghost" size="sm" data-tour="understand" disabled={!!progress || needsUnderstanding.length === 0} label="Understand all new media" tooltip="Analyse every clip that is not understood yet, on this device" onClick={() => void understand(needsUnderstanding)}><Icon name="wand" />Understand all</Button>
+          <Button variant="outline" size="sm" data-tour="import" disabled={!!progress} onClick={() => input.current?.click()}><Icon name="upload" />Import</Button>
           <input ref={input} type="file" multiple accept="image/*,video/*,audio/*" hidden aria-label="Import media files"
             onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) void run(files); }} />
         </div>
@@ -250,9 +258,11 @@ export function MediaView(): ReactNode {
           <button type="button" className="dropzone" disabled={!!progress} onClick={() => input.current?.click()}>
             <Icon name="upload" />
             <span>{progress ? `Processing your files (${Math.round((progress.done / progress.total) * 100)}%)` : "Drag and drop videos, photos, and audio files here"}</span>
+            {progress ? null : <span className="dropzone__sub">or click to browse. Files stay in this browser and are never uploaded.</span>}
             {progress ? <div className="progress" style={{ width: "100%" }}><div style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div> : null}
           </button>
         ) : null}
+        {hasPlayableMedia ? <UnderstandIntro /> : null}
         {sorted.length > 0 && view === "grid" ? (
           <div className={`media-grid`} style={{ marginTop: progress ? 16 : 0 }}>
             {sorted.map((asset) => (
@@ -269,30 +279,38 @@ export function MediaView(): ReactNode {
                 <div className="media-item__tile">
                   <Tile asset={asset} />
                   {asset.type !== "image" ? (
-                    <button type="button" className="media-item__transcribe" data-busy={asset.id in transcribeJobs}
-                      aria-label={asset.id in transcribeJobs ? `Cancel transcription of ${asset.name}` : `Transcribe ${asset.name}`}
-                      onClick={(e) => { e.stopPropagation(); transcribe(asset); }}>
-                      {asset.id in transcribeJobs ? `${Math.round((transcribeJobs[asset.id] ?? 0) * 100)}%` : <Icon name="captions" />}
-                    </button>
+                    <Tooltip content={asset.id in transcribeJobs ? "Cancel transcription" : "Transcribe: turn speech into text for captions"} side="bottom" delay={250}>
+                      <button type="button" className="media-item__transcribe" data-busy={asset.id in transcribeJobs}
+                        aria-label={asset.id in transcribeJobs ? `Cancel transcription of ${asset.name}` : `Transcribe ${asset.name}`}
+                        onClick={(e) => { e.stopPropagation(); releasePointerFocus(e); transcribe(asset); }}>
+                        {asset.id in transcribeJobs ? `${Math.round((transcribeJobs[asset.id] ?? 0) * 100)}%` : <Icon name="captions" />}
+                      </button>
+                    </Tooltip>
                   ) : null}
                   {asset.type === "video" ? (
-                    <button type="button" className="media-item__visual" data-busy={asset.id in visualJobs}
-                      aria-label={asset.id in visualJobs ? `Cancel visual indexing of ${asset.name}` : `Index visuals of ${asset.name}`}
-                      onClick={(e) => { e.stopPropagation(); indexVisuals(asset); }}>
-                      {asset.id in visualJobs ? `${Math.round((visualJobs[asset.id] ?? 0) * 100)}%` : <Icon name="search" />}
-                    </button>
+                    <Tooltip content={asset.id in visualJobs ? "Cancel indexing" : "Index visuals: search this video by what is on screen"} side="bottom" delay={250}>
+                      <button type="button" className="media-item__visual" data-busy={asset.id in visualJobs}
+                        aria-label={asset.id in visualJobs ? `Cancel visual indexing of ${asset.name}` : `Index visuals of ${asset.name}`}
+                        onClick={(e) => { e.stopPropagation(); releasePointerFocus(e); indexVisuals(asset); }}>
+                        {asset.id in visualJobs ? `${Math.round((visualJobs[asset.id] ?? 0) * 100)}%` : <Icon name="search" />}
+                      </button>
+                    </Tooltip>
                   ) : null}
                   {asset.type !== "image" ? (
                     <div className="media-item__understand">
                       <UnderstandChip status={understandStatuses[asset.id]} run={understandRuns[asset.id]} failures={understandFailures[asset.id]} />
-                      <button type="button" data-busy={asset.id in understandRuns}
-                        aria-label={asset.id in understandRuns ? `Cancel understanding of ${asset.name}` : `Understand ${asset.name}`}
-                        onClick={(e) => { e.stopPropagation(); toggleUnderstand(asset); }}>
-                        <Icon name="wand" />
-                      </button>
+                      <Tooltip content={asset.id in understandRuns ? "Cancel understanding" : "Understand: analyse silence, speech, scenes and faces on this device"} side="bottom" delay={250}>
+                        <button type="button" data-busy={asset.id in understandRuns}
+                          aria-label={asset.id in understandRuns ? `Cancel understanding of ${asset.name}` : `Understand ${asset.name}`}
+                          onClick={(e) => { e.stopPropagation(); releasePointerFocus(e); toggleUnderstand(asset); }}>
+                          <Icon name="wand" />
+                        </button>
+                      </Tooltip>
                     </div>
                   ) : null}
-                  <button type="button" className="media-item__add" aria-label={`Add ${asset.name} to timeline`} onClick={(e) => { e.stopPropagation(); add(asset); }}><Icon name="plus" /></button>
+                  <Tooltip content="Add to timeline at the playhead" side="bottom" delay={250}>
+                    <button type="button" className="media-item__add" aria-label={`Add ${asset.name} to timeline`} onClick={(e) => { e.stopPropagation(); releasePointerFocus(e); add(asset); }}><Icon name="plus" /></button>
+                  </Tooltip>
                 </div>
                 <div className="media-item__name truncate" title={asset.name}>{shortName(asset.name)}</div>
               </div>

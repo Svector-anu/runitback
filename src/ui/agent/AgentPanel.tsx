@@ -4,6 +4,8 @@ import type { ChatItem } from "#/app/agent/session";
 import { AGENT_MODELS } from "#/app/agent/model-client";
 import { useEditorState } from "#/app/hooks";
 import { Button } from "../primitives/Button";
+import { Tooltip } from "../primitives/Tooltip";
+import { ANTHROPIC_KEYS_URL } from "../lib/links";
 import { PlanCard } from "./PlanCard";
 
 const EXAMPLE_PROMPTS = [
@@ -13,6 +15,8 @@ const EXAMPLE_PROMPTS = [
   "Check my edit: look at frames across the timeline and tell me what to fix.",
 ];
 
+const KEY_IDLE_MS = 900;
+const ASK_BEFORE_EDITING_HELP = "The agent shows a plan first and changes your timeline only after you approve it. Turn this off to let it edit straight away.";
 const WARNING = "Your API key is kept in this browser only and is sent only to Anthropic. Anyone using this browser profile can read it.";
 
 function ToolChip({ item }: { item: Extract<ChatItem, { kind: "tool" }> }): ReactNode {
@@ -87,12 +91,18 @@ export function AgentPanel(): ReactNode {
   const logRef = useRef<HTMLDivElement>(null);
 
   const hasKey = state.apiKey !== "";
-  const showSettingsFields = !hasKey || settingsExpanded;
+  const [settledKey, setSettledKey] = useState(state.apiKey);
+  const showSettingsFields = settledKey === "" || settingsExpanded;
   const modelLabel = AGENT_MODELS.find((m) => m.id === state.model)?.label ?? state.model;
 
   useEffect(() => {
     session.bindProject(projectId);
   }, [session, projectId]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledKey(state.apiKey), KEY_IDLE_MS);
+    return () => clearTimeout(timer);
+  }, [state.apiKey]);
 
   useEffect(() => {
     const log = logRef.current;
@@ -123,6 +133,7 @@ export function AgentPanel(): ReactNode {
               <select id="agent-model" className="select" value={state.model} disabled={state.running} onChange={(e) => session.setModel(e.target.value)}>
                 {AGENT_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
               </select>
+              <p className="agent-warning">Sonnet balances quality and speed. Opus is the strongest and costs the most. Haiku is the fastest and cheapest.</p>
             </div>
             <div className="agent-field">
               <label className="label" htmlFor="agent-api-key">Anthropic API key</label>
@@ -131,6 +142,9 @@ export function AgentPanel(): ReactNode {
                 value={state.apiKey} onChange={(e) => session.setApiKey(e.target.value)} aria-describedby="agent-key-warning"
               />
               <p id="agent-key-warning" className="agent-warning">{WARNING}</p>
+              <p className="agent-warning" data-testid="agent-key-help">
+                <a href={ANTHROPIC_KEYS_URL} target="_blank" rel="noopener noreferrer">Where do I get a key?</a> You pay Anthropic directly for what the agent uses. RunItBack adds no charge.
+              </p>
               {state.apiKey === "" ? (
                 <p className="agent-warning agent-warning--required" role="status" data-testid="agent-key-hint">An Anthropic API key is required. Paste yours above to use the agent.</p>
               ) : null}
@@ -157,13 +171,16 @@ export function AgentPanel(): ReactNode {
         )}
       </div>
 
-      <label className="agent-toggle">
-        <input
-          type="checkbox" checked={state.askBeforeEditing} disabled={state.running}
-          onChange={(e) => session.setAskBeforeEditing(e.target.checked)}
-        />
-        Ask before editing
-      </label>
+      <Tooltip content={ASK_BEFORE_EDITING_HELP} side="bottom" delay={250}>
+        <label className="agent-toggle">
+          <input
+            type="checkbox" checked={state.askBeforeEditing} disabled={state.running} aria-describedby="agent-ask-help"
+            onChange={(e) => session.setAskBeforeEditing(e.target.checked)}
+          />
+          Ask before editing
+          <span id="agent-ask-help" className="agent-sr-only">{ASK_BEFORE_EDITING_HELP}</span>
+        </label>
+      </Tooltip>
 
       <div ref={logRef} className="agent-log" role="log" aria-label="Agent conversation" aria-relevant="additions text">
         {state.items.length === 0 ? (
@@ -198,7 +215,7 @@ export function AgentPanel(): ReactNode {
       <div className="agent-compose">
         <label className="agent-sr-only" htmlFor="agent-input">Message to the agent</label>
         <textarea
-          id="agent-input" className="textarea" rows={3} value={draft} placeholder="What should I edit?" disabled={state.running}
+          id="agent-input" className="textarea" rows={3} value={draft} placeholder={hasKey ? "What should I edit?" : "Add your API key above, then describe the edit"} disabled={state.running}
           onChange={(e) => setDraft(e.target.value)} onKeyDown={onKeyDown}
         />
         <Button size="sm" disabled={state.running || draft.trim() === ""} onClick={submit}>Send</Button>

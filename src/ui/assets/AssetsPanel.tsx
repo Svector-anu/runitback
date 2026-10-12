@@ -25,7 +25,7 @@ export function AssetsPanel(): ReactNode {
       <div className="assets__rail scrollbar-hidden" role="tablist" aria-label="Asset tabs" aria-orientation="vertical">
         {TABS.map((tab) => (
           <Tooltip key={tab.id} content={tab.label} side="right" delay={100}>
-            <Button role="tab" aria-selected={tab.id === active} variant={tab.id === active ? "secondary" : "ghost"} size="icon-lg" label={tab.label}
+            <Button role="tab" aria-selected={tab.id === active} variant={tab.id === active ? "secondary" : "ghost"} size="icon-lg" label={tab.label} tooltip={false}
               className={tab.id === active ? "" : "btn--muted"} onClick={() => uiStore.set({ assetTab: tab.id })}>
               <Icon name={tab.icon} />
             </Button>

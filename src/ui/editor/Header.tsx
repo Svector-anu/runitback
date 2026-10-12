@@ -10,6 +10,9 @@ import { DropdownMenu } from "../primitives/Menu";
 import { toast } from "../primitives/toast";
 import { ExportButton } from "./ExportButton";
 import { ShortcutsDialog } from "./ShortcutsDialog";
+import { ANTHROPIC_KEYS_URL } from "../lib/links";
+import { getHintStore } from "../lib/hints";
+import { getTourStore } from "../lib/tour";
 
 function EditableProjectName(): ReactNode {
   const services = getServices();
@@ -90,6 +93,15 @@ export function EditorHeader({ onRecording }: { onRecording: (recording: boolean
         <SaveIndicator />
       </div>
       <nav className="editor__header-right" aria-label="Editor actions">
+        <DropdownMenu width={224} align="end"
+          entries={[
+            { label: "Take the tour", icon: "film", onSelect: () => getTourStore().start() },
+            { label: "Keyboard shortcuts", icon: "command", onSelect: () => setShortcuts(true) },
+            { label: "Show tips again", icon: "reset", onSelect: () => { getHintStore().reset(); toast.info("Tips are back", "Each one will show once more when it applies."); } },
+            { type: "separator" },
+            { label: "Get an Anthropic API key", icon: "link", onSelect: () => { window.open(ANTHROPIC_KEYS_URL, "_blank", "noopener,noreferrer"); } },
+          ]}
+          trigger={(p) => <Button {...p} variant="ghost" size="icon-lg" label="Help and tips" className="help-button" data-testid="help-button"><span aria-hidden="true">?</span></Button>} />
         <Button variant="ghost" size="icon-lg" label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
           <Icon name={theme === "dark" ? "sun" : "moon"} size={18} />
         </Button>

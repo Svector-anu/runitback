@@ -16,6 +16,7 @@ import { Timeline } from "../timeline/Timeline";
 import { EditorHeader } from "./Header";
 import { Button } from "../primitives/Button";
 import { OnboardingHint } from "./OnboardingHint";
+import { EditorHints } from "./EditorHints";
 
 function useNarrow(): boolean {
   const [narrow, setNarrow] = useState(window.innerWidth < 900);
@@ -34,7 +35,7 @@ function RightPanel(): ReactNode {
     <div className="right-panel">
       <div role="tablist" aria-label="Side panel" className="right-panel__tabs">
         {tabs.map((t) => (
-          <Button key={t.id} role="tab" aria-selected={tab === t.id} variant={tab === t.id ? "secondary" : "ghost"} size="sm" onClick={() => uiStore.set({ rightPanel: t.id })}>
+          <Button key={t.id} role="tab" data-tour={t.id === "agent" ? "agent" : undefined} aria-selected={tab === t.id} variant={tab === t.id ? "secondary" : "ghost"} size="sm" onClick={() => uiStore.set({ rightPanel: t.id })}>
             {t.label}
           </Button>
         ))}
@@ -168,6 +169,7 @@ export function EditorPage({ id }: { id: string }): ReactNode {
         </div>
       ) : null}
       <OnboardingHint />
+      <EditorHints />
       <EditorHeader onRecording={onRecording} />
       <div className="editor__body"><Layout /></div>
     </div>

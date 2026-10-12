@@ -51,6 +51,7 @@ export const isRecordOfStrings = (v: unknown): v is Record<string, string> =>
   typeof v === "object" && v !== null && !Array.isArray(v) && Object.values(v).every((x) => typeof x === "string");
 
 export const isString = (v: unknown): v is string => typeof v === "string";
+export const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
 
 /** Anthropic API key for the in-app agent. Kept in this browser's localStorage only; sent only to api.anthropic.com. */
 export const AGENT_API_KEY_PREF = "agent-api-key";
@@ -58,6 +59,10 @@ export const AGENT_MODEL_PREF = "agent-model";
 /** "Ask before editing": the agent shows a plan for approval before it edits. Default on. */
 export const AGENT_ASK_BEFORE_EDITING_PREF = "agent-ask-before-editing";
 export const ONBOARDING_DISMISSED_PREF = "onboarding-dismissed";
+/** The guided tour was finished or dismissed; it never auto-opens again (Help reopens it). */
+export const TOUR_SEEN_PREF = "tour-seen";
+/** Ids of the one-time contextual hints the user has already seen or dismissed. */
+export const HINTS_SEEN_PREF = "hints-seen";
 
 export type PersistOutcome = "granted" | "denied" | "unsupported";
 
