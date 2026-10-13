@@ -97,7 +97,7 @@ describe("tool catalogue", () => {
     "set_params", "set_speed", "add_keyframe", "remove_keyframe", "add_effect", "remove_effect", "set_effect_params",
     "add_mask", "remove_mask", "set_track", "delete_track", "set_project", "add_bookmark", "import_captions",
     "seek", "select", "undo", "redo", "set_transition", "add_transition", "remove_transition", "set_color_adjust", "apply_filter", "set_text_style", "set_text_animation", "set_crop", "freeze_frame",
-    "set_chroma_key", "set_speed_ramp", "insert_cursor", "set_cursor_path",
+    "set_chroma_key", "set_speed_ramp", "insert_cursor", "set_cursor_path", "auto_zoom",
   ];
   const TIME_FIELDS = new Set(["start", "end", "at", "delta", "time", "duration", "offset"]);
 

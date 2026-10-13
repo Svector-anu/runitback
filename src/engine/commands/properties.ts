@@ -4,7 +4,7 @@ import {
   type MaskType, type ParamValue, type TimelineElement, type ParamValues,
 } from "#/engine/model";
 import {
-  applyTextAnimation, cursorAnimations, cursorPathProblem, TEXT_ANIMATION_PATHS, type CursorWaypoint, keyframeIdAtTime, maxTextAnimationDuration, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
+  applyTextAnimation, autoZoomAnimations, autoZoomProblem, cursorAnimations, cursorPathProblem, TEXT_ANIMATION_PATHS, type AutoZoom, type CursorWaypoint, keyframeIdAtTime, maxTextAnimationDuration, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
   type ScalarCurvePatch,
 } from "#/engine/animation";
 import {
@@ -318,6 +318,26 @@ export function setCursorPathCommand(input: { ref: ElementRef; waypoints: Readon
         const first = input.waypoints[0] as CursorWaypoint;
         const animations = cursorAnimations({ animations: el.animations, waypoints: input.waypoints, clipDuration: el.duration, newId: ctx.newId });
         return { ...el, animations, params: { ...el.params, [PARAM.positionX]: first.x, [PARAM.positionY]: first.y, click: 0 } };
+      }) };
+    },
+  };
+}
+
+// ---- Auto zoom -----------------------------------------------------------------------------------------------
+
+/**
+ * Pushes a video or image clip in on points of its picture, easing in, holding and easing back (see `autoZoomAnimations`).
+ * Replaces the clip's keyframes on scale and position. One undo step.
+ */
+export function autoZoomCommand(input: { ref: ElementRef; zooms: ReadonlyArray<AutoZoom> }): Command {
+  return {
+    label: "Auto zoom",
+    run(doc, ctx) {
+      return { doc: editElement(doc, ctx, input.ref, (el) => {
+        if (el.type !== "video" && el.type !== "image") throw new InvalidInputError("Auto zoom applies to video and image clips");
+        const problem = autoZoomProblem({ zooms: input.zooms, clipDuration: el.duration });
+        if (problem) throw new InvalidInputError(`Cannot apply auto zoom: ${problem}`);
+        return { ...el, animations: autoZoomAnimations({ animations: el.animations, params: el.params, zooms: input.zooms, newId: ctx.newId }) };
       }) };
     },
   };

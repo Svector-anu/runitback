@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { near, openFxHarness, savePng, type Rgb } from "./fx-support";
+import { callAgentTool, near, openFxHarness, savePng, type Rgb } from "./fx-support";
 
 /** Perspective tilt, rounded image cards and drop shadows: drawn by the shared compositor, so the export matches the preview. */
 async function placeImage(page: Page, input: { scale: number; params?: Record<string, number>; background?: string }): Promise<void> {
@@ -61,4 +61,21 @@ test("a rounded mask clips the corners and the drop shadow follows the rounded o
   const exported = await page.evaluate(() => window.__fx.exportPixels({ times: [0.5], points: [[484, 274], [960, 822], [960, 1060]] }));
   expect(near(exported[0]?.[0] as Rgb, [255, 255, 255], 40)).toBe(true);
   expect((exported[0]?.[1] as Rgb)[0]).toBeLessThan((exported[0]?.[2] as Rgb)[0] - 8);
+});
+
+test("auto zoom pushes in on the chosen point and eases back, in the preview and the export", async ({ page }) => {
+  await openFxHarness(page, [{ id: "card", color: "#e11d48", pattern: "halves" }]);
+  await placeImage(page, { scale: 1 });
+  const zoomed = await callAgentTool(page, "auto_zoom", { elementId: "card", zooms: [{ at: 1, x: 400, y: 0, scale: 2, in: 0.5, hold: 1, out: 0.5 }] });
+  expect(zoomed.ok, zoomed.error).toBe(true);
+  const probe: [number, number][] = [[900, 540]];
+  const [before] = await page.evaluate((p) => window.__fx.pixelsAt(0.5, p), probe);
+  const [held] = await page.evaluate((p) => window.__fx.pixelsAt(2, p), probe);
+  const [after] = await page.evaluate((p) => window.__fx.pixelsAt(3.5, p), probe);
+  expect(near(before as Rgb, [225, 29, 72], 8), "left of centre is the red half before the zoom").toBe(true);
+  expect(near(held as Rgb, [255, 255, 255], 8), `the white half fills the middle while zoomed, got ${String(held)}`).toBe(true);
+  expect(near(after as Rgb, [225, 29, 72], 8), "eased back").toBe(true);
+  savePng("auto-zoom-held", await page.evaluate(() => window.__fx.pngAt(2)));
+  const exported = await page.evaluate((p) => window.__fx.exportPixels({ times: [2], points: p }), probe);
+  expect(near(exported[0]?.[0] as Rgb, [255, 255, 255], 30)).toBe(true);
 });

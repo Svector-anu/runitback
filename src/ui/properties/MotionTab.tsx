@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { ElementRef, TimelineElement } from "#/engine/model";
 import { getMotionAnalysis } from "#/app/motion-analysis";
 import { pointPickStore } from "#/app/point-pick";
+import { zoomPickStore } from "#/app/zoom-pick";
 import { Button } from "../primitives/Button";
 import { Field, Section } from "../primitives/fields";
 import { SliderField } from "../primitives/SliderField";
@@ -61,11 +62,37 @@ function TrackSection({ element }: { element: TimelineElement }): ReactNode {
   );
 }
 
+function AutoZoomSection({ element }: { element: TimelineElement }): ReactNode {
+  const picking = zoomPickStore.use((s) => s.targetElementId === element.id);
+  const scale = zoomPickStore.use((s) => s.scale);
+  const holdSeconds = zoomPickStore.use((s) => s.holdSeconds);
+  return (
+    <Section sectionKey={`${element.id}:auto-zoom`} title="Auto zoom" collapsible>
+      <div className="section__fields">
+        <Field label="Zoom amount">
+          <SliderField label="Zoom amount" value={scale} min={1.2} max={6} step={0.1} suffix="x" defaultValue={2}
+            onPreview={(v) => zoomPickStore.set({ scale: v })} onCommit={(v) => zoomPickStore.set({ scale: v })} />
+        </Field>
+        <Field label="Hold">
+          <SliderField label="Hold" value={holdSeconds} min={0} max={6} step={0.1} suffix="s" defaultValue={1.5}
+            onPreview={(v) => zoomPickStore.set({ holdSeconds: v })} onCommit={(v) => zoomPickStore.set({ holdSeconds: v })} />
+        </Field>
+        <Button variant={picking ? "secondary" : "default"} aria-pressed={picking}
+          onClick={() => zoomPickStore.set({ targetElementId: picking ? null : element.id })}>
+          {picking ? "Click the spot to zoom into (Esc cancels)" : "Zoom into a spot in the preview"}
+        </Button>
+        <p className="muted">Move the playhead to where the zoom should start, then click the spot on the picture. The clip eases in on it, holds, and eases back. It is written as keyframes on scale and position, replacing any already on them; edit them in the timeline like any other.</p>
+      </div>
+    </Section>
+  );
+}
+
 /** Motion tools: stabilise a video clip, and make a text, graphic, image or video clip follow a point of another video. */
 export function MotionTab({ element, refValue }: { element: TimelineElement; refValue: ElementRef }): ReactNode {
   void refValue;
   return (
     <>
+      {element.type === "video" || element.type === "image" ? <AutoZoomSection element={element} /> : null}
       {element.type === "video" ? <StabilizeSection element={element} /> : null}
       <TrackSection element={element} />
     </>
