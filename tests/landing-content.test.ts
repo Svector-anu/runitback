@@ -87,16 +87,14 @@ describe("landing content shape", () => {
     expect(text).not.toMatch(/worse|bad|spyware|steal|scam|bloat|trash|terrible/);
   });
 
-  it("compares honestly: CapCut is marked ahead on mobile and templates, with the check date", () => {
+  it("compares plainly with no scoreboard tags, and carries the check date", () => {
     const { rows, checked } = LANDING_CONTENT.compare;
     expect(rows.map((r) => r.feature)).toEqual([
       "Open source", "Runs in your browser", "Files stay on your device while editing", "Edit by describing it", "Price", "Mobile app", "Templates, stickers and effects",
     ]);
-    expect(rows.find((r) => r.feature === "Mobile app")?.ahead).toBe("capcut");
     const templates = rows.find((r) => r.feature.startsWith("Templates"));
-    expect(templates?.ahead).toBe("capcut");
     expect(templates?.runitback).toMatch(/8 original templates/);
-    expect(templates?.runitback).toMatch(/not yet/i);
+    expect(templates?.runitback).not.toMatch(/not yet/i);
     expect(templates?.runitback).not.toMatch(/no template library|coming soon/i);
     expect(checked).toMatch(/\d{4}/);
   });

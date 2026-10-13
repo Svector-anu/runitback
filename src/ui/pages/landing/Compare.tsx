@@ -8,7 +8,6 @@ function Cell({ row, side }: { row: CompareRow; side: "runitback" | "capcut" }):
   return (
     <td className="lp-compare__cell" data-side={side} data-label={compare.columns[side]}>
       {row[side]}
-      {row.ahead === side ? <span className="lp-compare__ahead">{compare.aheadLabel}</span> : null}
     </td>
   );
 }

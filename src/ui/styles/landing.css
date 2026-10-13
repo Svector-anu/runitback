@@ -141,7 +141,6 @@
 .lp-compare td[data-side="runitback"] { color: var(--zn-ink); }
 .lp-compare thead th:nth-child(2) { border-top-left-radius: 16px; border-top-right-radius: 16px; }
 .lp-compare tbody tr:last-child td[data-side="runitback"] { border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; }
-.lp-compare__ahead { display: inline-block; margin-left: 10px; padding: 3px 9px; border: 1px dashed var(--zn-line); border-radius: 999px; font-family: var(--zn-mono); font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: var(--zn-ink); vertical-align: 2px; }
 .lp-compare__note { margin-top: 24px; padding-inline: 8px; text-transform: none; letter-spacing: 0; font-size: 0.8125rem; max-width: 52rem; }
 
 /* Open source */
