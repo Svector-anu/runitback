@@ -9,7 +9,7 @@ export function Plan(): ReactNode {
     <section className="lp-section lp-wrap" aria-labelledby="plan-title">
       <div className="zn-dark lp-plan">
         <div className="lp-plan__copy">
-          <div className="zn-reveal"><Eyebrow index={5} label={plan.eyebrow} /></div>
+          <div className="zn-reveal"><Eyebrow index={6} label={plan.eyebrow} /></div>
           <h2 className="zn-h2 zn-reveal" id="plan-title" style={stagger(1)}>{plan.title}</h2>
           <ul className="lp-plan__points">
             {plan.points.map((point, index) => <li key={point} className="zn-reveal" style={stagger(index + 2)}><Check size={16} /><span>{point}</span></li>)}

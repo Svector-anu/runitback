@@ -12,6 +12,7 @@ import { Nav } from "./Nav";
 import { OpenSource } from "./OpenSource";
 import { Plan } from "./Plan";
 import { Product } from "./Product";
+import { Templates } from "./Templates";
 import { WorksWith } from "./WorksWith";
 import { useReveal } from "./use-reveal";
 
@@ -41,6 +42,7 @@ export function LandingPage(): ReactNode {
         <Hero />
         <WorksWith />
         <Product />
+        <Templates />
         <Features />
         <How />
         <Plan />

@@ -9,7 +9,7 @@ The landing page is `/` (the real pathname, no hash). The app is `/app` and `/#/
 | All copy, links, FAQ, feature cards, steps, image paths | `src/ui/pages/landing-content.ts` (the only file a non-engineer needs) |
 | Lazy entry (keeps the landing out of the editor bundle) | `src/ui/pages/Landing.tsx` |
 | Section order (one line per section) | `src/ui/pages/landing/LandingPage.tsx` |
-| Sections | `src/ui/pages/landing/` : `Nav`, `Hero`, `WorksWith`, `Product`, `Features`, `How`, `Plan`, `Compare`, `OpenSource`, `Faq`, `FinalCta`, `Footer` |
+| Sections | `src/ui/pages/landing/` : `Nav`, `Hero`, `WorksWith`, `Product`, `Templates`, `Features`, `How`, `Plan`, `Compare`, `OpenSource`, `Faq`, `FinalCta`, `Footer` |
 | Shared bits (arrow icons, eyebrow, section header, anchor handling) | `src/ui/pages/landing/parts.tsx` |
 | Scroll reveal | `src/ui/pages/landing/use-reveal.ts` (IntersectionObserver, no dependency) |
 | Page layout CSS (prefix `lp-`) | `src/ui/styles/landing.css` |
@@ -20,7 +20,7 @@ The landing page is `/` (the real pathname, no hash). The app is `/app` and `/#/
 | Tests | `e2e/landing-page.spec.ts`, `e2e/landing-app-split.spec.ts`, `e2e/ux-guidance.spec.ts`, `tests/landing-content.test.ts` |
 | Generators (opt-in) | `e2e/landing-shots.spec.ts` (product screenshots), `e2e/landing-brand.spec.ts` (logo sheet, apple-touch-icon, og-image) |
 
-Section anchors: `#product`, `#features`, `#how-it-works`, `#compare`, `#open-source`, `#faq`. Anchor clicks are intercepted and scrolled by `scrollToSection`; they must never write `location.hash`, because `App.tsx` treats any non-empty hash on `/` as an app route and would unmount the landing page.
+Section anchors: `#product`, `#templates`, `#features`, `#how-it-works`, `#compare`, `#open-source`, `#faq`. Anchor clicks are intercepted and scrolled by `scrollToSection`; they must never write `location.hash`, because `App.tsx` treats any non-empty hash on `/` as an app route and would unmount the landing page.
 
 ## Positioning and messaging (open source, CapCut alternative)
 
@@ -49,6 +49,10 @@ Sources: `https://www.capcut.com/` and `https://www.capcut.com/pricing`.
 - Feature naming learned from the pages (names only, no copy reused): "Auto captions", "Caption templates", "Remove video BG", "Enhance voice", "Try online for free" as CTA, feature grids grouped by Image / Video / Text & Audio / Creative Templates. OpenCut (opencut.app) pairs a short "The open source video editor" headline with a "Try early beta" CTA and a star pill in the nav.
 - Not asserted, because not verified: CapCut's data handling and privacy (the table says "Check CapCut's privacy policy"), whether its source is published (the table says "No", based on it being a commercial product with a License Agreement page; recheck before launch), exact prices and limits, how its AI editing works.
 - Re-check these before each release; the page carries "checked on 12 October 2026" in `compare.checked`.
+
+## Templates on the landing and the /templates page
+
+`/templates` is a second marketing pathname, added the way `/app` was: `showGallery` in `src/App.tsx`, a rewrite in `vercel.json`, a lazy entry `src/ui/pages/TemplatesPageEntry.tsx` (the gallery is its own chunk). `/#/templates` reaches the same page (route `templates` in `src/app/router.ts`). The landing has a `Templates` section after the product shot (`landing/Templates.tsx`, four featured posters from `templates.featured` in `landing-content.ts`, link to `/templates`), a nav link, a hero text link, a feature card and an FAQ item about making your own template (importing your own is "coming soon"). The gallery reuses `Nav` with plain page links (`pageLinks`) because section anchors do not exist there. Gallery details: `docs/TEMPLATES.md` (UI).
 
 ## Change copy
 

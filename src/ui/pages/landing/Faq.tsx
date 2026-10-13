@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { LANDING_CONTENT } from "../landing-content";
-import { APP_PATH, ArrowUpRight, SectionHead, stagger } from "./parts";
+import { APP_PATH, ArrowUpRight, EXTERNAL_LINK_PROPS, SectionHead, stagger } from "./parts";
 
 const { faq } = LANDING_CONTENT;
 
@@ -33,7 +33,7 @@ export function Faq(): ReactNode {
 
   return (
     <section id="faq" className="lp-section lp-wrap" aria-labelledby="faq-title" tabIndex={-1}>
-      <SectionHead index={8} eyebrow={faq.eyebrow} title={faq.title} titleId="faq-title" />
+      <SectionHead index={9} eyebrow={faq.eyebrow} title={faq.title} titleId="faq-title" />
       <div className="zn-frame lp-faq">
         <div className="lp-faq__list">
           {faq.items.map((item, index) => {
@@ -56,7 +56,7 @@ export function Faq(): ReactNode {
                   </button>
                 </h3>
                 <div id={`faq-a-${index}`} className="lp-faq__panel" role="region" aria-labelledby={`faq-q-${index}`}>
-                  <div><p>{item.answer}</p></div>
+                  <div><p>{item.answer}{item.link ? <> <a href={item.link.href} {...EXTERNAL_LINK_PROPS}>{item.link.label}</a></> : null}</p></div>
                 </div>
               </div>
             );

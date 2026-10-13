@@ -16,6 +16,7 @@ export function Hero(): ReactNode {
             <button type="button" className="zn-btn zn-btn--primary" onClick={startEditing}>{hero.primaryCta}<span className="zn-btn__circle"><ArrowUpRight /></span></button>
             <a className="zn-btn zn-btn--secondary lp-star" href={github.repo} {...EXTERNAL_LINK_PROPS}><StarIcon />{hero.githubCta}</a>
           </div>
+          <a className="lp-hero__tlink zn-reveal" style={stagger(3)} href="/templates">{hero.templatesCta}<ArrowUpRight size={13} /></a>
           <ul className="lp-trust zn-reveal" style={stagger(4)} aria-label="Why it is safe to try">
             {hero.trust.map((item) => <li key={item}><Check size={13} />{item}</li>)}
           </ul>

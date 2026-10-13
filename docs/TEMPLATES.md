@@ -48,6 +48,17 @@ const result = applyTemplateToEditor(editor, template, {
 - `planTemplate({ template, inputs, assets })` is the pure half (no editor, no ids) if the UI wants to show what will happen first.
 - Validate user-supplied template JSON with `parseTemplateJson(text)`: it caps the size at 256 KiB and throws `TemplateValidationError` with typed `issues` (`code`, JSON `path`, `message`).
 
+## UI
+
+| Surface | Where | Notes |
+|---|---|---|
+| Gallery | `/templates` (also `/#/templates`), `src/ui/pages/templates/`, CSS `src/ui/styles/templates.css` | Zenon-style cards: poster, muted looping preview, duration badge, aspect chip, category and tags, "Use template". Category chips and a search box filter. "Pause previews" is persisted through `prefs` (`templates-previews-paused`). At most 4 previews play at once (IntersectionObserver, first four visible in grid order; a card renders its `<video>` only while it may play, so the others release the decoder). `prefers-reduced-motion` shows posters only and disables the toggle. One column on phones, auto-fill columns above. A collapsed text-only "Inspiration" list links to posts that inspired the templates (only posts whose public viewing was verified; no thumbnails, no hotlinks). |
+| Use template | gallery button | Creates a project named after the template and opens `/app#/editor/<id>?template=<templateId>`; the editor opens `TemplateDialog` on that template and drops the query. |
+| Template dialog | `src/ui/editor/TemplateDialog.tsx`, header "Templates" button (icon only on phones), Projects page "Start from template" | Choose a card, then "Fill": one picker per slot listing the imported assets that fit (video or image for visual slots, audio for audio; suggestions are pre-selected, never reused), an "Import media" button, text fields pre-filled with the defaults (only edited words are passed on), repeat groups with a count and per-item fields. Apply runs `applyTemplateToEditor` after `templateFontFamilies` fonts are loaded; if the timeline has clips it asks first and then applies with `replace: true`. One undo removes it. A toast says "Template applied. Undo to remove."; engine warnings (missing slots, short media, ...) are listed plainly. On phones the dialog is the bottom sheet. |
+| Pure logic | `src/ui/lib/template-gallery.ts`, `src/ui/lib/template-fill.ts` | Filters, preview budget, slot matching, fill state to `TemplateInputs`. Tests: `tests/template-ui.test.ts`. |
+| Landing | `#templates` section and nav link, hero link, feature card, FAQ | See `docs/LANDING.md`. |
+| E2E | `e2e/templates-gallery.spec.ts`, `e2e/templates-apply.spec.ts`, `e2e/templates-landing.spec.ts` | Real Chrome. Screenshots in `e2e/.artifacts/gallery/`. |
+
 ## Agent tools
 
 | Tool | Read-only | What it does |
@@ -154,5 +165,5 @@ Real Chrome (`channel: "chrome"`) draws placeholder media procedurally (`e2e/tem
 - Word-level caption highlight: `captions.style` styles whole cues only; the template does not transcribe by itself (pass `captionCues`, or run the transcript tools first).
 - Callout and cursor presets: callouts are a pill text plus a ring shape you place by hand; there is no auto zoom-to-region.
 - Filters are applied per clip, not per beat region; the text style presets are a closed list (extend `presets.ts`).
-- "Save as template" from a project and importing a user template file are not built (`parseTemplateJson` is ready for it).
+- "Save as template" from a project and importing a user template file are not built (the landing and FAQ say "coming soon") (`parseTemplateJson` is ready for it).
 - Inter is the bundled font; a host must load it (`templateFontFamilies`) before the first render, or the first frames use the fallback.

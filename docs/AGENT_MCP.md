@@ -61,6 +61,7 @@ Every tool the editor registers is exposed with its JSON schema; the list refres
 | --- | --- | --- |
 | `editor_status` | MCP server | Is an editor connected, which project, how many tools. Call first when anything fails. |
 | engine tools (`get_project`, edit tools, ...) | `src/engine/agent` via `createAgentTools()` | Read and edit the timeline. Times are seconds, ids are element ids. |
+| `list_templates`, `describe_template`, `apply_template` | `src/engine/agent/tools-templates.ts` | Browse the 8 original templates, read a template's slots and texts, and build one in the open project in a single undo step. `apply_template` sets the canvas and is destructive, so under "Ask before editing" it needs an approved plan. See `docs/TEMPLATES.md`. |
 | `render_frame` `{time, maxSize?}` | bridge | Composes the timeline at `time` seconds with the same plan and compositor as preview and export; returns a JPEG whose long side is at most `maxSize` (default 1024, max 2048). |
 | `export_project` `{format?, quality?, includeAudio?}` | bridge | Runs the real export in the page and returns size, duration, frame count and codecs. Bytes are **not** sent to the agent: the file is held in the page and a **Download export** button appears in the chip. The download starts only when you click it. |
 

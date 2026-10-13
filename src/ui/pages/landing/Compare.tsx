@@ -16,7 +16,7 @@ function Cell({ row, side }: { row: CompareRow; side: "runitback" | "capcut" }):
 export function Compare(): ReactNode {
   return (
     <section id="compare" className="lp-section lp-wrap" aria-labelledby="compare-title" tabIndex={-1}>
-      <SectionHead index={6} eyebrow={compare.eyebrow} title={compare.title} intro={compare.intro} titleId="compare-title" />
+      <SectionHead index={7} eyebrow={compare.eyebrow} title={compare.title} intro={compare.intro} titleId="compare-title" />
       <div className="zn-frame zn-reveal" style={stagger(1)}>
         <table className="lp-compare">
           <caption className="sr-only">{compare.title}</caption>

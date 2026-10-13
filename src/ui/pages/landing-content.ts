@@ -3,14 +3,14 @@
  * entries in the arrays to add or remove nav links, feature cards, steps, FAQ items and footer links.
  * Section order and layout live in LandingPage.tsx. See docs/LANDING.md.
  *
- * Honesty rule: only describe what ships today. Anything unfinished is marked `soon: true` and rendered
+ * Honesty rule: only describe what ships today. Anything unfinished is marked with `soonNote` and rendered
  * as "Coming soon". Do not add customer logos, ratings, testimonials or metrics unless they are real.
  */
 
 const REPO = "https://github.com/Svector-anu/runitback";
 
 export interface NavLink { label: string; target: SectionId }
-export type SectionId = "product" | "features" | "how-it-works" | "compare" | "open-source" | "faq";
+export type SectionId = "product" | "templates" | "features" | "how-it-works" | "compare" | "open-source" | "faq";
 
 export interface ShotImage {
   src: string;
@@ -23,7 +23,7 @@ export interface ShotImage {
   ratio?: number;
 }
 
-export type FeatureVisual = "prompt" | "moments" | "plan" | "private" | "timeline" | "export";
+export type FeatureVisual = "prompt" | "moments" | "plan" | "private" | "timeline" | "templates" | "export";
 
 export interface FeatureItem {
   id: string;
@@ -37,7 +37,7 @@ export interface FeatureItem {
 }
 
 export interface StepItem { title: string; body: string }
-export interface FaqItem { question: string; answer: string }
+export interface FaqItem { question: string; answer: string; link?: { label: string; href: string } }
 export interface FooterColumn { title: string; links: Array<{ label: string; href: string; target?: SectionId; external?: boolean }> }
 export interface CompareRow {
   feature: string;
@@ -67,6 +67,7 @@ export interface LandingContent {
     sub: string;
     primaryCta: string;
     githubCta: string;
+    templatesCta: string;
     trust: string[];
     strip: ShotImage[];
   };
@@ -79,6 +80,15 @@ export interface LandingContent {
     shotLight: ShotImage;
     shotDark: ShotImage;
     demo: { src: string; poster: string; label: string; caption: string };
+  };
+  templates: {
+    eyebrow: string;
+    title: string;
+    intro: string;
+    /** Template ids shown as preview cards, in order. */
+    featured: string[];
+    cta: string;
+    note: string;
   };
   features: { eyebrow: string; title: string; intro: string; items: FeatureItem[] };
   how: { eyebrow: string; title: string; intro: string; steps: StepItem[] };
@@ -120,6 +130,7 @@ export const LANDING_CONTENT: LandingContent = {
   trademarkNote: "CapCut is a trademark of its respective owner. RunItBack is not affiliated with or endorsed by it.",
   nav: {
     links: [
+      { label: "Templates", target: "templates" },
       { label: "Features", target: "features" },
       { label: "How it works", target: "how-it-works" },
       { label: "Compare", target: "compare" },
@@ -133,9 +144,10 @@ export const LANDING_CONTENT: LandingContent = {
     status: "Open source · MIT",
     kicker: "The open-source CapCut alternative",
     headline: "Tell your video editor what to do",
-    sub: "RunItBack is a free video editor with an AI agent built in. Describe the edit in plain words, review the plan, and export. It runs in your browser, and the code is yours to read and change.",
+    sub: "RunItBack is a free video editor with an AI agent built in. Describe the edit in plain words, review the plan, and export, or start from one of eight original templates. It runs in your browser, and the code is yours to read and change.",
     primaryCta: "Start editing",
     githubCta: "Star on GitHub",
+    templatesCta: "Start from a template",
     trust: ["Open source", "Private", "Works in Chrome"],
     strip: [
       { src: "/landing/card-timeline.webp", alt: "A close view of the timeline with three clips", width: 1200, height: 245, position: "0% 50%", ratio: 1.3 },
@@ -166,6 +178,14 @@ export const LANDING_CONTENT: LandingContent = {
       label: "Demo",
       caption: "Two minutes: import, understand, ask, review the plan, undo, export. Real recording, narrated.",
     },
+  },
+  templates: {
+    eyebrow: "Templates",
+    title: "Start from a template.",
+    intro: "Eight original templates for launch videos, lists, quotes and captions. Pick one, drop in your clips and words, and edit the result like any other project.",
+    featured: ["product-launch", "kinetic-announcement", "listicle", "testimonial-quote"],
+    cta: "Browse all templates",
+    note: "Applying a template is one undo step. Your media stays in your browser.",
   },
   features: {
     eyebrow: "Features",
@@ -203,17 +223,23 @@ export const LANDING_CONTENT: LandingContent = {
       {
         id: "timeline",
         title: "Real timeline",
-        body: "Tracks, trimming, text, effects and keyframes, with snapping and full undo.",
+        body: "Tracks, trimming, text, filters, transitions and keyframes, with snapping and full undo.",
         visual: "timeline",
         span: 4,
-        soonNote: "Transitions: coming soon",
+      },
+      {
+        id: "templates",
+        title: "Start from a template",
+        body: "Eight original templates lay out a whole video from your clips, with text, animation and transitions already set. One undo removes it.",
+        visual: "templates",
+        span: 5,
       },
       {
         id: "export",
         title: "Export MP4 or WebM",
         body: "Render in your browser with the same pipeline as the preview. Pick MP4 (H.264 and AAC) or WebM (VP9 and Opus).",
         visual: "export",
-        span: 12,
+        span: 7,
       },
     ],
   },
@@ -251,7 +277,7 @@ export const LANDING_CONTENT: LandingContent = {
       { feature: "Edit by describing it", runitback: "Yes. An agent proposes a plan, you approve it, and one undo reverts it.", capcut: "AI tools that generate and edit. Check CapCut for how they work." },
       { feature: "Price", runitback: "Free. The agent uses your own Anthropic API key.", capcut: "A free plan, plus paid Pro, Ultra and Teams plans." },
       { feature: "Mobile app", runitback: "Not yet. Desktop Chrome for now.", capcut: "Yes, on mobile, tablet and desktop.", ahead: "capcut" },
-      { feature: "Templates, stickers and effects", runitback: "Core effects and filters are coming soon to the editor. No template library.", capcut: "A large library of templates, effects and AI tools.", ahead: "capcut" },
+      { feature: "Templates, stickers and effects", runitback: "Core effects, filters, transitions and 8 original templates are built in. Stickers and a large music and effects library: not yet.", capcut: "A large library of templates, stickers, effects and AI tools.", ahead: "capcut" },
     ],
     aheadLabel: "Ahead",
     checked: "CapCut details checked on capcut.com on 12 October 2026. Plans and features change, so check CapCut for the latest.",
@@ -276,36 +302,45 @@ export const LANDING_CONTENT: LandingContent = {
     title: "Questions, answered plainly.",
     items: [
       {
+        question: "What is RunItBack?",
+        answer: "An open-source video editor that runs in your browser. Edit by hand on a real timeline, or describe the edit and an AI agent shows a plan for you to approve. One undo reverses it. It is released under the MIT license and the code is on GitHub.",
+      },
+      {
+        question: "What can it do today?",
+        answer: "A multi-track timeline, keyframes, masks, text with stroke, shadow and animations, filters and colour adjustments, 7 transitions, crop, freeze frame, speed with pitch kept, captions from files or speech, 8 original templates, and export to MP4 or WebM. The agent can remove dead air, cut to the beat, find a spoken phrase or what is on screen, reframe to a face, and apply templates. In progress: beat-sync button, noise removal, text to speech, chroma key, speed ramps and background removal.",
+      },
+      {
         question: "Is my video uploaded?",
-        answer: "No. Your files are stored in your browser and never uploaded. When you use the agent, the text it works from (timeline, transcripts, measurements) and any frames it chooses to look at are sent to Anthropic with your own API key. Analysis, transcription, visual search and face detection run on your device.",
+        answer: "Your files stay in your browser and are not uploaded. When you use the agent, the text it works from (timeline, transcripts, measurements) and any frames it chooses to look at are sent to the model provider you set up, such as Anthropic with your own key or a gateway you choose. Understand, transcription, search and face detection run on your device.",
       },
       {
         question: "What does it cost?",
-        answer: "RunItBack is free to use and adds no charge. The agent runs on your own Anthropic API key, so you pay Anthropic directly for what it uses. Editing and exporting without the agent needs no key.",
+        answer: "RunItBack is free. The agent uses your own Anthropic API key, so you pay Anthropic directly for what it uses. Editing and exporting without the agent needs no key. Hosted credits from us: coming soon.",
       },
       {
         question: "Can I use my Claude subscription?",
-        answer: "Yes, through Claude Code. Claude Code is Anthropic's own app, and it can drive RunItBack through the MCP server in this repository, so your Pro or Max plan does the work. There is no \"sign in with Claude\" inside the web app, because Anthropic does not allow other apps to use subscription logins. For the built-in agent, use an Anthropic API key instead; you pay Anthropic directly, usually cents per edit.",
+        answer: "Yes, through Claude Code. Claude Code is Anthropic's own app, and it can drive RunItBack through the MCP server in this repository, so your Pro or Max plan does the work. There is no \"sign in with Claude\" inside the web app, because Anthropic does not allow other apps to use subscription logins. For the built-in agent, use an Anthropic API key.",
       },
       {
-        question: "Which browsers does it work in?",
-        answer: "Chrome on desktop. Other browsers are not supported yet.",
-      },
-      {
-        question: "Which models can the agent use?",
-        answer: "Claude Sonnet 5.5 (default), Opus 5.5 and Haiku 5.5, through your Anthropic API key. Your key is kept in this browser only.",
+        question: "Which browsers work?",
+        answer: "Chrome on desktop is the supported browser. Firefox and Safari are not supported yet. On a phone the layout is limited, so it works best in desktop Chrome.",
       },
       {
         question: "What does Understand download?",
-        answer: "Understand analyses silence, loudness, scenes and faces on your device. Transcription and visual search each need a small model from Hugging Face, about 50 MB for speech and about 156 MB for visual search. It asks once before downloading anything, and nothing starts without your consent.",
+        answer: "Understand analyses silence, loudness, scenes and faces on your device. Transcription and visual search each need a small model from Hugging Face, about 50 MB for speech and about 156 MB for visual search. It asks once before downloading anything, you can decline, and the models are cached in your browser afterwards.",
       },
       {
-        question: "Is it open source?",
-        answer: "Yes. RunItBack is released under the MIT license, so you can use, change and share it freely. The code is on GitHub.",
+        question: "Can the agent mess up my project?",
+        answer: "It shows a plan first and edits only after you approve. One undo reverses the whole turn, and it cannot delete your media files. It can still make a wrong edit, so check the result. Undo is one click.",
+      },
+      {
+        question: "Are templates free? Can I make my own?",
+        answer: "All templates are original and free under the MIT license. They are JSON files in the repository. Importing or saving your own template in the app is coming soon; the format and a validator (parseTemplateJson) already exist.",
+        link: { label: "Read docs/TEMPLATES.md", href: `${REPO}/blob/main/docs/TEMPLATES.md` },
       },
       {
         question: "Why not just use CapCut?",
-        answer: "You may well like CapCut. It has mobile apps and a big library of templates and effects, and RunItBack does not. Choose RunItBack if you want an editor whose code you can read and change, that runs in your browser, and an agent that shows a plan before it edits anything. It is free, and the agent uses your own Anthropic key.",
+        answer: "You may well like CapCut. It has mobile apps, accounts and cloud features, and far larger libraries of templates, stickers, music and effects. RunItBack is open source (MIT), runs in the browser, keeps your files on your device, and has an agent that plans before it edits. Its core effects, filters, transitions and 8 templates are built in, but its libraries are small.",
       },
       {
         question: "How do I contribute?",
@@ -332,6 +367,7 @@ export const LANDING_CONTENT: LandingContent = {
       {
         title: "Product",
         links: [
+          { label: "Templates", href: "#templates", target: "templates" },
           { label: "Features", href: "#features", target: "features" },
           { label: "How it works", href: "#how-it-works", target: "how-it-works" },
           { label: "Compare", href: "#compare", target: "compare" },
@@ -355,7 +391,7 @@ export const LANDING_CONTENT: LandingContent = {
         ],
       },
     ],
-    card: { title: "Got footage? Start cutting.", body: "Open the editor and import a clip. Nothing to install, nothing to upload.", cta: "Start editing" },
+    card: { title: "Got footage? Start cutting.", body: "Open the editor and import a clip. Nothing to install and no account.", cta: "Start editing" },
     note: "Open source under the MIT license.",
     legal: "RunItBack. Made for Chrome.",
   },
