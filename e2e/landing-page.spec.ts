@@ -12,7 +12,7 @@ async function openLanding(page: Page): Promise<void> {
 test("nav anchors scroll to their section without leaving the landing page", async ({ page }) => {
   await openLanding(page);
   const nav = page.getByRole("navigation", { name: "Page sections" });
-  for (const [label, id] of [["Features", "features"], ["How it works", "how-it-works"], ["Compare", "compare"], ["Open source", "open-source"], ["FAQ", "faq"]] as const) {
+  for (const [label, id] of [["Templates", "templates"], ["Features", "features"], ["How it works", "how-it-works"], ["Compare", "compare"], ["Open source", "open-source"], ["FAQ", "faq"]] as const) {
     await nav.getByRole("link", { name: label }).click();
     await expect.poll(async () => page.evaluate((target) => Math.round(document.getElementById(target)?.getBoundingClientRect().top ?? 9999), id), { timeout: 5000 }).toBeLessThan(140);
     await expect(page.locator(`#${id}`)).toBeFocused();
@@ -47,7 +47,7 @@ test("the nav call to action is a link to /app", async ({ page }) => {
 test("FAQ accordion works from the keyboard", async ({ page }) => {
   await openLanding(page);
   const questions = page.locator("#faq h3 button");
-  await expect(questions).toHaveCount(9);
+  await expect(questions).toHaveCount(11);
   await expect(questions.nth(0)).toHaveAttribute("aria-expanded", "true");
   await questions.nth(0).focus();
   await page.keyboard.press("Enter");
@@ -58,11 +58,11 @@ test("FAQ accordion works from the keyboard", async ({ page }) => {
   await expect(questions.nth(1)).toHaveAttribute("aria-expanded", "true");
   const answer = page.locator("#faq-a-1");
   await expect(answer).toBeVisible();
-  await expect(answer).toContainText("Anthropic");
+  await expect(answer).toContainText("7 transitions");
   await page.keyboard.press("End");
-  await expect(questions.nth(8)).toBeFocused();
+  await expect(questions.nth(10)).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.locator("#faq-a-8")).toContainText(/CONTRIBUTING/);
+  await expect(page.locator("#faq-a-10")).toContainText(/CONTRIBUTING/);
   await expect(page.locator("#faq-a-1")).toBeHidden();
   await page.keyboard.press("Home");
   await expect(questions.nth(0)).toBeFocused();
@@ -196,7 +196,7 @@ test("the comparison table is honest about where CapCut is ahead and carries the
   const table = page.locator("#compare table");
   await expect(table.locator("tbody tr")).toHaveCount(7);
   await expect(table.locator("tr", { hasText: "Mobile app" })).toContainText("Ahead");
-  await expect(table.locator("tr", { hasText: "Templates, stickers and effects" })).toContainText("coming soon");
+  await expect(table.locator("tr", { hasText: "Templates, stickers and effects" })).toContainText("8 original templates");
   await expect(page.getByRole("contentinfo")).toContainText("CapCut is a trademark of its respective owner. RunItBack is not affiliated with or endorsed by it.");
 });
 

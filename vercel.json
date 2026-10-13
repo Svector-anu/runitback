@@ -5,6 +5,10 @@
     {
       "source": "/app",
       "destination": "/index.html"
+    },
+    {
+      "source": "/templates",
+      "destination": "/index.html"
     }
   ],
   "headers": [

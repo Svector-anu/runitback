@@ -48,7 +48,7 @@ function SaveIndicator(): ReactNode {
   );
 }
 
-export function EditorHeader({ onRecording }: { onRecording: (recording: boolean) => void }): ReactNode {
+export function EditorHeader({ onRecording, onOpenTemplates }: { onRecording: (recording: boolean) => void; onOpenTemplates: () => void }): ReactNode {
   const services = getServices();
   const theme = uiStore.use((s) => s.theme);
   const [shortcuts, setShortcuts] = useState(false);
@@ -98,6 +98,9 @@ export function EditorHeader({ onRecording }: { onRecording: (recording: boolean
         <SaveIndicator />
       </div>
       <nav className="editor__header-right" aria-label="Editor actions">
+        <Button variant="ghost" size={phone ? "icon-lg" : "default"} className="templates-button" label={phone ? "Templates" : undefined} tooltip={false} data-testid="templates-button" onClick={onOpenTemplates}>
+          <Icon name="film" size={16} />{phone ? null : <span>Templates</span>}
+        </Button>
         <DropdownMenu width={224} align="end"
           entries={[
             { label: "Take the tour", icon: "film", onSelect: () => getTourStore().start() },

@@ -14,6 +14,7 @@ import { PreviewPanel } from "../preview/PreviewPanel";
 import { PropertiesPanel } from "../properties/PropertiesPanel";
 import { Timeline } from "../timeline/Timeline";
 import { EditorHeader } from "./Header";
+import { TemplateDialog } from "./TemplateDialog";
 import { Button } from "../primitives/Button";
 import { OnboardingHint } from "./OnboardingHint";
 import { EditorHints } from "./EditorHints";
@@ -57,7 +58,7 @@ function Layout(): ReactNode {
   );
 }
 
-export function EditorPage({ id }: { id: string }): ReactNode {
+export function EditorPage({ id, template }: { id: string; template?: string }): ReactNode {
   const services = getServices();
   const [status, setStatus] = useState<"loading" | "ready" | "error" | "locked">("loading");
   const [attempt, setAttempt] = useState(0);
@@ -65,6 +66,7 @@ export function EditorPage({ id }: { id: string }): ReactNode {
   const [recording, setRecording] = useState(false);
   const ready = useEditorState((s) => s.meta !== null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [templates, setTemplates] = useState<{ initial?: string } | null>(template ? { initial: template } : null);
 
   useEffect(() => {
     let canceled = false;
@@ -112,6 +114,10 @@ export function EditorPage({ id }: { id: string }): ReactNode {
 
   useMobileSheetAutopilot(status === "ready" && ready);
   useKeyboardShortcuts({ enabled: status === "ready" && ready, recording });
+  useEffect(() => {
+    // Arriving from the /templates gallery: the dialog is already open, so drop the query from the address.
+    if (template) navigate(`/editor/${id}`, { replace: true });
+  }, [id, template]);
   const onRecording = useCallback((r: boolean) => setRecording(r), []);
 
   useEffect(() => {
@@ -148,7 +154,8 @@ export function EditorPage({ id }: { id: string }): ReactNode {
       <MobileNotice />
       <OnboardingHint />
       <EditorHints />
-      <EditorHeader onRecording={onRecording} />
+      <EditorHeader onRecording={onRecording} onOpenTemplates={() => setTemplates({})} />
+      {templates ? <TemplateDialog open onClose={() => setTemplates(null)} initialTemplateId={templates.initial} /> : null}
       <div className="editor__body"><Layout /></div>
     </div>
   );

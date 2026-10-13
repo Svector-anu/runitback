@@ -11,6 +11,7 @@ const MOMENT_ROWS = [
   { label: "Faces", marks: [8, 33, 64, 90] },
 ];
 const PLAN_STEPS = ["Trim the tail of the first clip", "Add a short title", "Check the whole sequence"];
+const TEMPLATE_CHIPS = ["Product launch", "Numbered list", "Testimonial", "Captions"];
 const PRIVACY_POINTS = ["Files stay in this browser", "Models run on your device", "API key kept locally"];
 
 function Visual({ kind, soonNote }: { kind: FeatureVisual; soonNote?: string }): ReactNode {
@@ -57,6 +58,12 @@ function Visual({ kind, soonNote }: { kind: FeatureVisual; soonNote?: string }):
           {soonNote ? <p className="zn-tag lp-vis__soon">{soonNote}</p> : null}
         </div>
       );
+    case "templates":
+      return (
+        <ul className="lp-vis lp-vis--templates" aria-hidden="true">
+          {TEMPLATE_CHIPS.map((name) => <li key={name}>{name}</li>)}
+        </ul>
+      );
     case "export":
       return (
         <ul className="lp-vis lp-vis--export" aria-hidden="true">
@@ -82,7 +89,7 @@ function FeatureCard({ item, index }: { item: FeatureItem; index: number }): Rea
 export function Features(): ReactNode {
   return (
     <section id="features" className="lp-section lp-wrap" aria-labelledby="features-title" tabIndex={-1}>
-      <SectionHead index={3} eyebrow={features.eyebrow} title={features.title} intro={features.intro} titleId="features-title" />
+      <SectionHead index={4} eyebrow={features.eyebrow} title={features.title} intro={features.intro} titleId="features-title" />
       <div className="zn-frame lp-bento">
         {features.items.map((item, index) => <FeatureCard key={item.id} item={item} index={index} />)}
       </div>

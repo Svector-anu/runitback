@@ -17,7 +17,10 @@ function ThemeButton({ className }: { className: string }): ReactNode {
   );
 }
 
-export function Nav(): ReactNode {
+/** A plain link used instead of the landing's section anchors on pages that are not the landing (the /templates gallery). */
+export interface PageLink { label: string; href: string; current?: boolean }
+
+export function Nav({ pageLinks }: { pageLinks?: ReadonlyArray<PageLink> } = {}): ReactNode {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -40,7 +43,9 @@ export function Nav(): ReactNode {
       <div className="lp-nav__bar lp-wrap">
         <a className="lp-nav__brand" href="/" aria-label={`${brand} home`}><Logo variant="lockup" size={30} /></a>
         <nav className="lp-nav__links" aria-label="Page sections">
-          {nav.links.map((link) => <a key={link.target} className="lp-nav__link" {...sectionLinkProps(link.target)}>{link.label}</a>)}
+          {pageLinks
+            ? pageLinks.map((link) => <a key={link.href} className="lp-nav__link" href={link.href} aria-current={link.current ? "page" : undefined}>{link.label}</a>)
+            : nav.links.map((link) => <a key={link.target} className="lp-nav__link" {...sectionLinkProps(link.target)}>{link.label}</a>)}
         </nav>
         <div className="lp-nav__actions">
           <ThemeButton className="lp-nav__theme" />
@@ -56,7 +61,9 @@ export function Nav(): ReactNode {
       {open ? (
         <div className="lp-wrap lp-menu-wrap">
           <nav id="lp-menu" className="lp-menu zn-surface" aria-label="Menu">
-            {nav.links.map((link) => <a key={link.target} className="lp-menu__link" {...sectionLinkProps(link.target, () => setOpen(false))}>{link.label}</a>)}
+            {pageLinks
+              ? pageLinks.map((link) => <a key={link.href} className="lp-menu__link" href={link.href} aria-current={link.current ? "page" : undefined}>{link.label}</a>)
+              : nav.links.map((link) => <a key={link.target} className="lp-menu__link" {...sectionLinkProps(link.target, () => setOpen(false))}>{link.label}</a>)}
             <a className="lp-menu__link lp-menu__star" href={github.repo} {...EXTERNAL_LINK_PROPS}><StarIcon size={18} />{github.starLabel}</a>
             <div className="lp-menu__row"><span className="zn-mono">Theme</span><ThemeButton className="lp-menu__theme" /></div>
           </nav>

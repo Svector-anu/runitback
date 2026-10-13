@@ -8,7 +8,7 @@ export function How(): ReactNode {
   return (
     <section id="how-it-works" className="lp-section lp-wrap lp-how" aria-label="How it works" tabIndex={-1}>
       <div className="lp-how__copy">
-        <div className="zn-reveal"><Eyebrow index={4} label={how.eyebrow} /></div>
+        <div className="zn-reveal"><Eyebrow index={5} label={how.eyebrow} /></div>
         <h2 className="zn-h2 zn-reveal" style={stagger(1)}>{how.title}</h2>
         <p className="zn-lead zn-reveal" style={stagger(2)}>{how.intro}</p>
       </div>

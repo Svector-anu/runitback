@@ -7,7 +7,7 @@ const { openSource, github, license } = LANDING_CONTENT;
 export function OpenSource(): ReactNode {
   return (
     <section id="open-source" className="lp-section lp-wrap" aria-labelledby="open-source-title" tabIndex={-1}>
-      <SectionHead index={7} eyebrow={openSource.eyebrow} title={openSource.title} intro={openSource.intro} titleId="open-source-title" />
+      <SectionHead index={8} eyebrow={openSource.eyebrow} title={openSource.title} intro={openSource.intro} titleId="open-source-title" />
       <div className="lp-os">
         <ul className="lp-os__parts zn-frame" aria-label={openSource.openLabel}>
           {openSource.parts.map((part, index) => (

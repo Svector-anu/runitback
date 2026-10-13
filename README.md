@@ -27,12 +27,13 @@ Built and covered by tests (see [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.m
 - Text (stroke, shadow, background, animation presets), shapes, masks, blur, colour adjust and eight filters, crop, freeze frame, speed with optional pitch preservation, seven transitions.
 - Captions import (SRT/ASS) and local speech transcription (Whisper) with transcript search and delete-by-sentence.
 - MP4 (H.264/AAC) and WebM (VP9/Opus) export, run in the browser with WebCodecs.
+- Templates: eight original templates (product launch, kinetic announcement, feature callouts, before and after, numbered list, testimonial, talking head with captions, metric reveal) in a gallery at `/templates`, applied in one undo step from the editor, the Projects page or the agent. Importing or saving your own template in the app is not built yet ([`docs/TEMPLATES.md`](docs/TEMPLATES.md)).
 - Agent layer: an in-app chat agent and an MCP server over the same typed tools, with plan-then-approve, local perception (silence, loudness, beats, scene cuts), a per-asset temporal index, visual search (CLIP) and face detection (MediaPipe).
 
 In progress or known gaps (stated plainly):
 
 - The in-app agent's quality with a real model is not yet measured end to end; the scripted evals pass, the real-model run is partial ([`docs/EVALS.md`](docs/EVALS.md), [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)).
-- Word-level caption styling is data plumbing only. Stickers, templates, speed curves, chroma key, background removal and audio effects do not exist yet.
+- Word-level caption styling is data plumbing only. Stickers, speed curves, chroma key, background removal and audio effects do not exist yet.
 - Long media and large projects are untested; whole-timeline audio mixing happens in memory.
 - Chromium only. Firefox and Safari are untested.
 

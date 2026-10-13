@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { getTemplate } from "../src/templates";
 import { LANDING_CONTENT, type ShotImage } from "../src/ui/pages/landing-content";
 
 const PUBLIC = join(__dirname, "..", "public");
-const SECTION_IDS = ["product", "features", "how-it-works", "compare", "open-source", "faq"];
+const SECTION_IDS = ["product", "templates", "features", "how-it-works", "compare", "open-source", "faq"];
 
 function allShots(): ShotImage[] {
   const c = LANDING_CONTENT;
@@ -30,10 +31,10 @@ describe("landing content shape", () => {
     for (const column of LANDING_CONTENT.footer.columns) for (const link of column.links) if (link.target) expect(SECTION_IDS).toContain(link.target);
   });
 
-  it("has unique feature ids, a full 12-column bento and the six agreed cards", () => {
+  it("has unique feature ids, a full 12-column bento and the seven agreed cards", () => {
     const items = LANDING_CONTENT.features.items;
     expect(new Set(items.map((i) => i.id)).size).toBe(items.length);
-    expect(items.map((i) => i.title)).toEqual(["Edit with words", "Find any moment", "Plan before it edits", "Private by design", "Real timeline", "Export MP4 or WebM"]);
+    expect(items.map((i) => i.title)).toEqual(["Edit with words", "Find any moment", "Plan before it edits", "Private by design", "Real timeline", "Start from a template", "Export MP4 or WebM"]);
     let row = 0;
     for (const item of items) {
       row += item.span;
@@ -45,13 +46,16 @@ describe("landing content shape", () => {
 
   it("answers every FAQ question and covers the required topics", () => {
     const faq = LANDING_CONTENT.faq.items;
-    expect(faq.length).toBeGreaterThanOrEqual(9);
+    expect(faq.map((f) => f.question)).toEqual([
+      "What is RunItBack?", "What can it do today?", "Is my video uploaded?", "What does it cost?", "Can I use my Claude subscription?", "Which browsers work?",
+      "What does Understand download?", "Can the agent mess up my project?", "Are templates free? Can I make my own?", "Why not just use CapCut?", "How do I contribute?",
+    ]);
     for (const item of faq) {
       expect(item.question.trim().endsWith("?")).toBe(true);
       expect(item.answer.trim().length).toBeGreaterThan(20);
     }
     const questions = faq.map((f) => f.question).join(" | ");
-    for (const topic of ["uploaded", "cost", "browsers", "models", "Understand download", "open source", "CapCut", "contribute", "Claude subscription"]) expect(questions).toContain(topic);
+    for (const topic of ["uploaded", "cost", "browsers", "Understand download", "RunItBack", "CapCut", "contribute", "Claude subscription", "agent mess up", "templates"]) expect(questions).toContain(topic);
   });
 
   it("answers the subscription question honestly: Claude Code and MCP yes, in-app subscription login no", () => {
@@ -72,7 +76,7 @@ describe("landing content shape", () => {
       expect(url.startsWith("https://github.com/Svector-anu/runitback")).toBe(true);
     }
     expect(c.github.starLabel).toBe("Star on GitHub");
-    const answer = c.faq.items.find((f) => /open source/i.test(f.question))?.answer ?? "";
+    const answer = c.faq.items.find((f) => f.question === "What is RunItBack?")?.answer ?? "";
     expect(answer).toMatch(/MIT/);
     expect(answer).not.toMatch(/not yet|soon/i);
   });
@@ -91,19 +95,38 @@ describe("landing content shape", () => {
     expect(rows.find((r) => r.feature === "Mobile app")?.ahead).toBe("capcut");
     const templates = rows.find((r) => r.feature.startsWith("Templates"));
     expect(templates?.ahead).toBe("capcut");
-    expect(templates?.runitback).toMatch(/coming soon/i);
+    expect(templates?.runitback).toMatch(/8 original templates/);
+    expect(templates?.runitback).toMatch(/not yet/i);
+    expect(templates?.runitback).not.toMatch(/no template library|coming soon/i);
     expect(checked).toMatch(/\d{4}/);
+  });
+
+  it("never claims 100% local or no upload", () => {
+    expect(JSON.stringify(LANDING_CONTENT).toLowerCase()).not.toMatch(/100% local|never uploaded|no upload/);
   });
 
   it("does not claim customers, ratings, metrics or star counts", () => {
     const text = JSON.stringify(LANDING_CONTENT).toLowerCase();
-    expect(text).not.toMatch(/trusted by|\d+k\+? users|rated \d|testimonial|\d+k?\+?\s*stars|apache|gpl/);
+    expect(text).not.toMatch(/trusted by|\d+k\+? users|rated \d|testimonials|\d+k?\+?\s*stars|apache|gpl/);
   });
 
-  it("marks unfinished work as coming soon and does not promise transitions or filters as shipped", () => {
+  it("does not mark shipped work (filters, transitions, templates) as coming soon", () => {
+    const shipped = JSON.stringify([LANDING_CONTENT.features, LANDING_CONTENT.compare, LANDING_CONTENT.hero]).toLowerCase();
+    expect(shipped).not.toMatch(/transitions?: coming soon|filters?: coming soon|no template library/);
     const timeline = LANDING_CONTENT.features.items.find((i) => i.id === "timeline");
-    expect(timeline?.soonNote).toMatch(/coming soon/i);
-    expect(timeline?.body.toLowerCase()).not.toMatch(/transition|filter/);
+    expect(timeline?.soonNote).toBeUndefined();
+    expect(timeline?.body.toLowerCase()).toMatch(/transition/);
+  });
+
+  it("features templates: a section with four featured cards that exist, a nav link, and an honest own-template FAQ", () => {
+    const { templates, nav, faq } = LANDING_CONTENT;
+    expect(templates.featured).toHaveLength(4);
+    for (const id of templates.featured) expect(getTemplate(id)).toBeDefined();
+    expect(nav.links.map((l) => l.label)).toContain("Templates");
+    const own = faq.items.find((f) => f.question.startsWith("Are templates free"));
+    expect(own?.answer).toMatch(/parseTemplateJson/);
+    expect(own?.answer).toMatch(/coming soon/);
+    expect(own?.link?.href).toBe("https://github.com/Svector-anu/runitback/blob/main/docs/TEMPLATES.md");
   });
 
   it("references image files that exist in public/ with positive dimensions and alt text", () => {

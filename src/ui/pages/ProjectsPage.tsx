@@ -269,6 +269,7 @@ export function ProjectsPage(): ReactNode {
           <Button variant="outline" size="lg" onClick={() => importInput.current?.click()}>Import project</Button>
           <input ref={importInput} type="file" accept={BUNDLE_EXTENSION} hidden aria-label="Import project file"
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void importProject(f); }} />
+          <Button variant="outline" size="lg" onClick={() => navigate("/templates")}><Icon name="film" />Start from template</Button>
           <Button size="lg" onClick={() => void create()}><Icon name="plus" />New project</Button>
         </div>
       </header>
