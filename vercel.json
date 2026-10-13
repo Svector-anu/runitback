@@ -22,7 +22,7 @@
       ]
     },
     {
-      "source": "/((?!assets/(face|segmenter)-worker-).*)",
+      "source": "/((?!assets/face-worker-).*)",
       "headers": [
         {
           "key": "X-Content-Type-Options",
@@ -43,7 +43,7 @@
       ]
     },
     {
-      "source": "/assets/(face|segmenter)-worker-(.*)",
+      "source": "/assets/face-worker-(.*)",
       "headers": [
         {
           "key": "X-Content-Type-Options",

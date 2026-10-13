@@ -70,8 +70,8 @@ test("the document is served with a strict CSP and the security headers", async 
 
 test("only the two MediaPipe workers (face detector, segmenter) may evaluate code, because MediaPipe's loader needs an indirect eval", async ({ request }) => {
   const scripts = readdirSync("dist/assets").filter((name) => name.endsWith(".js"));
-  const mediapipeWorkers = scripts.filter((name) => name.startsWith("face-worker-") || name.startsWith("segmenter-worker-"));
-  expect(mediapipeWorkers, "vite emits assets/face-worker-<hash>.js and segmenter-worker-<hash>.js; vercel.json matches those prefixes").toHaveLength(2);
+  const mediapipeWorkers = scripts.filter((name) => name.startsWith("face-worker-"));
+  expect(mediapipeWorkers, "vite emits assets/face-worker-<hash>.js and face-worker-segmenter-<hash>.js; vercel.json matches the face-worker- prefix").toHaveLength(2);
   for (const name of scripts) {
     const policy = directives((await request.get(`/assets/${name}`)).headers()["content-security-policy"] ?? "");
     const evalAllowed = policy.get("script-src")?.includes("'unsafe-eval'") ?? false;
