@@ -177,7 +177,9 @@ test("narrow viewports keep a usable editor and dark theme renders", async ({ pa
   await page.setViewportSize({ width: 800, height: 700 });
   await page.goto("/#/projects");
   await page.getByRole("button", { name: "Create your first project" }).click();
-  await expect(page.getByRole("tab", { name: "Preview" })).toBeVisible();
+  // Below 900 px the editor uses the mobile layout: preview on top and a bottom tab bar (Assets | Properties | Agent).
+  await expect(page.locator(".preview__scene canvas")).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Assets" })).toBeVisible();
   await page.getByRole("tab", { name: "Assets" }).click();
   await expect(page.getByRole("button", { name: "Import" })).toBeVisible();
   await makeWebm(page, { seconds: 2, hue: 10, name: "clip-a.webm" });
