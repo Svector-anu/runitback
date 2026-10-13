@@ -163,9 +163,9 @@ export const LANDING_CONTENT: LandingContent = {
     shotDark: { src: "/landing/editor-dark.webp", alt: "The RunItBack editor, dark theme: media library, preview, agent panel and a three-clip timeline.", width: 1800, height: 1125 },
     demo: {
       src: "/landing/demo.mp4",
-      poster: "/landing/editor-plan.webp",
+      poster: "/landing/demo-poster.webp",
       label: "Demo",
-      caption: "A short walkthrough: import, ask, review, export.",
+      caption: "Two minutes: import, understand, ask, review the plan, undo, export. Real recording, narrated.",
     },
   },
   features: {
