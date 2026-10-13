@@ -47,7 +47,7 @@ test("the nav call to action is a link to /app", async ({ page }) => {
 test("FAQ accordion works from the keyboard", async ({ page }) => {
   await openLanding(page);
   const questions = page.locator("#faq h3 button");
-  await expect(questions).toHaveCount(11);
+  await expect(questions).toHaveCount(12);
   await expect(questions.nth(0)).toHaveAttribute("aria-expanded", "true");
   await questions.nth(0).focus();
   await page.keyboard.press("Enter");
