@@ -33,7 +33,7 @@ test("a handle sits on the cut; Dissolve blends the preview; one undo per change
 
   await handle(page).click();
   await expect(popover(page)).toBeVisible();
-  await expect(popover(page).getByRole("button")).toHaveCount(8);
+  await expect(popover(page).getByRole("button")).toHaveCount(11);
   await shot(page, "transition-popover-empty");
   await popover(page).getByRole("button", { name: "Cross dissolve" }).click();
   await expect(handle(page)).toHaveAttribute("data-has-transition", "true");

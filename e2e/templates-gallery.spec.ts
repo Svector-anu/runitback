@@ -76,7 +76,7 @@ test("keyboard: tab reaches filters, cards and Use template; Enter on a chip fil
   await page.goto("/templates");
   await page.getByRole("group", { name: "Category" }).getByRole("button", { name: "Launch", exact: true }).focus();
   await page.keyboard.press("Enter");
-  await expect(cards(page)).toHaveCount(1);
+  await expect(cards(page)).toHaveCount(2);
   const use = page.getByRole("button", { name: /Use template: Product launch/ });
   for (let i = 0; i < 20 && !(await use.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
   await expect(use).toBeFocused();
