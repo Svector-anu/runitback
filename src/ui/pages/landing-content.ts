@@ -99,7 +99,6 @@ export interface LandingContent {
     openLabel: string;
     parts: OpenSourcePart[];
     contribute: { title: string; body: string; links: ExternalLink[] };
-    credit: { text: string; noticeLabel: string };
   };
   faq: { eyebrow: string; title: string; items: FaqItem[]; aside: { title: string; body: string; cta: string } };
   finalCta: { status: string; title: string; body: string; primaryCta: string; githubCta: string; image: ShotImage };
@@ -265,18 +264,12 @@ export const LANDING_CONTENT: LandingContent = {
     parts: [
       { title: "The editor", body: "Timeline, preview and export, plus the editing engine underneath them." },
       { title: "The agent", body: "The tools it edits with, how plans are made and the prompts it runs on." },
-      { title: "The evals", body: "Scored briefs that check what the agent does. They run with no network and no key." },
     ],
     contribute: {
       title: "Want to help?",
       body: "Star the repository, pick an issue and open a pull request. Bug reports, small fixes, new evals and docs are all welcome.",
-      links: [
-        { label: "README", href: `${REPO}#readme` },
-        { label: "CONTRIBUTING", href: `${REPO}/blob/main/CONTRIBUTING.md` },
-        { label: "LICENSE", href: `${REPO}/blob/main/LICENSE` },
-      ],
+      links: [],
     },
-    credit: { text: "RunItBack started from OpenCut, also MIT licensed. Credit is in", noticeLabel: "the NOTICE file" },
   },
   faq: {
     eyebrow: "FAQ",
@@ -308,7 +301,7 @@ export const LANDING_CONTENT: LandingContent = {
       },
       {
         question: "Is it open source?",
-        answer: "Yes. RunItBack is released under the MIT license, so you can use, change and share it freely. The code is on GitHub, and it started from OpenCut, which is also MIT.",
+        answer: "Yes. RunItBack is released under the MIT license, so you can use, change and share it freely. The code is on GitHub.",
       },
       {
         question: "Why not just use CapCut?",

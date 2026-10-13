@@ -22,12 +22,8 @@ export function OpenSource(): ReactNode {
           <h3 className="zn-h3">{openSource.contribute.title}</h3>
           <p>{openSource.contribute.body}</p>
           <a className="zn-btn zn-btn--light" href={github.repo} {...EXTERNAL_LINK_PROPS}><StarIcon />{github.starLabel}<span className="zn-btn__circle"><ArrowUpRight /></span></a>
-          <ul className="lp-os__links">
-            {openSource.contribute.links.map((link) => <li key={link.label}><a href={link.href} {...EXTERNAL_LINK_PROPS}>{link.label}</a></li>)}
-          </ul>
         </aside>
       </div>
-      <p className="lp-os__credit zn-mono">{openSource.credit.text} <a href={github.notice} {...EXTERNAL_LINK_PROPS}>{openSource.credit.noticeLabel}</a>.</p>
     </section>
   );
 }

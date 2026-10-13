@@ -182,12 +182,13 @@ test("GitHub star links are plain external links to the repository in the nav, h
   await expect(page.getByRole("heading", { level: 1 })).toContainText("The open-source CapCut alternative");
 });
 
-test("open source section links README, CONTRIBUTING and LICENSE", async ({ page }) => {
+test("open source section shows the MIT badge and the star link, without OpenCut credit text", async ({ page }) => {
   await openLanding(page);
   const section = page.locator("#open-source");
   await expect(section.getByRole("heading", { name: "Built in the open." })).toBeVisible();
   await expect(section.getByRole("link", { name: "MIT licensed" })).toHaveAttribute("href", `${REPO}/blob/main/LICENSE`);
-  for (const name of ["README", "CONTRIBUTING", "LICENSE"]) await expect(section.getByRole("link", { name, exact: true })).toBeVisible();
+  await expect(section.getByRole("link", { name: "Star on GitHub" })).toBeVisible();
+  await expect(page.locator("main")).not.toContainText("OpenCut");
 });
 
 test("the comparison table is honest about where CapCut is ahead and carries the trademark note", async ({ page }) => {
@@ -212,8 +213,6 @@ for (const width of [360, 390]) {
       page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Star on GitHub" }),
       page.locator(".lp-hero").getByRole("link", { name: "Star on GitHub" }),
       page.locator("#open-source").getByRole("link", { name: "Star on GitHub" }),
-      page.locator("#open-source").getByRole("link", { name: "CONTRIBUTING" }),
-      page.locator("#open-source").getByRole("link", { name: "README" }),
     ];
     for (const target of targets) {
       await target.scrollIntoViewIfNeeded();
