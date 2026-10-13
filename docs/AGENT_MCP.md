@@ -3,26 +3,33 @@
 An external agent (Claude Code, Claude Desktop, any MCP client) can edit the project open in your browser tab. A small Node process speaks MCP over stdio on one side and a loopback WebSocket to the editor tab on the other.
 
 ```
-MCP client --stdio--> tools/mcp/server.ts --ws://127.0.0.1:<port>--> editor tab (src/platform/agent-bridge.ts)
+MCP client --stdio--> tools/mcp/server.ts --ws://127.0.0.1:7777--> editor tab (src/platform/agent-bridge.ts)
 ```
 
-## Connect from Claude Code
+## Quick start (3 steps)
 
-```sh
-claude mcp add runitback -- pnpm --dir /path/to/repo exec tsx tools/mcp/server.ts
-```
+1. Run once in a terminal. The Agent panel card copies the exact command for the site you are on.
+   - Published package (`RUNITBACK_MCP_PUBLISHED` is true in `src/ui/agent/claude-code.ts`): `claude mcp add runitback -- npx -y runitback-mcp@0.1.0`
+   - Until it is published: `git clone https://github.com/Svector-anu/runitback.git runitback && cd runitback && pnpm install && claude mcp add runitback -- pnpm --dir "$PWD" exec tsx tools/mcp/server.ts`
+   - On the hosted site the command ends with `--allow-origin https://<host>`.
+2. In Claude Code say "show the RunItBack pairing code" (tool `show_pairing_code`; the server also prints a code when it starts).
+3. In RunItBack open Agent, expand "Use your Claude subscription (Claude Code)" and type the 6-digit code.
 
-Start the editor (`pnpm dev`), then in Claude Code call `editor_status`. While no editor is attached it returns a link such as
+The card looks for the server on `ws://127.0.0.1:7777` (next free port up to 7781) by itself, only while the card is open, and shows "Claude Code found: enter the 6-digit code" when it answers. The code is single use, valid for 2 minutes, allows 3 wrong tries and is accepted only from loopback or allowlisted browser origins. Typing the right code gives the page the session token over that connection and connects; Disconnect is always in the chip at the bottom right. Threat model: `docs/SECURITY.md` ("Local agent bridge pairing").
+
+The package lives in `packages/mcp` (built from `tools/mcp` with `pnpm build:mcp`, a Vite SSR build; `ws` and the MCP SDK are declared dependencies). Publishing is an owner step: `docs/RELEASE.md`.
+
+## Advanced: connect with a link
+
+Without the code box, call `editor_status` in Claude Code. While no editor is attached it returns the pairing code and a fallback link such as
 
 ```
 http://localhost:5173/#/projects?agent=7777&token=<random>
 ```
 
-(the server also prints it to stderr). Open it, open or create a project, and click **Allow** in the chip at the bottom right. Nothing connects until you click Allow. The chip shows the connection state and has **Disconnect**. Closing the tab disconnects cleanly; if the server restarts, ask for the new link (the token changes every run).
+(the server also prints it to stderr). Open it, open or create a project, and click **Allow** in the chip at the bottom right. In the card this is "Advanced: paste a link instead". Nothing connects until you click Allow. If the server restarts, ask for the new link (the token changes every run). Already inside a project? Append `?agent=<port>&token=<token>` to the hash route: `#/editor/<id>?agent=7777&token=...`, then reload. The token is removed from the address bar as soon as it is read.
 
-Already inside a project? Append `?agent=<port>&token=<token>` to the hash route: `#/editor/<id>?agent=7777&token=...`, then reload. The token is removed from the address bar as soon as it is read.
-
-Options (flags or env): `--port` / `RUNITBACK_MCP_PORT` (default 7777, `0` = any free port), `--editor-url` / `RUNITBACK_EDITOR_URL` (default `http://localhost:5173`, only used in the printed link), `--allow-origin` / `RUNITBACK_MCP_ALLOWED_ORIGINS` (legacy `OPENCUT_MCP_ALLOWED_ORIGINS` still read; comma separated extra browser origins, exact match, none by default, e.g. a self-hosted or the hosted editor).
+Options (flags or env): `--port` / `RUNITBACK_MCP_PORT` (default: 7777, or the next free port up to 7781 when none is given; an explicit port is never moved; `0` = any free port), `--editor-url` / `RUNITBACK_EDITOR_URL` (default `http://localhost:5173`, only used in the printed link), `--allow-origin` / `RUNITBACK_MCP_ALLOWED_ORIGINS` (legacy `OPENCUT_MCP_ALLOWED_ORIGINS` still read; comma separated extra browser origins, exact match, none by default, e.g. a self-hosted or the hosted editor).
 
 The editor page must call `initAgentBridge()` from `src/app/agent-bridge-wiring.ts` once at startup (it is a no-op without the `agent` URL parameter).
 
@@ -33,7 +40,11 @@ Anthropic does not allow third-party apps to use Pro or Max subscription logins,
 1. **Claude Code** (Anthropic's own client) drives the editor through this MCP server. The subscription is used by Claude Code only; the editor page and the server never see it.
 2. A normal **Anthropic API key** for the in-app agent (billed by Anthropic per use, kept in the browser; see `docs/SECURITY.md`).
 
-The Agent panel has a collapsible card, "Use your Claude subscription (Claude Code)", that walks through the three steps below, copies the exact `claude mcp add` command (with a `/path/to/runitback` placeholder), shows a live status chip driven by the bridge, and lists what Claude Code can do. It is open when no API key is saved and collapsed once one is. Its link box accepts the link `editor_status` returns, so the user does not have to open another tab; pasting only shows the Allow prompt and nothing connects until the user clicks Allow. The pasted token is held in memory by the bridge session and never written to storage.
+The Agent panel has a collapsible card, "Use your Claude subscription (Claude Code)": a title, one sentence, three numbered steps, one Copy button for one command, a status chip, and collapsed "What can Claude Code do?", "Why not sign in with Claude?" and "Advanced: paste a link instead". It is open when no API key is saved and collapsed once one is. The local network access hint appears only on a non-localhost site and only while the chip says it is waiting. Tokens, whether from pairing or a pasted link, are held in memory by the bridge session and never written to storage.
+
+### FAQ answer: "Can I use my Claude subscription?"
+
+> Yes, through Claude Code. Claude Code is Anthropic's own app: run one command, ask it for the pairing code, type the code in RunItBack and your Pro or Max plan does the editing. There is no "sign in with Claude" in the web app because Anthropic does not allow other apps to use subscription logins. For the built-in agent, use an Anthropic API key; you pay Anthropic directly, usually cents per edit.
 
 ### Hosted site vs. local copy (verified)
 

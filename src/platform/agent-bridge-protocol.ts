@@ -4,6 +4,15 @@ import type { JsonSchema, ToolResult } from "#/engine/agent";
 export const BRIDGE_PROTOCOL_VERSION = 1;
 export const MAX_MESSAGE_BYTES = 32 * 1024 * 1024;
 export const DEFAULT_BRIDGE_PORT = 7777;
+/** The server takes the first free port in DEFAULT_BRIDGE_PORT .. + BRIDGE_PORT_SPAN - 1; the page probes the same range. */
+export const BRIDGE_PORT_SPAN = 5;
+export const PAIRING_CODE_LENGTH = 6;
+export const PAIRING_CODE_TTL_MS = 2 * 60 * 1000;
+export const PAIRING_MAX_TRIES = 3;
+
+export function bridgePortRange(): number[] {
+  return Array.from({ length: BRIDGE_PORT_SPAN }, (_, i) => DEFAULT_BRIDGE_PORT + i);
+}
 
 export interface ToolDescriptor {
   name: string;
@@ -22,6 +31,8 @@ export interface HelloMessage {
 
 export type BrowserMessage =
   | HelloMessage
+  | { type: "probe" }
+  | { type: "pair"; code: string }
   | { type: "tools"; id: string; tools: ToolDescriptor[] }
   | { type: "result"; id: string; result: ToolResult }
   | { type: "pong"; id: string };
@@ -29,9 +40,14 @@ export type BrowserMessage =
 export type ServerMessage =
   | { type: "hello_ack"; protocol: number; sessionId: string }
   | { type: "reject"; reason: string }
+  | { type: "bridge_info"; protocol: number; pairing: boolean }
+  | { type: "paired"; token: string }
+  | { type: "pair_reject"; reason: PairRejectReason; retriesLeft: number }
   | { type: "list_tools"; id: string }
   | { type: "call_tool"; id: string; name: string; input: unknown }
   | { type: "ping"; id: string };
+
+export type PairRejectReason = "no_code" | "expired" | "wrong_code" | "origin_mismatch" | "malformed";
 
 export class ProtocolError extends Error {
   constructor(message: string) {
@@ -67,6 +83,11 @@ export function parseBrowserMessage(raw: string): BrowserMessage {
     case "hello":
       if (typeof m.protocol !== "number" || typeof m.token !== "string" || typeof m.editorVersion !== "string") throw new ProtocolError("Malformed hello");
       return { type: "hello", protocol: m.protocol, token: m.token, editorVersion: m.editorVersion, projectId: typeof m.projectId === "string" ? m.projectId : null };
+    case "probe":
+      return { type: "probe" };
+    case "pair":
+      if (typeof m.code !== "string" || m.code.length > 32) throw new ProtocolError("Malformed pair");
+      return { type: "pair", code: m.code };
     case "tools":
       if (typeof m.id !== "string" || !Array.isArray(m.tools)) throw new ProtocolError("Malformed tools message");
       return { type: "tools", id: m.id, tools: m.tools as ToolDescriptor[] };
@@ -89,6 +110,14 @@ export function parseServerMessage(raw: string): ServerMessage {
       return { type: "hello_ack", protocol: m.protocol, sessionId: m.sessionId };
     case "reject":
       return { type: "reject", reason: typeof m.reason === "string" ? m.reason : "rejected" };
+    case "bridge_info":
+      if (typeof m.protocol !== "number") throw new ProtocolError("Malformed bridge_info");
+      return { type: "bridge_info", protocol: m.protocol, pairing: m.pairing === true };
+    case "paired":
+      if (typeof m.token !== "string" || m.token === "") throw new ProtocolError("Malformed paired");
+      return { type: "paired", token: m.token };
+    case "pair_reject":
+      return { type: "pair_reject", reason: typeof m.reason === "string" ? (m.reason as PairRejectReason) : "malformed", retriesLeft: typeof m.retriesLeft === "number" ? m.retriesLeft : 0 };
     case "list_tools":
     case "ping":
       if (typeof m.id !== "string") throw new ProtocolError(`Malformed ${m.type}`);

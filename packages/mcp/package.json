@@ -1,0 +1,43 @@
+{
+  "name": "runitback-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets Claude Code (or any MCP client) edit the RunItBack video editor open in your browser.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://github.com/Svector-anu/runitback/tree/main/packages/mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Svector-anu/runitback.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/Svector-anu/runitback/issues"
+  },
+  "keywords": [
+    "mcp",
+    "claude-code",
+    "video-editor",
+    "runitback"
+  ],
+  "bin": {
+    "runitback-mcp": "dist/server.js"
+  },
+  "files": [
+    "dist/server.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "ws": "^8.22.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prepack": "node build.mjs"
+  }
+}

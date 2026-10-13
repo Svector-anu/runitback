@@ -1,15 +1,20 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type Server as HttpServer } from "node:http";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
+import type { IncomingMessage } from "node:http";
 import type { ToolResult } from "../../src/engine/agent/types";
 import {
-  BRIDGE_PROTOCOL_VERSION, MAX_MESSAGE_BYTES, ProtocolError, RpcCorrelator, RpcTimeoutError, encodeMessage, isAllowedOrigin,
+  BRIDGE_PORT_SPAN, BRIDGE_PROTOCOL_VERSION, MAX_MESSAGE_BYTES, ProtocolError, RpcCorrelator, RpcTimeoutError, encodeMessage, isAllowedOrigin,
   isLoopbackHostHeader, parseBrowserMessage, type BrowserMessage, type ServerMessage, type ToolDescriptor,
 } from "../../src/platform/agent-bridge-protocol";
+import { PairingManager, type IssuedCode } from "./pairing";
 
 export interface BridgeServerOptions {
   /** 0 picks a free port (tests). */
   port: number;
+  /** Try the next ports (up to BRIDGE_PORT_SPAN in all) when `port` is taken. Off for explicit ports. */
+  scanPorts?: boolean;
+  pairing?: PairingManager;
   /** Fixed token for tests; production generates a random one per process. */
   token?: string;
   /** Extra browser origins allowed besides loopback, e.g. a self-hosted editor. */
@@ -45,6 +50,7 @@ interface Connection {
 /** Loopback WebSocket server the editor tab connects to. At most one editor is attached at a time. */
 export class BridgeServer {
   readonly token: string;
+  readonly pairing: PairingManager;
   private readonly http: HttpServer = createServer((_req, res) => {
     res.writeHead(426, { "content-type": "text/plain" });
     res.end("RunItBack agent bridge: WebSocket only");
@@ -57,8 +63,11 @@ export class BridgeServer {
 
   constructor(private readonly options: BridgeServerOptions) {
     this.token = options.token ?? randomBytes(24).toString("hex");
+    this.pairing = options.pairing ?? new PairingManager();
     this.wss = new WebSocketServer({ server: this.http, maxPayload: MAX_MESSAGE_BYTES, verifyClient: (info, done) => this.verify(info, done) });
-    this.wss.on("connection", (socket) => this.onConnection(socket));
+    // ws re-emits http server errors (for example EADDRINUSE) on the wss; listen() already rejects with them.
+    this.wss.on("error", (error) => this.log(`server error: ${error.message}`));
+    this.wss.on("connection", (socket, req) => this.onConnection(socket, req));
   }
 
   private log(line: string): void {
@@ -76,15 +85,33 @@ export class BridgeServer {
   }
 
   /** Starts listening on 127.0.0.1 only and resolves with the bound port. */
-  listen(): Promise<number> {
+  async listen(): Promise<number> {
+    const attempts = this.options.scanPorts && this.options.port > 0 ? BRIDGE_PORT_SPAN : 1;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await this.listenOn(this.options.port + i);
+      } catch (error) {
+        const busy = (error as NodeJS.ErrnoException).code === "EADDRINUSE";
+        if (!busy || i === attempts - 1) throw error;
+      }
+    }
+    throw new Error("unreachable");
+  }
+
+  private listenOn(port: number): Promise<number> {
     return new Promise((resolve, reject) => {
       this.http.once("error", reject);
-      this.http.listen(this.options.port, "127.0.0.1", () => {
+      this.http.listen(port, "127.0.0.1", () => {
         this.http.off("error", reject);
         const address = this.http.address();
-        resolve(typeof address === "object" && address ? address.port : this.options.port);
+        resolve(typeof address === "object" && address ? address.port : port);
       });
     });
+  }
+
+  /** The current pairing code (minted if none is live) for the user to type into the editor. */
+  issuePairingCode(): IssuedCode {
+    return this.pairing.issue();
   }
 
   async close(): Promise<void> {
@@ -110,7 +137,8 @@ export class BridgeServer {
     return () => set.delete(listener);
   }
 
-  private onConnection(socket: WebSocket): void {
+  private onConnection(socket: WebSocket, req: IncomingMessage): void {
+    const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
     let attached: Connection | null = null;
     const helloTimer = setTimeout(() => socket.close(4408, "hello timeout"), this.options.helloTimeoutMs ?? 5000);
     const reject = (reason: string): void => {
@@ -128,6 +156,8 @@ export class BridgeServer {
         return reject(error instanceof ProtocolError ? error.message : "Malformed message");
       }
       if (!attached) {
+        if (message.type === "probe") return this.answerProbe(socket, helloTimer);
+        if (message.type === "pair") return this.answerPair({ socket, helloTimer, code: message.code, origin });
         if (message.type !== "hello") return reject("Expected hello as the first message");
         clearTimeout(helloTimer);
         if (message.protocol !== BRIDGE_PROTOCOL_VERSION) return reject(`Unsupported protocol ${message.protocol}; this server speaks ${BRIDGE_PROTOCOL_VERSION}`);
@@ -135,7 +165,7 @@ export class BridgeServer {
         attached = this.attach(socket, message);
         return;
       }
-      if (message.type === "hello") return;
+      if (message.type === "hello" || message.type === "probe" || message.type === "pair") return;
       this.rpc.settle(message.id, message);
     });
     socket.on("close", () => {
@@ -143,6 +173,31 @@ export class BridgeServer {
       if (attached && this.current === attached) this.detach();
     });
     socket.on("error", (error) => this.log(`socket error: ${error.message}`));
+  }
+
+  private answerProbe(socket: WebSocket, helloTimer: NodeJS.Timeout): void {
+    clearTimeout(helloTimer);
+    this.sendTo(socket, { type: "bridge_info", protocol: BRIDGE_PROTOCOL_VERSION, pairing: this.pairing.hasActiveCode });
+    socket.close(1000, "probe done");
+  }
+
+  /** The origin passed the allowlist at the upgrade; the code check below is the second factor. One attempt per socket. */
+  private answerPair(input: { socket: WebSocket; helloTimer: NodeJS.Timeout; code: string; origin: string | undefined }): void {
+    clearTimeout(input.helloTimer);
+    if (input.origin === undefined) {
+      this.sendTo(input.socket, { type: "pair_reject", reason: "origin_mismatch", retriesLeft: 0 });
+      input.socket.close(1000, "pair done");
+      return;
+    }
+    const result = this.pairing.redeem({ code: input.code, origin: input.origin });
+    if (result.ok) {
+      this.log(`paired with origin ${input.origin ?? "(none)"}`);
+      this.sendTo(input.socket, { type: "paired", token: this.token });
+    } else {
+      this.log(`pairing attempt failed (${result.reason}) from origin ${input.origin ?? "(none)"}`);
+      this.sendTo(input.socket, { type: "pair_reject", reason: result.reason, retriesLeft: result.retriesLeft });
+    }
+    input.socket.close(1000, "pair done");
   }
 
   private tokenMatches(candidate: string): boolean {

@@ -1,7 +1,6 @@
 import type { BridgePhase } from "./BridgeStatus";
 
 export const RUNITBACK_REPO_URL = "https://github.com/Svector-anu/runitback";
-export const MCP_PATH_PLACEHOLDER = "/path/to/runitback";
 
 export const CLAUDE_CODE_TOOLS: ReadonlyArray<{ name: string; does: string }> = [
   { name: "get_project", does: "read your timeline, tracks and clips" },
@@ -21,18 +20,44 @@ export function isLoopbackOrigin(origin: string): boolean {
   }
 }
 
+export const MCP_PACKAGE = "runitback-mcp";
+export const MCP_PACKAGE_VERSION = "0.1.0";
+/** Flip to true in the release that follows `npm publish` of packages/mcp (see docs/RELEASE.md). */
+export const RUNITBACK_MCP_PUBLISHED: boolean = false;
+
 /**
- * The `claude mcp add` command for this deployment. A page on a non-loopback origin (the hosted site) is refused by
- * the bridge unless that origin is allowlisted, so the command adds both flags; local development needs neither.
+ * The one command the user runs. A page on a non-loopback origin (the hosted site) is refused by the bridge unless that
+ * origin is allowlisted, so the command adds the flag; local development needs none. Until the npm package exists the
+ * command clones the repo and registers it by absolute path (`$PWD` is expanded by the user's shell).
  */
-export function buildMcpAddCommand(origin: string): string {
-  const base = `claude mcp add runitback -- pnpm --dir ${MCP_PATH_PLACEHOLDER} exec tsx tools/mcp/server.ts`;
-  return isLoopbackOrigin(origin) || origin === "" ? base : `${base} --editor-url ${origin} --allow-origin ${origin}`;
+export function buildSetupCommand(input: { origin: string; published?: boolean }): string {
+  const published = input.published ?? RUNITBACK_MCP_PUBLISHED;
+  const allow = isLoopbackOrigin(input.origin) || input.origin === "" ? "" : ` --allow-origin ${input.origin}`;
+  if (published) return `claude mcp add runitback -- npx -y ${MCP_PACKAGE}@${MCP_PACKAGE_VERSION}${allow}`;
+  return `git clone ${RUNITBACK_REPO_URL}.git runitback && cd runitback && pnpm install && claude mcp add runitback -- pnpm --dir "$PWD" exec tsx tools/mcp/server.ts${allow}`;
 }
 
 export interface BridgeChipState {
   tone: "idle" | "waiting" | "ok" | "error";
   label: string;
+}
+
+export interface PairingChipInput {
+  phase: "idle" | "searching" | "not_found" | "found" | "pairing" | "paired";
+}
+
+/** Chip for the card: a live bridge session wins; otherwise it reflects the pairing search. */
+export function describeClaudeCode(input: { bridge: { phase: BridgePhase; detail: string | null } | null; pairing: PairingChipInput }): BridgeChipState {
+  const searching = input.pairing.phase !== "idle" && input.pairing.phase !== "not_found";
+  if (input.bridge && !(input.bridge.phase === "stopped" && searching)) return describeBridge(input.bridge);
+  switch (input.pairing.phase) {
+    case "searching": return { tone: "waiting", label: "Claude Code: looking on this computer..." };
+    case "not_found": return { tone: "idle", label: "Claude Code: not found yet" };
+    case "found": return { tone: "waiting", label: "Claude Code found: enter the 6-digit code" };
+    case "pairing": return { tone: "waiting", label: "Claude Code: pairing..." };
+    case "paired": return { tone: "waiting", label: "Claude Code: connecting..." };
+    case "idle": return describeBridge(null);
+  }
 }
 
 export function describeBridge(view: { phase: BridgePhase; detail: string | null } | null): BridgeChipState {

@@ -195,6 +195,15 @@ export function connectBridgeFromLink(text: string): BridgeLinkResult {
 }
 
 /**
+ * Starts a session for a token the user just earned by typing the pairing code. Typing the code is the consent step,
+ * so the socket opens straight away; Disconnect stays in the chip.
+ */
+export function connectBridgeWithPairedToken(request: { port: number; token: string }): void {
+  session?.disconnect();
+  mountSession(request).allow();
+}
+
+/**
  * Opt-in entry point. Does nothing unless the URL carries `agent=<port>`; otherwise shows a confirmation chip
  * and opens the socket only after the user clicks Allow. Safe to call more than once.
  */
