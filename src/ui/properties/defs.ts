@@ -9,6 +9,10 @@ interface FieldExtras {
   displayMultiplier?: number;
   suffix?: string;
   showWhen?: (params: ParamValues) => boolean;
+  /** Render a number as a range slider plus readout; `sliderMin`/`sliderMax` narrow the range below the engine's hard limits. */
+  control?: "slider";
+  sliderMin?: number;
+  sliderMax?: number;
 }
 
 export type TextFieldDef = { type: "text"; key: string; label: string; default: string; widget: "textarea" | "font" };
@@ -66,6 +70,29 @@ export const TEXT_FIELDS: FieldDef[] = bounded([
   { type: "number", key: PARAM.bgPaddingY, label: "Padding Y", default: 42, min: 0, step: 1, keyframable: true, showWhen: bgOn },
   { type: "number", key: PARAM.bgOffsetX, label: "Offset X", default: 0, min: -100000, step: 1, keyframable: true, showWhen: bgOn },
   { type: "number", key: PARAM.bgOffsetY, label: "Offset Y", default: 0, min: -100000, step: 1, keyframable: true, showWhen: bgOn },
+], TEXT_NUMBER_LIMITS);
+
+const shadowOn = (p: ParamValues): boolean => p[PARAM.shadowEnabled] === true;
+
+/** Crop edges are fractions of the source removed from each side (the engine caps them at 0.95). */
+export const CROP_FIELDS: FieldDef[] = bounded([
+  { type: "number", key: PARAM.cropLeft, label: "Crop left", default: 0, min: 0, max: 0.95, step: 0.01, keyframable: true, control: "slider", displayMultiplier: 100, suffix: "%" },
+  { type: "number", key: PARAM.cropTop, label: "Crop top", default: 0, min: 0, max: 0.95, step: 0.01, keyframable: true, control: "slider", displayMultiplier: 100, suffix: "%" },
+  { type: "number", key: PARAM.cropRight, label: "Crop right", default: 0, min: 0, max: 0.95, step: 0.01, keyframable: true, control: "slider", displayMultiplier: 100, suffix: "%" },
+  { type: "number", key: PARAM.cropBottom, label: "Crop bottom", default: 0, min: 0, max: 0.95, step: 0.01, keyframable: true, control: "slider", displayMultiplier: 100, suffix: "%" },
+], ELEMENT_NUMBER_LIMITS);
+
+export const STROKE_FIELDS: FieldDef[] = bounded([
+  { type: "number", key: PARAM.strokeWidth, label: "Stroke width", default: 0, min: 0, step: 0.5, keyframable: true, control: "slider", sliderMax: 40 },
+  { type: "color", key: PARAM.strokeColor, label: "Stroke color", default: "#000000", keyframable: true },
+], TEXT_NUMBER_LIMITS);
+
+export const SHADOW_FIELDS: FieldDef[] = bounded([
+  { type: "boolean", key: PARAM.shadowEnabled, label: "Shadow", default: false },
+  { type: "color", key: PARAM.shadowColor, label: "Shadow color", default: "#000000b3", keyframable: true, showWhen: shadowOn },
+  { type: "number", key: PARAM.shadowBlur, label: "Shadow blur", default: 8, min: 0, step: 1, keyframable: true, control: "slider", sliderMax: 50, showWhen: shadowOn },
+  { type: "number", key: PARAM.shadowOffsetX, label: "Shadow offset X", default: 4, step: 1, keyframable: true, control: "slider", sliderMin: -50, sliderMax: 50, showWhen: shadowOn },
+  { type: "number", key: PARAM.shadowOffsetY, label: "Shadow offset Y", default: 4, step: 1, keyframable: true, control: "slider", sliderMin: -50, sliderMax: 50, showWhen: shadowOn },
 ], TEXT_NUMBER_LIMITS);
 
 export const MASK_LABELS: Record<string, string> = {

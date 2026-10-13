@@ -15,22 +15,24 @@ import { Icon, type IconName } from "../icons";
 import { Button } from "../primitives/Button";
 import { DropdownMenu } from "../primitives/Menu";
 import { ColorField, Field, NumberField, Section, SelectField, Switch } from "../primitives/fields";
-import { AUDIO_FIELDS, BLEND_FIELDS, MASK_LABELS, TEXT_FIELDS, TRANSFORM_FIELDS, type FieldDef } from "./defs";
+import { AUDIO_FIELDS, BLEND_FIELDS, CROP_FIELDS, MASK_LABELS, SHADOW_FIELDS, STROKE_FIELDS, TEXT_FIELDS, TRANSFORM_FIELDS, type FieldDef } from "./defs";
+import { AdjustPanel } from "./AdjustPanel";
+import { TextAnimationControls } from "./TextAnimationControls";
 import { ParamControl } from "./ParamControl";
 import { runEdit } from "../lib/edit";
 
-type TabId = "text" | "transform" | "blending" | "audio" | "speed" | "masks" | "effects" | "graphic";
+type TabId = "text" | "style" | "adjust" | "transform" | "blending" | "audio" | "speed" | "masks" | "effects" | "graphic";
 
 const TAB_META: Record<TabId, { label: string; icon: IconName }> = {
-  text: { label: "Text", icon: "type" }, transform: { label: "Transform", icon: "move" }, blending: { label: "Blending", icon: "droplet" },
+  text: { label: "Text", icon: "type" }, style: { label: "Style", icon: "star" }, adjust: { label: "Adjust", icon: "sliders" }, transform: { label: "Transform", icon: "move" }, blending: { label: "Blending", icon: "droplet" },
   audio: { label: "Audio", icon: "music" }, speed: { label: "Speed", icon: "gauge" }, masks: { label: "Masks", icon: "shapes" },
   effects: { label: "Effects", icon: "wand" }, graphic: { label: "Graphic", icon: "shapes" },
 };
 
 const TABS_BY_TYPE: Record<TimelineElement["type"], TabId[]> = {
-  text: ["text", "transform", "blending", "effects"],
-  video: ["transform", "audio", "speed", "blending", "masks", "effects"],
-  image: ["transform", "blending", "masks", "effects"],
+  text: ["text", "style", "transform", "blending", "effects"],
+  video: ["transform", "adjust", "audio", "speed", "blending", "masks", "effects"],
+  image: ["transform", "adjust", "blending", "masks", "effects"],
   graphic: ["graphic", "transform", "blending", "masks", "effects"],
   audio: ["audio", "speed"],
   effect: ["effects"],
@@ -247,7 +249,26 @@ export function PropertiesPanel(): ReactNode {
   let content: ReactNode;
   switch (active) {
     case "text": content = <Section sectionKey={key("text")} title="Text" collapsible={false}><Fields element={element} refValue={ref} defs={TEXT_FIELDS} playhead={playhead} /></Section>; break;
-    case "transform": content = <Section sectionKey={key("transform")} title="Transform" collapsible={false}><Fields element={element} refValue={ref} defs={TRANSFORM_FIELDS} playhead={playhead} /></Section>; break;
+    case "style":
+      content = element.type === "text" ? (
+        <>
+          <Section sectionKey={key("stroke")} title="Stroke"><Fields element={element} refValue={ref} defs={STROKE_FIELDS} playhead={playhead} /></Section>
+          <Section sectionKey={key("shadow")} title="Shadow"><Fields element={element} refValue={ref} defs={SHADOW_FIELDS} playhead={playhead} /></Section>
+          <Section sectionKey={key("animation")} title="Animation"><TextAnimationControls element={element} refValue={ref} /></Section>
+        </>
+      ) : null;
+      break;
+    case "adjust": content = <AdjustPanel element={element} refValue={ref} thumbnail={asset?.thumbnail} />; break;
+    case "transform":
+      content = (
+        <>
+          <Section sectionKey={key("transform")} title="Transform" collapsible={false}><Fields element={element} refValue={ref} defs={TRANSFORM_FIELDS} playhead={playhead} /></Section>
+          {element.type === "video" || element.type === "image" ? (
+            <Section sectionKey={key("crop")} title="Crop"><Fields element={element} refValue={ref} defs={CROP_FIELDS} playhead={playhead} /></Section>
+          ) : null}
+        </>
+      );
+      break;
     case "blending": content = <Section sectionKey={key("blending")} title="Blending" collapsible={false}><Fields element={element} refValue={ref} defs={BLEND_FIELDS} playhead={playhead} /></Section>; break;
     case "audio": content = <Section sectionKey={key("audio")} title="Audio" collapsible={false}><Fields element={element} refValue={ref} defs={AUDIO_FIELDS} playhead={playhead} /></Section>; break;
     case "speed": content = <SpeedTab element={element} refValue={ref} />; break;

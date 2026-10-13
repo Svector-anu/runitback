@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   currentScene, removeTrackCommand, toggleBookmark, toggleSourceAudio, toggleTrackHidden, toggleTrackMuted, canToggleSourceAudio,
-  pasteCommand, toggleElementsHidden, toggleElementsMuted, deleteElements, duplicateCommand,
+  pasteCommand, toggleElementsHidden, toggleElementsMuted, deleteElements, duplicateCommand, freezeFrameCommand,
 } from "#/engine/commands";
 import { listKeyframes } from "#/engine/animation";
 import { canElementHaveAudio, canTrackBeHidden, canTrackHaveAudio, isVisualElement, type ElementRef, type TimelineElement } from "#/engine/model";
@@ -30,6 +30,9 @@ import { Ruler } from "./Ruler";
 import { EasingPopover } from "./EasingPopover";
 import { BookmarkRow } from "./BookmarkRow";
 import { ScenesDialog } from "./ScenesDialog";
+import { TransitionHandle } from "./TransitionHandle";
+import { DEFAULT_FREEZE_TICKS, freezeAvailability } from "./freeze";
+import { findCuts } from "./transitions";
 import { useViewport } from "./useViewport";
 import { reportInsert, runEdit } from "../lib/edit";
 
@@ -127,6 +130,16 @@ export function Timeline(): ReactNode {
     uiStore.set({ propertyTabs: { ...uiStore.get().propertyTabs, video: "effects", image: "effects" } });
   }, [editor]);
 
+  const freezeAtPlayhead = useCallback((ref: ElementRef): void => {
+    const playhead = editor.playback.getState().currentTime;
+    const el = getElement(currentScene(editor.getState().doc).tracks, ref);
+    const availability = freezeAvailability(el, playhead);
+    if (!availability.ok) { toast.error("Cannot freeze a frame here", availability.reason); return; }
+    if (runEdit(editor, freezeFrameCommand({ ref, at: playhead, duration: DEFAULT_FREEZE_TICKS }))) {
+      toast.success("Freeze frame added", `${DEFAULT_FREEZE_TICKS / TICKS_PER_SECOND} seconds. Trim the still to change its length.`);
+    }
+  }, [editor]);
+
   // ---- Context menus ------------------------------------------------------------------------------------------
 
   const openClipMenu = useCallback((e: React.MouseEvent, ref: ElementRef): void => {
@@ -146,6 +159,10 @@ export function Timeline(): ReactNode {
     if (canElementHaveAudio(el) && (el.type === "audio" || asset?.hasAudio !== false)) {
       const audible = refs.some((r) => getElement(currentScene(state.doc).tracks, r)?.params.muted !== true);
       entries.push({ label: audible ? "Mute" : "Unmute", icon: audible ? "volume-off" : "volume", onSelect: () => runEdit(editor, toggleElementsMuted(refs)) });
+    }
+    if (!many && el.type === "video") {
+      const availability = freezeAvailability(el, editor.playback.getState().currentTime);
+      entries.push({ label: availability.ok ? "Freeze frame" : "Freeze frame (playhead outside clip)", icon: "freeze", disabled: !availability.ok, onSelect: () => freezeAtPlayhead(ref) });
     }
     if (!many && canToggleSourceAudio(el, state.doc.assets)) {
       const separated = el.type === "video" && el.isSourceAudioEnabled === false;
@@ -168,7 +185,7 @@ export function Timeline(): ReactNode {
       onSelect: () => runEdit(editor, deleteElements(refs)),
     });
     setMenu({ state: { x: e.clientX, y: e.clientY }, entries });
-  }, [editor]);
+  }, [editor, freezeAtPlayhead]);
 
   const openTrackMenu = (e: React.MouseEvent, trackId: string): void => {
     e.preventDefault();
@@ -274,6 +291,8 @@ export function Timeline(): ReactNode {
           <ToolbarButton icon={onlyElement && onlyElement.type === "video" && onlyElement.isSourceAudioEnabled === false ? "link" : "unlink"}
             label={onlyElement && onlyElement.type === "video" && onlyElement.isSourceAudioEnabled === false ? "Recover audio" : "Extract audio"}
             disabled={!canSplitAudio} onClick={() => invokeAction("toggle-source-audio")} />
+          <ToolbarButton icon="freeze" label="Freeze frame" disabled={selection.elements.length !== 1 || onlyElement?.type !== "video"}
+            onClick={() => freezeAtPlayhead(selection.elements[0] as ElementRef)} />
           <ToolbarButton icon="copy" label="Duplicate" shortcut="Ctrl D" disabled={selection.elements.length === 0} onClick={() => invokeAction("duplicate-selected")} />
           <ToolbarButton icon="trash" label="Delete" shortcut="Del" disabled={selection.elements.length === 0} onClick={() => invokeAction("delete-selected")} />
           <div className="timeline__divider" />
@@ -362,6 +381,11 @@ export function Timeline(): ReactNode {
                   <span>Drag a clip here, or press <kbd>+</kbd> on a media tile</span>
                 </div>
               ) : null}
+              {geometry.boxes.flatMap((box) => (box.track.type === "video" ? findCuts(box.track) : []).flatMap((cut) => {
+                const x = viewport.timeToX(cut.time);
+                if (!intersectsWindow({ startPx: x, endPx: x, window: mountWindow })) return [];
+                return [<TransitionHandle key={`cut-${cut.incoming.id}`} cut={cut} trackId={box.track.id} trackTop={box.top} trackHeight={box.baseHeight} left={x} />];
+              }))}
               {geometry.boxes.flatMap((box) => (box.track.elements as TimelineElement[]).flatMap((element) => {
                 const selected = selectedSet.has(`${box.track.id}/${element.id}`);
                 if (!selected && !intersectsWindow({ startPx: viewport.timeToX(element.startTime), endPx: viewport.timeToX(element.startTime + element.duration), window: mountWindow })) return [];

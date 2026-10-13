@@ -9,6 +9,7 @@ import { getServices } from "#/app/services";
 import { animationPathFor, paramEditCommand } from "#/app/param-edit";
 import { loadFont } from "#/platform/fonts";
 import { Icon } from "../icons";
+import { SliderField } from "../primitives/SliderField";
 import { Button } from "../primitives/Button";
 import { ColorField, Field, NumberField, SelectField, Switch } from "../primitives/fields";
 import type { FieldDef } from "./defs";
@@ -63,7 +64,10 @@ export function ParamControl({ element, refValue, def, playhead }: { element: Ti
   let control: ReactNode;
   switch (def.type) {
     case "number":
-      control = (
+      control = def.control === "slider" ? (
+        <SliderField label={label} value={Number(value)} defaultValue={def.default} min={def.sliderMin ?? def.min ?? 0} max={def.sliderMax ?? def.max ?? 100} step={def.step}
+          inputMin={def.min} inputMax={def.max} displayMultiplier={def.displayMultiplier} suffix={def.suffix} onPreview={(v) => apply(v, "preview")} onCommit={(v) => apply(v, "commit")} />
+      ) : (
         <NumberField label={label} value={Number(value)} defaultValue={def.default} min={def.min} max={def.max} step={def.step}
           displayMultiplier={def.displayMultiplier} suffix={def.suffix} icon={def.icon} scrub={def.icon ? { pxPerUnit: 1 / Math.max(def.step, 0.01) } : undefined}
           onPreview={(v) => apply(v, "preview")} onCommit={(v) => apply(v, "commit")} onCancel={() => editor.discardPreview()} />

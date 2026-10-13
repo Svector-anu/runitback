@@ -1,6 +1,6 @@
 # CapCut parity
 
-Owner feedback: the editor must feel like CapCut. This lists what shipped for the CapCut-class basics, how each one fits the invariants, and what is still missing. Everything here is new relative to OpenCut classic (see `FEATURE_MATRIX.md`). Engine, render and agent tools are done; the UI wiring list at the end is what still has to be hooked up in `src/ui`.
+Owner feedback: the editor must feel like CapCut. This lists what shipped for the CapCut-class basics, how each one fits the invariants, and what is still missing. Everything here is new relative to OpenCut classic (see `FEATURE_MATRIX.md`). Engine, render, agent tools and the editor controls are done; the list at the end records where each control lives.
 
 ## Shipped
 
@@ -26,12 +26,23 @@ Schema: version 2 (transitions), 3 (adjust effect), 4 (text params, `textAnimati
 
 Stickers and emoji, templates, speed curves / ramps (only constant speed), reverse, beat sync (beat detection exists in analysis; no snap-to-beat editing UI), chroma key, background removal, tracking, keyframe graph editor beyond easing presets, LUT import, curves/HSL/colour wheels, split-tone grading (teal-orange here is a single cast), masks beyond the first, audio crossfade to match a transition, audio effects (denoise, voice changer, EQ), text-to-speech, auto captions styling presets and word-level highlight animation, text templates and curved text, transitions beyond the seven (glitch, spin, blur, light leaks), per-clip transition in/out distinction, multi-clip compound clips, proxy media, cloud/team features.
 
-## UI wiring still needed (not done; `src/ui` and `src/app/agent` are owned elsewhere)
+## UI wiring (done in the editor, usable by hand)
 
-- Inspector: effect list already shows `Colour adjust` and its eight sliders from the definition. Missing: a filter picker (use `FILTER_PRESETS`, apply with `addClipEffect` + `updateClipEffectParams` as `apply_filter` does).
-- Inspector, video/image: four crop sliders (`crop.*`, 0-0.95). Text: stroke width/colour, shadow (enabled, colour, blur, offsets), `reveal` is animation-only.
-- Text animation picker: call `setTextAnimationCommand({ ref, in, out })`.
-- Transition UI: a handle at a cut between touching clips calling `setTransitionCommand({ ref: incomingClip, transition: { type, duration } | null })`; `TRANSITION_NAMES` has labels, `maxTransitionDuration` the cap.
-- Freeze frame: the context-menu stub should call `freezeFrameCommand({ ref, at: playhead, duration })`.
+| Control | Where | Wiring | e2e |
+|---|---|---|---|
+| Filter picker (Vivid, Mono, Warm, Cool, Fade, Noir, Teal-Orange, Sepia, None) with live swatches drawn from the clip's own thumbnail through `adjustPlan`, plus an intensity slider | Properties > Adjust > Filters (`src/ui/properties/AdjustPanel.tsx`) | `adjustCommand` = `addClipEffect` + `updateClipEffectParams` exactly like `apply_filter` (one `adjust` effect per clip, presets scaled and rounded the same way); None removes the effect; the picker recognises a look from the stored parameters (`matchPreset`), so a moved slider shows as "Custom" | `ctl-adjust` |
+| Brightness, contrast, saturation, exposure, temperature, tint, vignette, sharpen sliders with reset | Properties > Adjust > Adjust | same effect; `editor.preview` while dragging, one committed command on release | `ctl-adjust` |
+| Crop left/top/right/bottom sliders (0-95 %) with keyframe diamonds | Properties > Transform > Crop (video and image) | `CROP_FIELDS` through `ParamControl`, so `paramEditCommand` and the shared keyframe toggle apply | `ctl-crop-text` |
+| Text stroke width/colour and shadow (enable, colour, blur, offset X/Y) | Properties > Style (text) | `STROKE_FIELDS` / `SHADOW_FIELDS` through `ParamControl` (keyframable, `paramEditCommand`) | `ctl-crop-text` |
+| Text in/out animation pickers (None, Fade, Slide up, Pop, Typewriter) with a length slider | Properties > Style > Animation | `setTextAnimationCommand` for one side at a time (`text-animation-logic.ts`) | `ctl-crop-text` |
+| Transition handle at every cut between touching clips, filled when the cut has a transition; popover with the 7 types, a duration slider capped by `maxTransitionDuration`, remove | Timeline (`TransitionHandle.tsx`, cuts from `findCuts`) | `setTransitionCommand` on the incoming clip; the slider previews then commits | `ctl-transitions` |
+| Freeze frame (default 2 s) | Clip context menu entry and a timeline toolbar button (video clip, playhead inside it) | `freezeFrameCommand({ ref, at: playhead, duration: 2 s })`; the still is an ordinary image clip, trim it to change the length | `ctl-freeze` |
+
+Gesture rules: sliders fire `editor.preview` on `input` and one command on the native `change` (`SliderField`), so a drag is one undo step; discrete choices run one command. Unit tests: `tests/ui-adjust-logic.test.ts`, `tests/ui-timeline-controls.test.ts`.
+
+Still not wired in the UI: a length prompt for freeze frames (default only), a per-property curve editor for text animations.
+
+Still open elsewhere:
+
 - Agent system prompt (`src/app/agent/system-prompt.ts`): mention the new tools if it lists tools by name.
 - Canvas selection box and hit-testing ignore crop, stroke and shadow (`src/render/bounds.ts` is untouched so scale gestures stay correct).
