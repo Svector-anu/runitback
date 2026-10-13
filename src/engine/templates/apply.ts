@@ -1,6 +1,6 @@
-import { maxTextAnimationDuration } from "#/engine/animation";
+import { autoZoomProblem, cursorPathProblem, maxTextAnimationDuration, type AutoZoom, type CursorWaypoint } from "#/engine/animation";
 import {
-  CROP_MAX_EDGE, PARAM, TEXT_SIZE_REFERENCE_HEIGHT, type FilterPresetId, type MediaAssetInfo, type ParamValues, type TextAnimationPreset,
+  CROP_MAX_EDGE, PARAM, TEXT_SIZE_REFERENCE_HEIGHT, type FilterPresetId, type GradientBackground, type MediaAssetInfo, type ParamValues, type TextAnimationPreset,
   type TransitionType,
 } from "#/engine/model";
 import {
@@ -30,7 +30,7 @@ export interface TemplateInputs {
 
 export type TemplateWarningCode =
   | "missing-slot" | "unknown-asset" | "wrong-kind" | "short-media" | "text-truncated" | "text-shrunk" | "repeat-count"
-  | "transition-skipped" | "caption-skipped" | "too-many-clips" | "unknown-input" | "count-skipped";
+  | "transition-skipped" | "caption-skipped" | "too-many-clips" | "unknown-input" | "count-skipped" | "zoom-skipped" | "cursor-skipped";
 
 export interface TemplateWarning {
   code: TemplateWarningCode;
@@ -63,6 +63,12 @@ export interface PlannedMedia extends PlannedBase {
   filter?: { preset: FilterPresetId; intensity: number };
   transition?: { type: TransitionType; duration: MediaTime };
   keyframes: PlannedKeyframe[];
+  /** Params of a drop-shadow effect to add to the clip. */
+  shadow?: ParamValues;
+  /** Corner radius (0-50) of a rounded-rectangle mask over the whole clip. */
+  corners?: number;
+  /** Eased push-ins, in ticks from the start of this clip. */
+  autoZooms?: AutoZoom[];
 }
 
 export interface PlannedText extends PlannedBase {
@@ -75,6 +81,8 @@ export interface PlannedGraphic extends PlannedBase {
   type: "graphic";
   shape: string;
   params: ParamValues;
+  /** A cursor's route, in ticks from the start of the graphic. */
+  cursorPath?: CursorWaypoint[];
 }
 
 export type PlannedClip = PlannedMedia | PlannedText | PlannedGraphic;
@@ -84,6 +92,7 @@ export interface TemplatePlan {
   canvas: { width: number; height: number };
   fps: FrameRate;
   backgroundColor?: string;
+  gradient?: GradientBackground;
   clips: PlannedClip[];
   warnings: TemplateWarning[];
   /** Required slots (top level and per repeat item) that got no usable media. */
@@ -101,6 +110,10 @@ const MAX_LOOP_COPIES = 12;
 const DEFAULT_TEXT_ANIMATION_SECONDS = 0.5;
 const DEFAULT_TRANSITION_SECONDS = 0.5;
 const PX_PER_CANVAS_EPSILON = 1e-6;
+const DEFAULT_ZOOM_SCALE = 2;
+const DEFAULT_ZOOM_IN_SECONDS = 0.6;
+const DEFAULT_ZOOM_HOLD_SECONDS = 1.5;
+const DEFAULT_ZOOM_OUT_SECONDS = 0.6;
 
 const isVisual = (asset: MediaAssetInfo): boolean => asset.type === "video" || asset.type === "image";
 
@@ -294,13 +307,34 @@ class Planner {
     }
     const framing = frameVisual({ asset, canvas: this.canvas, media });
     const placement = media.track === "overlay" || media.box ? "overlay" : "main";
+    const params: ParamValues = {
+      ...framing.params,
+      ...(media.tilt?.x !== undefined ? { [PARAM.rotateX]: media.tilt.x } : {}),
+      ...(media.tilt?.y !== undefined ? { [PARAM.rotateY]: media.tilt.y } : {}),
+      ...(media.tilt?.perspective !== undefined ? { [PARAM.perspective]: media.tilt.perspective } : {}),
+    };
     const common = {
-      placement: placement as PlannedMedia["placement"], params: framing.params, muteSource: media.audio === "mute",
+      placement: placement as PlannedMedia["placement"], params, muteSource: media.audio === "mute",
+      ...(media.shadow ? { shadow: { ...media.shadow } as ParamValues } : {}),
+      ...(media.corners !== undefined && media.corners > 0 ? { corners: media.corners } : {}),
       ...(media.filter ? { filter: { preset: media.filter.preset, intensity: media.filter.intensity ?? 1 } } : {}),
       z: Z.media,
     };
     const transitionSeconds = media.transitionIn?.seconds ?? DEFAULT_TRANSITION_SECONDS;
     const transition = media.transitionIn ? { type: media.transitionIn.type, duration: this.tick(transitionSeconds) } : undefined;
+    const zoomsFor = (d: MediaTime): { autoZooms?: AutoZoom[] } => {
+      if (!media.autoZoom) return {};
+      const zooms: AutoZoom[] = [];
+      for (const stop of media.autoZoom) {
+        const zoom: AutoZoom = {
+          at: this.tick(stop.at), x: stop.x, y: stop.y, scale: stop.scale ?? DEFAULT_ZOOM_SCALE,
+          inTicks: Math.max(1, this.tick(stop.in ?? DEFAULT_ZOOM_IN_SECONDS)), holdTicks: this.tick(stop.hold ?? DEFAULT_ZOOM_HOLD_SECONDS), outTicks: this.tick(stop.out ?? DEFAULT_ZOOM_OUT_SECONDS),
+        };
+        if (autoZoomProblem({ zooms: [...zooms, zoom], clipDuration: d }) === null) zooms.push(zoom);
+        else this.warn("zoom-skipped", `A zoom at ${stop.at}s on ${label} was skipped: it does not fit the clip or overlaps the previous one.`);
+      }
+      return zooms.length > 0 ? { autoZooms: zooms } : {};
+    };
     const keyframesFor = (d: MediaTime): PlannedKeyframe[] => {
       if (!media.pushIn) return [];
       const sx = Number(framing.params[PARAM.scaleX] ?? 1);
@@ -321,7 +355,7 @@ class Planner {
     if (asset.type === "image") {
       this.push({
         type: "image", name: asset.name, assetId: asset.id, start, duration, trimStart: mediaTime(0), trimEnd: mediaTime(0),
-        keyframes: keyframesFor(duration), ...common, ...(transition ? { transition } : {}),
+        keyframes: keyframesFor(duration), ...zoomsFor(duration), ...common, ...(transition ? { transition } : {}),
       });
       return;
     }
@@ -335,7 +369,7 @@ class Planner {
       const trimStart = mediaTime(Math.min(sourceStartRequested, sourceDuration - duration));
       this.push({
         ...base, start, duration, trimStart, trimEnd: mediaTime(sourceDuration - trimStart - duration),
-        keyframes: keyframesFor(duration), ...(transition ? { transition } : {}),
+        keyframes: keyframesFor(duration), ...zoomsFor(duration), ...(transition ? { transition } : {}),
       });
       return;
     }
@@ -467,6 +501,19 @@ class Planner {
     });
   }
 
+  private cursorPathFor(layer: Extract<BeatLayer, { kind: "graphic" }>, duration: MediaTime): { cursorPath?: CursorWaypoint[] } {
+    if (!layer.cursor) return {};
+    const path: CursorWaypoint[] = layer.cursor.path.map((stop) => ({
+      time: Math.min(this.tick(stop.at), duration), x: Math.round(stop.x), y: Math.round(stop.y), ...(stop.click ? { click: true } : {}),
+    }));
+    const problem = cursorPathProblem({ waypoints: path, clipDuration: duration });
+    if (problem) {
+      this.warn("cursor-skipped", `The cursor path was skipped: ${problem}.`);
+      return {};
+    }
+    return { cursorPath: path };
+  }
+
   planGraphic(layer: Extract<BeatLayer, { kind: "graphic" }>, beat: TemplateBeat, startSeconds: number): void {
     const at = layer.at ?? 0;
     const length = Math.max(0.05, layer.duration ?? beat.duration - at);
@@ -479,7 +526,7 @@ class Planner {
       [PARAM.positionX]: Math.round(layer.box.x),
       [PARAM.positionY]: Math.round(layer.box.y),
     };
-    this.push({ type: "graphic", name: layer.shape, shape: layer.shape, start, duration, z: Z.graphic, params });
+    this.push({ type: "graphic", name: layer.shape, shape: layer.shape, start, duration, z: Z.graphic, params, ...this.cursorPathFor(layer, duration) });
   }
 
   planBeat(beat: TemplateBeat, startSeconds: number, scope: Scope): void {
@@ -590,6 +637,7 @@ export function planTemplate(input: { template: ProjectTemplate; inputs?: Templa
     canvas: planner.canvas,
     fps: planner.fps,
     ...(template.canvas.backgroundColor ? { backgroundColor: template.canvas.backgroundColor } : {}),
+    ...(template.canvas.gradient ? { gradient: { type: "gradient" as const, style: template.canvas.gradient.style, colors: [...template.canvas.gradient.colors], angle: template.canvas.gradient.angle ?? 135, motion: template.canvas.gradient.motion ?? 0 } } : {}),
     clips,
     warnings: planner.warnings,
     missingSlots: [...planner.missing],

@@ -44,10 +44,22 @@ function randomLayers(r: Rand, beatSeconds: number, texts: string[]): unknown[] 
       };
     }
     return {
-      kind: "graphic", shape: pick(r, ["rectangle", "ellipse", "polygon", "star"] as const), ...timing,
+      kind: "graphic", shape: pick(r, ["rectangle", "ellipse", "polygon", "star", "cursor", "app-frame"] as const), ...timing,
       box: { x: int(r, -1500, 1500), y: int(r, -1500, 1500), width: int(r, 1, 3000), height: int(r, 1, 3000) },
       params: { fill: "#5b6cff", opacity: Math.round(r() * 100) / 100 },
     };
+  });
+}
+
+function randomZooms(r: Rand): unknown[] {
+  let at = seconds(r, 0, 3);
+  return Array.from({ length: int(r, 1, 3) }, () => {
+    const stop = {
+      at, x: int(r, -900, 900), y: int(r, -500, 500), ...(chance(r, 0.6) ? { scale: seconds(r, 1.1, 8) } : {}),
+      ...(chance(r, 0.4) ? { in: seconds(r, 0.04, 2) } : {}), ...(chance(r, 0.4) ? { hold: seconds(r, 0, 4) } : {}), ...(chance(r, 0.4) ? { out: seconds(r, 0, 2) } : {}),
+    };
+    at = Math.round((at + seconds(r, 0.1, 6)) * 100) / 100;
+    return stop;
   });
 }
 
@@ -59,7 +71,10 @@ function randomMedia(r: Rand, slotId: string, kind: string): Record<string, unkn
     ...(chance(r, 0.4) ? { fit: pick(r, ["cover", "contain"] as const) } : {}),
     ...(chance(r, 0.3) ? { crop: { left: seconds(r, 0, 0.4), right: seconds(r, 0, 0.4), top: seconds(r, 0, 0.4), bottom: seconds(r, 0, 0.4) } } : {}),
     ...(chance(r, 0.3) ? { zoom: { scale: seconds(r, 1, 4), x: int(r, -900, 900), y: int(r, -500, 500) } } : {}),
-    ...(chance(r, 0.25) ? { pushIn: seconds(r, 1, 2) } : {}),
+    ...(chance(r, 0.25) ? { pushIn: seconds(r, 1, 2) } : chance(r, 0.25) ? { autoZoom: randomZooms(r) } : {}),
+    ...(chance(r, 0.3) ? { tilt: { ...(chance(r, 0.7) ? { x: int(r, -80, 80) } : {}), ...(chance(r, 0.7) ? { y: int(r, -80, 80) } : {}), ...(chance(r, 0.5) ? { perspective: seconds(r, 1, 10) } : {}) } } : {}),
+    ...(chance(r, 0.3) ? { shadow: { ...(chance(r, 0.5) ? { opacity: int(r, 0, 100) } : {}), ...(chance(r, 0.5) ? { blur: int(r, 0, 200) } : {}), ...(chance(r, 0.3) ? { offsetY: int(r, -400, 400) } : {}) } } : {}),
+    ...(chance(r, 0.3) ? { corners: int(r, 0, 50) } : {}),
     ...(chance(r, 0.3) ? { filter: { preset: pick(r, FILTER_PRESET_IDS), intensity: Math.round(r() * 10) / 10 } } : {}),
     ...(chance(r, 0.5) ? { transitionIn: { type: pick(r, TRANSITION_TYPES), seconds: seconds(r, 0.04, 3) } } : {}),
     ...(kind === "video" && chance(r, 0.6) ? { onShort: pick(r, ["hold", "loop", "shrink"] as const) } : {}),
@@ -115,7 +130,10 @@ function randomTemplate(r: Rand): Record<string, unknown> {
   }
   return {
     format: "runitback-template", templateVersion: 1, id: "fuzz", name: "Fuzz", description: "Random.", category: pick(r, TEMPLATE_CATEGORIES), tags: [],
-    canvas: { aspect: pick(r, TEMPLATE_ASPECTS), fps: pick(r, [24, 25, 30, 60]), ...(chance(r, 0.5) ? { backgroundColor: "#112233" } : {}) },
+    canvas: {
+      aspect: pick(r, TEMPLATE_ASPECTS), fps: pick(r, [24, 25, 30, 60]), ...(chance(r, 0.5) ? { backgroundColor: "#112233" } : {}),
+      ...(chance(r, 0.3) ? { gradient: { style: pick(r, ["linear", "radial", "mesh"] as const), colors: ["#112233", "#8844ff", "#22ccaa"].slice(0, int(r, 2, 3)), ...(chance(r, 0.5) ? { angle: int(r, 0, 360) } : {}), ...(chance(r, 0.5) ? { motion: int(r, 0, 100) } : {}) } } : {}),
+    },
     durationSeconds: 30, slots, texts, beats, ...(hasGroup ? { repeat: [group] } : {}),
   };
 }

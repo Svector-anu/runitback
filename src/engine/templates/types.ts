@@ -1,4 +1,4 @@
-import type { FilterPresetId, TextAnimationPreset, TransitionType } from "#/engine/model";
+import type { FilterPresetId, GradientStyle, TextAnimationPreset, TransitionType } from "#/engine/model";
 
 export const TEMPLATE_FORMAT = "runitback-template";
 export const TEMPLATE_VERSION = 1;
@@ -40,10 +40,13 @@ export type MediaFit = (typeof MEDIA_FIT)[number];
 export const SHORT_MEDIA_POLICIES = ["hold", "loop", "shrink"] as const;
 export type ShortMediaPolicy = (typeof SHORT_MEDIA_POLICIES)[number];
 
-export const GRAPHIC_SHAPES = ["rectangle", "ellipse", "polygon", "star"] as const;
+export const GRAPHIC_SHAPES = ["rectangle", "ellipse", "polygon", "star", "cursor", "app-frame"] as const;
 export type GraphicShape = (typeof GRAPHIC_SHAPES)[number];
 
 export type ParamOverrides = Record<string, number | string | boolean>;
+
+/** A gradient canvas background (see `GradientBackground`); wins over `backgroundColor`. */
+export interface TemplateGradient { style: GradientStyle; colors: string[]; angle?: number; motion?: number }
 
 export interface TemplateSlot {
   id: string;
@@ -97,9 +100,38 @@ export interface MediaPlacement {
   audio?: "keep" | "mute";
   /** Size and place the clip inside a box in canvas pixels instead of filling the canvas (`fit` decides contain or cover within the box). */
   box?: PixelBox;
+  tilt?: MediaTilt;
+  /** Drop shadow; an empty object uses the defaults. */
+  shadow?: MediaShadow;
+  /** Rounds the clip's corners: 0-50, a share of half its shorter side (50 is a capsule). */
+  corners?: number;
+  /** Eased push-ins on points of the picture; not combinable with `pushIn`. */
+  autoZoom?: MediaZoomStop[];
 }
 
 export interface PixelBox { x: number; y: number; width: number; height: number }
+
+/** Perspective tilt of a clip, in degrees (see `transform.rotateX/rotateY/perspective`). */
+export interface MediaTilt { x?: number; y?: number; perspective?: number }
+
+/** Soft drop shadow under a clip; every field defaults to the shadow effect's own default. */
+export interface MediaShadow { opacity?: number; blur?: number; offsetX?: number; offsetY?: number; color?: string }
+
+/** One push-in on a point of the picture (see the `auto_zoom` tool). `x` and `y` are canvas pixels from the centre. */
+export interface MediaZoomStop {
+  /** Seconds after the beat starts. */
+  at: number;
+  x: number;
+  y: number;
+  scale?: number;
+  /** Seconds. */
+  in?: number;
+  hold?: number;
+  out?: number;
+}
+
+/** A stop of a cursor graphic: where it is (canvas pixels from the centre) and when (seconds after the layer starts). */
+export interface CursorStop { at: number; x: number; y: number; click?: boolean }
 
 export interface TextLayer {
   kind: "text";
@@ -121,6 +153,8 @@ export interface GraphicLayer {
   box: PixelBox;
   /** Graphic params: fill, stroke, strokeWidth, cornerRadius, sides, points, depth, opacity, transform.rotate. */
   params?: ParamOverrides;
+  /** Cursor shapes only: where the pointer goes, and when it clicks. The box centre is where it starts. */
+  cursor?: { path: CursorStop[] };
 }
 
 export type BeatLayer = TextLayer | GraphicLayer;
@@ -172,7 +206,7 @@ export interface ProjectTemplate {
   description: string;
   category: TemplateCategory;
   tags: string[];
-  canvas: { aspect: TemplateAspect; fps: number; backgroundColor?: string };
+  canvas: { aspect: TemplateAspect; fps: number; backgroundColor?: string; gradient?: TemplateGradient };
   /** Seconds of the finished video when every slot is filled with clips long enough. */
   durationSeconds: number;
   slots: TemplateSlot[];

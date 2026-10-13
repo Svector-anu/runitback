@@ -1,7 +1,9 @@
 import {
-  CROP_MAX_EDGE, FILTER_PRESET_IDS, TEXT_ANIMATION_PRESETS, TRANSITION_TYPES, buildGraphicElement,
-  type FilterPresetId, type TextAnimationPreset, type TransitionType,
+  CROP_MAX_EDGE, FILTER_PRESET_IDS, GRADIENT_MAX_COLORS, GRADIENT_MIN_COLORS, GRADIENT_STYLES, MAX_TILT_DEGREES, PERSPECTIVE_MAX, PERSPECTIVE_MIN, TEXT_ANIMATION_PRESETS,
+  TRANSITION_TYPES, buildGraphicElement,
+  type FilterPresetId, type GradientStyle, type TextAnimationPreset, type TransitionType,
 } from "#/engine/model";
+import { AUTO_ZOOM_MAX_SCALE, AUTO_ZOOM_MIN_SCALE, MAX_AUTO_ZOOMS, MAX_CURSOR_WAYPOINTS } from "#/engine/animation";
 import { ToolError } from "#/engine/agent/env";
 import { mediaTime } from "#/engine/time";
 import { paramSpecsFor, textSpecs, validateParamValues } from "#/engine/agent/params";
@@ -9,7 +11,7 @@ import { CAPTION_STYLE_PRESETS, TEXT_STYLE_PRESETS } from "./presets";
 import {
   GRAPHIC_SHAPES, MEDIA_FIT, SHORT_MEDIA_POLICIES, SLOT_KINDS, TEMPLATE_ASPECTS, TEMPLATE_CATEGORIES, TEMPLATE_FORMAT, TEMPLATE_LIMITS,
   TEMPLATE_VERSION, TemplateValidationError,
-  type BeatLayer, type Crop, type GraphicShape, type MediaFit, type MediaPlacement, type ParamOverrides, type PixelBox, type ProjectTemplate,
+  type BeatLayer, type Crop, type CursorStop, type GraphicShape, type MediaFit, type MediaPlacement, type MediaShadow, type MediaTilt, type MediaZoomStop, type TemplateGradient, type ParamOverrides, type PixelBox, type ProjectTemplate,
   type RepeatGroup, type ShortMediaPolicy, type SlotKind, type TemplateAspect, type TemplateBeat, type TemplateCategory, type TemplateIssue,
   type TemplateIssueCode, type TemplateSlot, type TemplateText, type TextAnimationChoice,
 } from "./types";
@@ -308,8 +310,99 @@ function readCrop(reader: Reader, value: unknown, path: string): Crop | undefine
   return crop;
 }
 
+function readTilt(reader: Reader, value: unknown, path: string): MediaTilt | undefined {
+  const raw = reader.object(value, path, ["x", "y", "perspective"]);
+  if (!raw) return undefined;
+  const tilt: MediaTilt = {};
+  for (const axis of ["x", "y"] as const) {
+    const v = reader.optNumber(raw, axis, path, { min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES });
+    if (v !== undefined) tilt[axis] = v;
+  }
+  const perspective = reader.optNumber(raw, "perspective", path, { min: PERSPECTIVE_MIN, max: PERSPECTIVE_MAX });
+  if (perspective !== undefined) tilt.perspective = perspective;
+  return tilt;
+}
+
+function readShadow(reader: Reader, value: unknown, path: string): MediaShadow | undefined {
+  const raw = reader.object(value, path, ["opacity", "blur", "offsetX", "offsetY", "color"]);
+  if (!raw) return undefined;
+  const shadow: MediaShadow = {};
+  const opacity = reader.optNumber(raw, "opacity", path, { min: 0, max: 100 });
+  const blur = reader.optNumber(raw, "blur", path, { min: 0, max: 200 });
+  const offsetX = reader.optNumber(raw, "offsetX", path, { min: -400, max: 400 });
+  const offsetY = reader.optNumber(raw, "offsetY", path, { min: -400, max: 400 });
+  if (opacity !== undefined) shadow.opacity = opacity;
+  if (blur !== undefined) shadow.blur = blur;
+  if (offsetX !== undefined) shadow.offsetX = offsetX;
+  if (offsetY !== undefined) shadow.offsetY = offsetY;
+  if (raw["color"] !== undefined) {
+    const color = reader.string(raw["color"], `${path}.color`, { max: 7, pattern: /^#[0-9a-f]{6}$/i, what: "expected #rrggbb" });
+    if (color) shadow.color = color;
+  }
+  return shadow;
+}
+
+function readZoomStops(reader: Reader, value: unknown, path: string): MediaZoomStop[] | undefined {
+  const list = reader.array(value, path, MAX_AUTO_ZOOMS, { min: 1 });
+  if (!list) return undefined;
+  const stops: MediaZoomStop[] = [];
+  let previous = -1;
+  list.forEach((entry, i) => {
+    const at = `${path}[${i}]`;
+    const raw = reader.object(entry, at, ["at", "x", "y", "scale", "in", "hold", "out"]);
+    if (!raw) return;
+    const when = reader.number(raw["at"], `${at}.at`, { min: 0, max: L.maxSeconds });
+    const x = reader.number(raw["x"], `${at}.x`, { min: -MAX_ABS_PIXELS, max: MAX_ABS_PIXELS });
+    const y = reader.number(raw["y"], `${at}.y`, { min: -MAX_ABS_PIXELS, max: MAX_ABS_PIXELS });
+    const scale = reader.optNumber(raw, "scale", at, { min: AUTO_ZOOM_MIN_SCALE, max: AUTO_ZOOM_MAX_SCALE });
+    const ease = reader.optNumber(raw, "in", at, { min: 0.04, max: 10 });
+    const hold = reader.optNumber(raw, "hold", at, { min: 0, max: 60 });
+    const out = reader.optNumber(raw, "out", at, { min: 0, max: 10 });
+    if (when === undefined || x === undefined || y === undefined) return;
+    if (when <= previous) reader.add("out-of-range", `${at}.at`, "zooms must be in time order");
+    previous = when;
+    stops.push({ at: when, x, y, ...(scale !== undefined ? { scale } : {}), ...(ease !== undefined ? { in: ease } : {}), ...(hold !== undefined ? { hold } : {}), ...(out !== undefined ? { out } : {}) });
+  });
+  return stops;
+}
+
+function readCursor(reader: Reader, value: unknown, path: string): { path: CursorStop[] } | undefined {
+  const raw = reader.object(value, path, ["path"]);
+  if (!raw) return undefined;
+  const list = reader.array(raw["path"], `${path}.path`, MAX_CURSOR_WAYPOINTS, { min: 1 });
+  if (!list) return undefined;
+  const stops: CursorStop[] = [];
+  let previous = -1;
+  list.forEach((entry, i) => {
+    const at = `${path}.path[${i}]`;
+    const stop = reader.object(entry, at, ["at", "x", "y", "click"]);
+    if (!stop) return;
+    const when = reader.number(stop["at"], `${at}.at`, { min: 0, max: L.maxSeconds });
+    const x = reader.number(stop["x"], `${at}.x`, { min: -MAX_ABS_PIXELS, max: MAX_ABS_PIXELS });
+    const y = reader.number(stop["y"], `${at}.y`, { min: -MAX_ABS_PIXELS, max: MAX_ABS_PIXELS });
+    const click = reader.boolean(stop, "click", at);
+    if (when === undefined || x === undefined || y === undefined) return;
+    if (when <= previous) reader.add("out-of-range", `${at}.at`, "cursor stops must be in strictly increasing time order");
+    previous = when;
+    stops.push({ at: when, x, y, ...(click ? { click } : {}) });
+  });
+  return { path: stops };
+}
+
+function readGradient(reader: Reader, value: unknown, path: string): TemplateGradient | undefined {
+  const raw = reader.object(value, path, ["style", "colors", "angle", "motion"]);
+  if (!raw) return undefined;
+  const style = reader.oneOf<GradientStyle>(raw["style"], `${path}.style`, GRADIENT_STYLES);
+  const list = reader.array(raw["colors"], `${path}.colors`, GRADIENT_MAX_COLORS, { min: GRADIENT_MIN_COLORS });
+  const colors = (list ?? []).flatMap((c, i) => reader.string(c, `${path}.colors[${i}]`, { max: 7, pattern: /^#[0-9a-f]{6}$/i, what: "expected #rrggbb" }) ?? []);
+  const angle = reader.optNumber(raw, "angle", path, { min: -720, max: 720 });
+  const motion = reader.optNumber(raw, "motion", path, { min: 0, max: 100 });
+  if (!style || !list || colors.length !== list.length) return undefined;
+  return { style, colors, ...(angle !== undefined ? { angle } : {}), ...(motion !== undefined ? { motion } : {}) };
+}
+
 function readMedia(reader: Reader, value: unknown, path: string, slots: ReadonlyMap<string, TemplateSlot>): MediaPlacement | undefined {
-  const raw = reader.object(value, path, ["slot", "track", "fit", "crop", "zoom", "pushIn", "filter", "transitionIn", "onShort", "sourceStart", "audio", "box"]);
+  const raw = reader.object(value, path, ["slot", "track", "fit", "crop", "zoom", "pushIn", "filter", "transitionIn", "onShort", "sourceStart", "audio", "box", "tilt", "shadow", "corners", "autoZoom"]);
   if (!raw) return undefined;
   const slotId = readId(reader, raw["slot"], `${path}.slot`);
   const slot = slotId ? slots.get(slotId) : undefined;
@@ -369,8 +462,23 @@ function readMedia(reader: Reader, value: unknown, path: string, slots: Readonly
     const box = readBox(reader, raw["box"], `${path}.box`);
     if (box) media.box = box;
   }
+  if (raw["tilt"] !== undefined) {
+    const tilt = readTilt(reader, raw["tilt"], `${path}.tilt`);
+    if (tilt) media.tilt = tilt;
+  }
+  if (raw["shadow"] !== undefined) {
+    const shadow = readShadow(reader, raw["shadow"], `${path}.shadow`);
+    if (shadow) media.shadow = shadow;
+  }
+  const corners = reader.optNumber(raw, "corners", path, { min: 0, max: 50 });
+  if (corners !== undefined) media.corners = corners;
+  if (raw["autoZoom"] !== undefined) {
+    const stops = readZoomStops(reader, raw["autoZoom"], `${path}.autoZoom`);
+    if (stops) media.autoZoom = stops;
+    if (raw["pushIn"] !== undefined) reader.add("kind-mismatch", `${path}.autoZoom`, "autoZoom and pushIn both animate the scale; use one of them");
+  }
   if (slot?.kind === "audio") {
-    const visual = ["fit", "crop", "zoom", "pushIn", "filter", "transitionIn", "box", "track"].filter((k) => raw[k] !== undefined);
+    const visual = ["fit", "crop", "zoom", "pushIn", "filter", "transitionIn", "box", "track", "tilt", "shadow", "corners", "autoZoom"].filter((k) => raw[k] !== undefined);
     if (visual.length > 0) reader.add("kind-mismatch", path, `slot "${slotId}" is audio, so ${visual.join(", ")} do not apply`);
   }
   if (slot?.kind === "image" && (raw["onShort"] !== undefined || raw["sourceStart"] !== undefined || raw["audio"] !== undefined)) {
@@ -409,13 +517,15 @@ function readLayer(reader: Reader, value: unknown, path: string, texts: Readonly
     return { kind: "text", text, ...timing(raw), ...(position ? { position } : {}), ...(animation ? { animation } : {}) };
   }
   if (kind === "graphic") {
-    const raw = reader.object(value, path, ["kind", "shape", "at", "duration", "box", "params"]);
+    const raw = reader.object(value, path, ["kind", "shape", "at", "duration", "box", "params", "cursor"]);
     if (!raw) return undefined;
     const shape = reader.oneOf<GraphicShape>(raw["shape"], `${path}.shape`, GRAPHIC_SHAPES);
+    const cursor = raw["cursor"] === undefined ? undefined : readCursor(reader, raw["cursor"], `${path}.cursor`);
+    if (cursor && shape !== "cursor") reader.add("kind-mismatch", `${path}.cursor`, "only a cursor shape can follow a path");
     const box = readBox(reader, raw["box"], `${path}.box`);
     const params = shape && raw["params"] !== undefined ? readGraphicParams(reader, raw["params"], `${path}.params`, shape) : undefined;
     if (!shape || !box) return undefined;
-    return { kind: "graphic", shape, box, ...timing(raw), ...(params ? { params } : {}) };
+    return { kind: "graphic", shape, box, ...timing(raw), ...(params ? { params } : {}), ...(cursor ? { cursor } : {}) };
   }
   reader.add(kind === undefined ? "missing" : "bad-value", `${path}.kind`, "expected \"text\" or \"graphic\"");
   return undefined;
@@ -525,13 +635,14 @@ function readTemplate(input: unknown, reader: Reader): ProjectTemplate | undefin
     if (t) tags.push(t);
   }
 
-  const canvasRaw = reader.object(raw["canvas"], ".canvas", ["aspect", "fps", "backgroundColor"]);
+  const canvasRaw = reader.object(raw["canvas"], ".canvas", ["aspect", "fps", "backgroundColor", "gradient"]);
   const aspect = canvasRaw ? reader.oneOf<TemplateAspect>(canvasRaw["aspect"], ".canvas.aspect", TEMPLATE_ASPECTS) : undefined;
   const fps = canvasRaw ? reader.number(canvasRaw["fps"], ".canvas.fps", { min: 12, max: 60 }) : undefined;
   let backgroundColor: string | undefined;
   if (canvasRaw?.["backgroundColor"] !== undefined) {
     backgroundColor = reader.string(canvasRaw["backgroundColor"], ".canvas.backgroundColor", { max: 9, pattern: HEX_COLOR, what: "expected #rrggbb" });
   }
+  const gradient = canvasRaw?.["gradient"] === undefined ? undefined : readGradient(reader, canvasRaw["gradient"], ".canvas.gradient");
   const durationSeconds = reader.number(raw["durationSeconds"], ".durationSeconds", { min: 1, max: L.maxSeconds });
 
   const slots = readScope(reader, raw["slots"], ".slots", L.maxSlots, (v, p) => readSlot(reader, v, p));
@@ -584,7 +695,7 @@ function readTemplate(input: unknown, reader: Reader): ProjectTemplate | undefin
   if (!id || !name || !description || !category || !aspect || fps === undefined || durationSeconds === undefined) return undefined;
   return {
     format: TEMPLATE_FORMAT, templateVersion: TEMPLATE_VERSION, id, name, description, category, tags,
-    canvas: { aspect, fps, ...(backgroundColor ? { backgroundColor } : {}) },
+    canvas: { aspect, fps, ...(backgroundColor ? { backgroundColor } : {}), ...(gradient ? { gradient } : {}) },
     durationSeconds, slots: slots.list, texts: texts.list, beats,
     ...(groups.length > 0 ? { repeat: groups } : {}), ...(captions ? { captions } : {}), ...(preview ? { preview } : {}),
   };

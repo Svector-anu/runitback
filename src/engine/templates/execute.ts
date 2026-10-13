@@ -1,10 +1,10 @@
 import {
-  addClipEffect, batch, deleteElements, insertElement, setTextAnimationCommand, setTransitionCommand, updateClipEffectParams, updateSettings,
-  upsertKeyframeCommand, type Command, type InsertPlacement,
+  addClipEffect, autoZoomCommand, batch, deleteElements, insertElement, setCursorPathCommand, setTextAnimationCommand, setTransitionCommand,
+  updateClipEffectParams, updateElements, updateSettings, upsertKeyframeCommand, type Command, type InsertPlacement,
 } from "#/engine/commands";
 import type { Editor } from "#/engine/editor";
 import {
-  FILTER_PRESETS, GRAPHIC_DEFINITIONS, IMAGE_DEFAULTS, buildGraphicElement, buildMediaElement, buildTextElement, defaultsOf, orderedTracks,
+  FILTER_PRESETS, GRAPHIC_DEFINITIONS, IMAGE_DEFAULTS, MASK_DEFINITIONS, buildGraphicElement, buildMediaElement, buildTextElement, defaultsOf, orderedTracks,
   PARAM, type ElementRef, type ImageElement, type MediaAssetInfo, type ParamValues, type TextAnimationSpec, type TimelineElement, type VideoElement,
 } from "#/engine/model";
 import { inferCount } from "#/engine/render";
@@ -132,13 +132,25 @@ function finishClip(editor: Editor, clip: PlannedClip, elementId: string, warnin
     }
     return;
   }
-  if (clip.type === "graphic") return;
+  if (clip.type === "graphic") {
+    if (clip.cursorPath) editor.execute(setCursorPathCommand({ ref, waypoints: clip.cursorPath }));
+    return;
+  }
   const commands: Command[] = [];
   if (clip.filter && clip.type !== "audio") {
     const effectId = editor.newId();
     commands.push(addClipEffect({ ref, effectType: "adjust", effectId }), updateClipEffectParams(ref, effectId, filterParams(clip.filter.preset, clip.filter.intensity)));
   }
+  if (clip.shadow && clip.type !== "audio") {
+    const effectId = editor.newId();
+    commands.push(addClipEffect({ ref, effectType: "shadow", effectId }), updateClipEffectParams(ref, effectId, clip.shadow));
+  }
+  if (clip.corners !== undefined && clip.type !== "audio") {
+    const mask = { id: editor.newId(), type: "rectangle" as const, params: { ...defaultsOf(MASK_DEFINITIONS.rectangle.params), width: 1, height: 1, cornerRadius: clip.corners } };
+    commands.push(updateElements([{ ref, patch: { masks: [mask] } }], "Template corners"));
+  }
   for (const key of clip.keyframes) commands.push(upsertKeyframeCommand({ ref, path: key.path, time: key.time, value: key.value }));
+  if (clip.autoZooms && clip.type !== "audio") commands.push(autoZoomCommand({ ref, zooms: clip.autoZooms }));
   if (commands.length > 0) editor.execute(batch("Template look", commands));
   if (clip.transition) {
     const partner = transitionPartner(located.siblings, located.element);
@@ -161,7 +173,7 @@ function runPlan(editor: Editor, plan: TemplatePlan, warnings: TemplateWarning[]
   }
   editor.execute(updateSettings({
     canvasSize: { ...plan.canvas }, canvasSizeMode: "preset", fps: plan.fps,
-    ...(plan.backgroundColor ? { background: { type: "color" as const, color: plan.backgroundColor } } : {}),
+    ...(plan.gradient ? { background: plan.gradient } : plan.backgroundColor ? { background: { type: "color" as const, color: plan.backgroundColor } } : {}),
   }));
   for (const { clip, id } of created) finishClip(editor, clip, id, warnings);
   return created.map((c) => c.id);
