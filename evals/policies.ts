@@ -568,6 +568,24 @@ function speedRamp(options: { mode: "hero" | "constant" | "early" | "montage" })
   ];
 }
 
+/** Zooms into a corner of the screencast, or makes a plausible mistake. */
+function zoomIntoDetail(options: { mode: "zoom" | "static" | "wrong-corner" | "never-back" }): () => Turn[] {
+  return () => [
+    (_seen, use) => orient(use),
+    (seen, use) => {
+      const clip = onlyElement(seen);
+      if (options.mode === "static") return [use("set_params", { elementIds: [clip.id], params: { "transform.scaleX": 2, "transform.scaleY": 2, "transform.positionX": -480, "transform.positionY": 270 } })];
+      const wrongCorner = options.mode === "wrong-corner";
+      return [use("auto_zoom", {
+        elementId: clip.id,
+        zooms: [{ at: 3, x: wrongCorner ? -480 : 480, y: wrongCorner ? 270 : -270, scale: 2, in: 0.5, hold: 2, out: options.mode === "never-back" ? 0 : 0.5 }],
+      })];
+    },
+    (_seen, use) => [use("get_timeline")],
+    () => [say("The recording zooms into the top-right corner between 3 and 6 seconds and eases back.")],
+  ];
+}
+
 const GUESSES: Turn[] = [
   (_seen, use) => [use("get_timeline"), use("insert_text", { text: "Better!", start: 0, duration: 3 })],
   () => [say("Done, I made it better.")],
@@ -705,6 +723,10 @@ const SPECS: PolicySpec[] = [
   { id: "constant-slow", caseId: "speed-ramp-hero", kind: "mutation", description: "Plays the whole clip at half speed instead of ramping.", mustFail: ["is-a-ramp", "slows-to-quarter", "slow-moment-centred"], turns: speedRamp({ mode: "constant" }) },
   { id: "slow-too-early", caseId: "speed-ramp-hero", kind: "mutation", description: "Ramps, but the slow moment is at 1 s instead of the middle.", mustFail: ["slow-moment-centred"], turns: speedRamp({ mode: "early" }) },
   { id: "wrong-preset", caseId: "speed-ramp-hero", kind: "mutation", description: "Applies the montage preset (fast and only half-speed slow) instead of the hero moment.", mustFail: ["slows-to-quarter"], turns: speedRamp({ mode: "montage" }) },
+  { id: "oracle", caseId: "zoom-into-detail", kind: "oracle", description: "auto_zoom 2x on the top-right corner at 3 s, easing in and out.", turns: zoomIntoDetail({ mode: "zoom" }) },
+  { id: "static-zoom", caseId: "zoom-into-detail", kind: "mutation", description: "Scales the clip 2x for its whole length instead of animating a zoom.", mustFail: ["normal-outside"], turns: zoomIntoDetail({ mode: "static" }) },
+  { id: "wrong-corner", caseId: "zoom-into-detail", kind: "mutation", description: "Zooms into the bottom-left corner.", mustFail: ["aimed-at-top-right"], turns: zoomIntoDetail({ mode: "wrong-corner" }) },
+  { id: "never-back", caseId: "zoom-into-detail", kind: "mutation", description: "Zooms in at 3 s and stays zoomed (no ease back).", mustFail: ["normal-outside"], turns: zoomIntoDetail({ mode: "never-back" }) },
   { id: "oracle", caseId: "snap-cuts-to-beat", kind: "oracle", description: "snap_cuts_to_beat with a 0.2 s tolerance, then read the timeline back.", turns: snapToBeat({ mode: "snap" }) },
   { id: "tiny-tolerance", caseId: "snap-cuts-to-beat", kind: "mutation", description: "Calls snap_cuts_to_beat with a 0.05 s tolerance, too small to reach any beat, and says it is done.", mustFail: ["cuts-on-beat"], turns: snapToBeat({ mode: "tiny-tolerance" }) },
   { id: "left-trim-only", caseId: "snap-cuts-to-beat", kind: "mutation", description: "Moves each cut earlier by trimming only the clip before it, leaving gaps and moving the cut off the beat.", mustFail: ["footage-continuous", "cuts-on-beat"], turns: snapToBeat({ mode: "left-trim-only" }) },
@@ -747,6 +769,7 @@ const LAZY_FAILS: Record<string, string[]> = {
   "apply-launch-template": ["recordings-in-order", "headline-text", "callouts-in-order", "launch-length"],
   "green-screen-overlay": ["green-is-keyed", "on-top-of-beach"],
   "speed-ramp-hero": ["is-a-ramp", "slows-to-quarter"],
+  "zoom-into-detail": ["zooms-in", "aimed-at-top-right"],
   "snap-cuts-to-beat": ["cuts-on-beat"],
   "add-voiceover": ["voiceover-on-audio-track", "says-the-text"],
 };
@@ -773,6 +796,7 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "apply-launch-template": ["recordings-in-order", "headline-text", "callouts-in-order", "launch-length"],
   "green-screen-overlay": ["green-is-keyed", "beach-intact"],
   "speed-ramp-hero": ["is-a-ramp", "whole-source-kept"],
+  "zoom-into-detail": ["zooms-in", "aimed-at-top-right", "whole-clip-kept"],
   "snap-cuts-to-beat": ["cuts-on-beat", "footage-continuous"],
   "add-voiceover": ["voiceover-on-audio-track", "says-the-text", "video-untouched"],
 };

@@ -30,7 +30,7 @@ Built and covered by tests (see [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.m
 - Audio and voice: snap cuts to the beat, on-device noise removal, local text to speech and caption translation (models download only after consent).
 - Generate images, video, music and speech with your own Surplus key (bring your own key; nothing is generated without it; see [`docs/GENERATE.md`](docs/GENERATE.md)).
 - MP4 (H.264/AAC) and WebM (VP9/Opus) export, run in the browser with WebCodecs.
-- Templates: eight original templates (product launch, kinetic announcement, feature callouts, before and after, numbered list, testimonial, talking head with captions, metric reveal) in a gallery at `/templates`, applied in one undo step from the editor, the Projects page or the agent. Importing or saving your own template in the app is not built yet ([`docs/TEMPLATES.md`](docs/TEMPLATES.md)).
+- Templates: thirteen original templates (product launch, kinetic announcement, feature callouts, before and after, numbered list, testimonial, talking head with captions, metric reveal, kinetic sentences, prompt to result, app walkthrough, tilted UI tour, growth numbers) in a gallery at `/templates`, applied in one undo step from the editor, the Projects page or the agent. Importing or saving your own template in the app is not built yet ([`docs/TEMPLATES.md`](docs/TEMPLATES.md)).
 - Agent layer: an in-app chat agent and an MCP server over the same typed tools, with plan-then-approve, local perception (silence, loudness, beats, scene cuts), a per-asset temporal index, visual search (CLIP) and face detection (MediaPipe).
 
 In progress or known gaps (stated plainly):

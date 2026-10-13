@@ -2,7 +2,20 @@
 
 A template is a small JSON recipe that builds a whole video in the open project: canvas and frame rate, your clips trimmed to beats, styled and animated text, filters and transitions. It carries no media. Applying one is a single undo step through the normal editor commands, so every document invariant holds (no overlap on a track, integer ticks, `trimStart + duration * rate + trimEnd == sourceDuration`).
 
-Research and the archetypes behind the eight shipped templates: `docs/research/10-templates-research.md`.
+Research and the archetypes behind the shipped templates: `docs/research/10-templates-research.md` (the first eight) and `docs/research/11-launch-video-analysis.md` (the five that use the style elements below).
+
+## Shipped templates
+
+| Id | What it is | Uses |
+|---|---|---|
+| `product-launch`, `kinetic-announcement`, `feature-callouts`, `before-after`, `listicle`, `testimonial-quote`, `talking-head-captions`, `metric-changelog` | The first eight (see research doc 10). | Flat colour backgrounds, the original four text animations and seven transitions. |
+| `kinetic-sentences` | Word-by-word sentences on a mint wash: blur-in opener, a counting hero number, four icon-led lines with one accent word, a call to action. Text-only works; icons and logo are optional. | gradient, blur-in, stagger-words, count-up, accent word, rounded icons with shadow |
+| `prompt-to-result` | A typed prompt with a caret, a cursor that clicks send, then the result recording in a browser frame; 2-4 examples. | mesh gradient, type-caret, cursor click ripple, app frame, shadow |
+| `app-walkthrough` | One screen recording in a browser frame that pushes in on three parts of the screen, with step labels. | app frame, auto zoom on frame and clip together, shadow |
+| `tilted-ui-tour` | Three recordings floating in perspective over a dark drifting gradient, linked by blur dissolves. | tilt, shadow, rounded corners, push-in, blur transition, blur-in captions |
+| `growth-numbers` | Square, text-only milestone cards with counting numbers; 3-5 metrics. | mesh gradient, count-up, stagger-words, plain app frame as a glass card |
+
+The last five are original layouts built from the recipes in `docs/research/11-launch-video-analysis.md`; they use no third-party assets, brand marks or music. Their previews are procedural placeholder media, like the first eight.
 
 ## Where things live
 
@@ -98,11 +111,26 @@ The tools are opt-in like the others: the registry from `createAgentTools()` doe
 ### Slots, texts, beats
 
 - **Slots** are the user's media: `video`, `image` or `audio`. A video or image slot accepts either (an image is shown as a still for the beat). Audio slots accept audio only. `optional: true` slots stay empty without a warning.
-- **Texts** are placeholders with a `style` (a key of `TEXT_STYLE_PRESETS`: `display`, `headline`, `subhead`, `kicker`, `callout`, `label`, `quote`, `attribution`, `numeral`, `caption`, `title-bar`), optional `overrides` and an in/out `animation` (`fade`, `slide-up`, `pop`, `typewriter`). `sizePx` is the font size in canvas pixels, so a preset looks the same on every canvas; the planner converts it to the editor's relative `fontSize`. Other override keys are the real text param keys (`color`, `textAlign`, `stroke.width`, `shadow.enabled`, `background.color`, ...) and are validated by the same specs the agent tools use. Background padding keys are measured at a 180 px font and scale with the text. `maxWidth` (canvas px) is where it wraps; text is wrapped on an estimated glyph width, and a single word wider than that makes the font shrink (down to 45%) with a `text-shrunk` warning.
+- **Texts** are placeholders with a `style` (a key of `TEXT_STYLE_PRESETS`: `display`, `headline`, `subhead`, `kicker`, `callout`, `label`, `quote`, `attribution`, `numeral`, `caption`, `title-bar`), optional `overrides` and an in/out `animation` (`fade`, `slide-up`, `pop`, `typewriter`, `blur-in`, `stagger-words`, `type-caret`, `count-up`). `sizePx` is the font size in canvas pixels, so a preset looks the same on every canvas; the planner converts it to the editor's relative `fontSize`. Other override keys are the real text param keys (`color`, `textAlign`, `stroke.width`, `shadow.enabled`, `background.color`, ...) and are validated by the same specs the agent tools use. Background padding keys are measured at a 180 px font and scale with the text. `maxWidth` (canvas px) is where it wraps; text is wrapped on an estimated glyph width, and a single word wider than that makes the font shrink (down to 45%) with a `text-shrunk` warning.
 - **Beats** are ordered segments in seconds. A beat can hold one `media` placement and up to 8 `layers` (text or graphic). Layer `at` is seconds after the beat starts; `duration` defaults to the rest of the beat. Positions are canvas pixels from the center, +y down. Graphics are sized and placed with a pixel `box`.
-- **Media options**: `fit` (`cover` default, `contain`), `crop` (fractions, the visible part is re-centered), `zoom { scale, x, y }` (scale up about the canvas center so the point `(x, y)` lands in the middle: zoom into a part of a recording), `pushIn` (slow scale-up keyframes), `filter { preset, intensity }` (the eight filter presets), `transitionIn { type, seconds }` (the seven transitions; applied only when a clip on the same track ends exactly where this one starts), `sourceStart` (seconds into the source), `audio: "mute"`, `track: "overlay"`, `box` (place the clip inside a pixel box instead of filling the canvas), `onShort` (below).
+- **Media options**: `fit` (`cover` default, `contain`), `crop` (fractions, the visible part is re-centered), `zoom { scale, x, y }` (scale up about the canvas center so the point `(x, y)` lands in the middle: zoom into a part of a recording), `pushIn` (slow scale-up keyframes), `filter { preset, intensity }` (the eight filter presets), `transitionIn { type, seconds }` (the ten transitions; applied only when a clip on the same track ends exactly where this one starts), `sourceStart` (seconds into the source), `audio: "mute"`, `track: "overlay"`, `box` (place the clip inside a pixel box instead of filling the canvas), `onShort` (below).
 - `toEnd: true` makes a top-level beat run until the last other clip ends: use it for a music bed so it follows the real length.
 - `afterRepeat: "<group>"` makes a top-level beat's `at` relative to the end of that repeat group, so an outro moves with the number of items.
+
+### Style elements in the format
+
+Additive fields of `templateVersion: 1`; each is built by the same commands the editor and the agent use, inside the template's one undo step.
+
+| Field | Where | What it does |
+|---|---|---|
+| `canvas.gradient { style: linear\|radial\|mesh, colors (2-6 #rrggbb), angle?, motion? }` | canvas | A gradient canvas background that drifts with time (`motion` 0-100). Wins over `backgroundColor`. |
+| `media.tilt { x?, y?, perspective? }` | media placement | Perspective tilt in degrees (up to 80) about the clip's centre; `perspective` is the camera distance in clip lengths (1-10, lower is stronger). |
+| `media.shadow { opacity?, blur?, offsetX?, offsetY?, color? }` | media placement and graphic layers | A soft drop shadow that follows the clip's rounded, tilted outline. `{}` takes the defaults. |
+| `media.corners` | media placement | Rounds the clip's corners (0-50, a share of half its shorter side). |
+| `media.autoZoom [{ at, x, y, scale?, in?, hold?, out? }]` and the same on a graphic layer | media placement and graphic layers | Eased push-ins on points of the picture (seconds after the beat starts; `x`, `y` in canvas pixels from the centre). Give a frame graphic and the clip inside it the same stops and they zoom as one picture. Not combinable with `pushIn`. A zoom that does not fit the clip is dropped with a `zoom-skipped` warning; when the source is shorter than the beat the beat's zooms are all dropped so a frame never zooms alone. |
+| graphic `shape: "cursor"` with `cursor { path: [{ at, x, y, click? }] }` | graphic layer | A mouse pointer that eases through the stops, waits where two stops share a place, and plays a click ripple. The tip is at the box centre; a 460 px box draws a normal-sized pointer. |
+| graphic `shape: "app-frame"` (params `style: mac\|browser\|plain`, `fill`, `barColor`, `stroke`, `cornerRadius`) | graphic layer | A desktop or browser frame, or a plain card, drawn at its box size so corners and buttons stay round at any aspect. `behind: true` draws it under the beat's media. |
+| text `count-up`, `blur-in`, `stagger-words`, `type-caret` animations; text params `highlightWord`, `highlightColor`, `caret`, `blur`, `countValue` ... | text | See `docs/CAPCUT_PARITY.md`. A `count-up` on a text that has no number is dropped with a `count-skipped` warning instead of failing the apply. |
 
 ### Repeat groups
 
@@ -132,7 +160,7 @@ Layer order from back to front: main track, overlay media, graphics, text, capti
 ## Writing a template
 
 1. Copy a file from `src/templates/` and give it a new `id`; add it to `src/templates/index.ts`.
-2. Keep to what exists: transitions between touching clips, the eight filters, the four text animations, crop, zoom, push-in, text stroke/shadow/background, vector shapes. Use `onShort` deliberately.
+2. Keep to what exists: transitions between touching clips, the eight filters, the eight text animations, crop, zoom, push-in, text stroke/shadow/background, vector shapes, and the style elements below. Use `onShort` deliberately.
 3. Express geometry in canvas pixels for the template's aspect. Check text fits with the shipped defaults: the apply test fails on any warning other than `short-media`.
 4. Set `durationSeconds` to the real length with the slots filled (a repeat group counts its `min` items).
 5. `pnpm test` (schema, apply, fuzz and tool tests run on every template), then generate the previews.
@@ -153,17 +181,17 @@ Real Chrome (`channel: "chrome"`) draws placeholder media procedurally (`e2e/tem
 - `tests/template-fuzz.test.ts`: random templates (all media options, repeat groups, `toEnd`) times random media (missing, tiny, wrong kind, odd shapes) keep `assertDocumentInvariants`, the source mapping, and one undo restores the empty project. 200 seeds by default; `TEMPLATE_FUZZ_RUNS=5000` for a long run, `TEMPLATE_FUZZ_SEED=n` to replay one.
 - `tests/template-tools.test.ts`: the three agent tools, including error hints and atomic turns.
 - `evals/`: `apply-launch-template` with an oracle, three specific mutations, `lazy` and `overreach`.
-- `e2e/template-export.spec.ts`: applies two templates to generated media in the page, exports them with the real exporter and decodes the file (length within two frames, every sampled frame has content).
+- `e2e/template-export.spec.ts`: applies five templates to generated media in the page, exports them with the real exporter and decodes the file (length within two frames, every sampled frame has content).
+- `tests/template-effects.test.ts`: the new format fields (validation with paths, application, undo, warnings); `tests/template-fuzz.test.ts` generates them too.
 
 ## Gaps (left out on purpose, not faked)
 
-- Beat sync and cutting on the music: analysis has beats, the editor has no snap-to-beat. Templates use fixed beat times.
-- Speed ramps and curves (only constant speed exists).
-- Count-up numbers: text content cannot be keyframed. `metric-changelog` steps through three numbers with short beats instead.
-- Device frames: masks have no rounded rectangle, so a phone frame cannot be drawn as a mask. Use a pixel `box` for a plain inset clip.
-- Glitch, flash and blur transitions (the seven existing ones only).
-- Word-level caption highlight: `captions.style` styles whole cues only; the template does not transcribe by itself (pass `captionCues`, or run the transcript tools first).
-- Callout and cursor presets: callouts are a pill text plus a ring shape you place by hand; there is no auto zoom-to-region.
+- Beat sync and cutting on the music in templates: analysis has beats and the editor can snap cuts to them, but templates use fixed beat times.
+- Speed ramps and curves are not a template option (the `set_speed_ramp` tool and inspector have them).
+- Inline icons that flow with the text: `kinetic-sentences` puts a rounded icon to the left of a left-aligned sentence instead. There is no text measurer in the pure planner, so an icon cannot follow the end of a line the user edits.
+- Per-word caption highlight is an agent option (`add_captions_from_transcript` with `highlight`) and a text parameter; a template cannot transcribe by itself (pass `captionCues`, or run the transcript tools first), and SRT/ASS captions have no word timings.
+- The cursor path and the auto zoom are authored in canvas pixels; a cursor does not follow a zoomed clip, so a template that zooms a recording does not also animate a cursor over it.
+- Tilt is applied to the layer's final picture; the canvas selection box and hit-testing ignore it.
 - Filters are applied per clip, not per beat region; the text style presets are a closed list (extend `presets.ts`).
 - "Save as template" from a project and importing a user template file are not built (the landing and FAQ say "coming soon") (`parseTemplateJson` is ready for it).
 - Inter is the bundled font; a host must load it (`templateFontFamilies`) before the first render, or the first frames use the fallback.
