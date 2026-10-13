@@ -1,5 +1,6 @@
 import { InvalidInputError, type ElementPatch } from "#/engine/model";
 import { MAX_TIMELINE_TICKS } from "./invariants";
+import { curveProblem } from "./speed-curve";
 
 /** Rejects anything that is not an integer tick count in `[min, MAX_TIMELINE_TICKS]` (NaN, Infinity, 0.5, 1e300, ...). */
 export function requireTick(name: string, value: unknown, min = 0): number {
@@ -30,5 +31,7 @@ export function guardElementPatch(patch: ElementPatch): void {
     if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) {
       throw new InvalidInputError(`retime.rate must be a positive finite number, got ${String(rate)}`);
     }
+    const curveIssue = patch.retime.curve === undefined ? null : curveProblem(patch.retime.curve);
+    if (curveIssue) throw new InvalidInputError(`retime.curve: ${curveIssue}`);
   }
 }

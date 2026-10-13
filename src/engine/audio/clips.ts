@@ -3,7 +3,7 @@ import {
   clampDb, dbToLinear, orderedTracks, numberParam, boolParam, PARAM, type MediaAssetInfo, type SceneTracks, type TimelineElement,
 } from "#/engine/model";
 import { listKeyframes, resolveNumberAtTime } from "#/engine/animation";
-import { effectiveRate } from "#/engine/timeline";
+import { curveSegments, effectiveRate } from "#/engine/timeline";
 import { clipHasAudible } from "./gain";
 
 /** One audible span of the timeline, in seconds, ready to be scheduled on an audio clock. */
@@ -25,6 +25,27 @@ export interface AudioClip {
 }
 
 const seconds = (ticks: number): number => ticks / TICKS_PER_SECOND;
+
+/** Longest stretch of one scheduled piece of a speed-ramped clip. */
+const RAMP_SEGMENT_TICKS = 0.5 * TICKS_PER_SECOND;
+
+/**
+ * A ramped clip is scheduled as consecutive constant-rate pieces whose ends sit exactly on the speed curve, so audio
+ * follows the ramp (stepwise, at most 15% rate change per piece) and never drifts from the picture.
+ */
+function rampPieces(clip: AudioClip, element: TimelineElement): AudioClip[] {
+  const curve = "retime" in element ? element.retime?.curve : undefined;
+  if (!curve) return [clip];
+  return curveSegments({ curve, trimStart: element.trimStart, duration: element.duration, maxSegmentTicks: RAMP_SEGMENT_TICKS }).map((segment, index) => ({
+    ...clip,
+    key: `${clip.key}#${index}`,
+    start: clip.start + seconds(segment.clipOffset),
+    duration: seconds(segment.duration),
+    trimStart: seconds(segment.sourceStart),
+    rate: segment.rate,
+    gainAt: (localSeconds: number) => clip.gainAt(seconds(segment.clipOffset) + localSeconds),
+  }));
+}
 
 function clipFor(input: { element: TimelineElement; trackId: string; trackMuted: boolean }): AudioClip | null {
   const { element } = input;
@@ -55,7 +76,7 @@ export function collectAudioClips(input: { tracks: SceneTracks; assets: Readonly
     for (const element of track.elements as TimelineElement[]) {
       if (element.type === "video" && assets.get(element.mediaId)?.hasAudio === false) continue;
       const clip = clipFor({ element, trackId: track.id, trackMuted: track.muted });
-      if (clip) clips.push(clip);
+      if (clip) clips.push(...rampPieces(clip, element));
     }
   }
   return clips;

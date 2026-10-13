@@ -1,6 +1,6 @@
 import { insertElement, type InsertPlacement } from "#/engine/commands";
 import {
-  EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, PARAM, buildEffectElement, buildGraphicElement, buildMediaElement, buildTextElement,
+  EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, LAYER_EFFECT_TYPES, PARAM, buildEffectElement, buildGraphicElement, buildMediaElement, buildTextElement,
   defaultsOf, orderedTracks, type ParamValues, type TimelineElement,
 } from "#/engine/model";
 import { canPlaceSpans, defaultInsertIndex, elementEnd, highestInsertIndex, trackTypeForElement } from "#/engine/timeline";
@@ -242,7 +242,7 @@ const insertEffectLayer = defineTool<PlacementInput & {
   inputSchema: {
     type: "object",
     properties: {
-      effectType: { type: "string", enum: Object.keys(EFFECT_DEFINITIONS) },
+      effectType: { type: "string", enum: [...LAYER_EFFECT_TYPES] },
       start: PLACEMENT_PROPS.start as JsonSchema,
       duration: { type: "number", minimum: 0.001, description: "Length in SECONDS (default 5)." },
       trackId: PLACEMENT_PROPS.trackId as JsonSchema,
@@ -255,7 +255,8 @@ const insertEffectLayer = defineTool<PlacementInput & {
   run(input, env) {
     env.requireProject();
     const definition = EFFECT_DEFINITIONS[input.effectType];
-    if (!definition) throw new ToolError(`Unknown effect "${input.effectType}".`, `Use one of: ${Object.keys(EFFECT_DEFINITIONS).join(", ")}.`);
+    if (!definition) throw new ToolError(`Unknown effect "${input.effectType}".`, `Use one of: ${LAYER_EFFECT_TYPES.join(", ")}.`);
+    if (definition.scope === "clip") throw new ToolError(`${definition.name} works on a single clip, not a scene-wide layer.`, "Use add_effect on a video or image clip.");
     const base = buildEffectElement({
       id: env.editor.newId(), startTime: mediaTime(0), effectType: definition.type, params: defaultsOf(definition.params), name: definition.name,
     });

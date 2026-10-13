@@ -243,7 +243,7 @@ const setSpeed = defineTool<{ elementId: string; speed: number; maintainPitch?: 
     }
     const previous = "retime" in element ? element.retime : undefined;
     const retime = input.speed === 1 ? undefined : { rate: input.speed, ...(input.maintainPitch === undefined ? {} : { maintainPitch: input.maintainPitch }) };
-    const expected = timelineDurationForSourceSpan(Math.round(sourceSpanAtClipTime(element.duration, previous)), retime);
+    const expected = timelineDurationForSourceSpan(Math.round(sourceSpanAtClipTime(element.duration, previous, element.trimStart)), retime, element.trimStart);
     env.editor.execute(updateElements([{ ref: located.ref, patch: { retime } }], "Change speed"));
     const after = env.require(input.elementId).element;
     const limited = after.duration < expected - 1;

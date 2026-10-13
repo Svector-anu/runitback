@@ -5,6 +5,7 @@ import {
   type MediaAssetInfo, type TimelineElement,
 } from "#/engine/model";
 import { mediaTime } from "#/engine/time";
+import { startBackgroundAnalysis } from "./background-removal";
 import { allElements, type DropTarget } from "#/engine/timeline";
 import type { DragPayload } from "#/ui/dnd";
 
@@ -47,8 +48,16 @@ export function insertPayload(input: { editor: Editor; payload: DragPayload; sta
     return result.ok ? { ok: true } : { ok: false, message: result.error.message };
   };
 
+  if (payload.kind === "effect" && !input.target?.targetElement && getEffectDefinition(payload.effectType)?.scope === "clip") {
+    return { ok: false, message: `${getEffectDefinition(payload.effectType)?.name ?? "That effect"} works on a single clip. Drop it onto a video or image clip.` };
+  }
   if (payload.kind === "effect" && input.target?.targetElement) {
-    return run(addClipEffect({ ref: { trackId: input.target.targetElement.trackId, elementId: input.target.targetElement.elementId }, effectType: payload.effectType }));
+    const outcome = run(addClipEffect({ ref: { trackId: input.target.targetElement.trackId, elementId: input.target.targetElement.elementId }, effectType: payload.effectType }));
+    if (outcome.ok && payload.effectType === "remove-background") {
+      const target = allElements(currentScene(editor.getState().doc).tracks).find((l) => l.element.id === input.target?.targetElement?.elementId)?.element;
+      if (target && "mediaId" in target) startBackgroundAnalysis(target.mediaId);
+    }
+    return outcome;
   }
   if (payload.kind === "media") {
     const asset: MediaAssetInfo | undefined = editor.getAsset(payload.assetId);

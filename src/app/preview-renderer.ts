@@ -4,6 +4,7 @@ import { lastFrameTime, frameIndexAt, mediaTime } from "#/engine/time";
 import { totalDuration } from "#/engine/timeline";
 import { Compositor } from "#/render/compositor";
 import { getServices } from "./services";
+import { sharedMaskProvider } from "#/platform/segmentation";
 
 /** Renders the composition shown in the preview, coalescing requests and skipping frames that cannot have changed. */
 export class PreviewRenderer {
@@ -23,6 +24,8 @@ export class PreviewRenderer {
     const onFonts = (): void => { this.lastKey = null; this.request(); };
     document.fonts?.addEventListener("loadingdone", onFonts);
     this.unsubscribe.push(() => document.fonts?.removeEventListener("loadingdone", onFonts));
+    const masks = sharedMaskProvider();
+    if (masks) this.unsubscribe.push(masks.subscribe(() => this.invalidate()));
     this.request();
   }
 

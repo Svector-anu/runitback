@@ -1,6 +1,9 @@
 import { numberParam, type BlendMode } from "#/engine/model";
 import type { DrawItem, FramePlan, LayerSource, MediaLayer, ResolvedEffect, TextLayer } from "#/engine/render";
-import { adjustPlan, blurSigma, transitionLook, type AdjustPlan } from "#/engine/render";
+import { adjustPlan, applyChromaKey, blurSigma, chromaKeyIsNoop, chromaKeyPlan, transitionLook, type AdjustPlan, type ChromaKeyPlan } from "#/engine/render";
+import type { MaskFrame } from "#/engine/segmentation";
+import { ChromaKeyGpu } from "./chroma-gpu";
+import { MaskRasterizer } from "./segmentation";
 import { context2d, createCanvas, resizeCanvas, type AnyCanvas, type AnyContext } from "./canvas";
 import { GraphicCache } from "./graphics";
 import { isInverted, renderMask, renderMaskStroke } from "./masks";
@@ -10,6 +13,8 @@ import { drawText } from "./text";
 export interface FrameSources {
   prepare(plan: FramePlan): Promise<void>;
   get(source: Extract<LayerSource, { type: "video" | "image" }>): CanvasImageSource | null;
+  /** Person mask for the clip's source frame (background removal); null when the media has not been analysed. */
+  mask?(source: Extract<LayerSource, { type: "video" | "image" }>): MaskFrame | null;
 }
 
 const COMPOSITE: Record<BlendMode, GlobalCompositeOperation> = {
@@ -31,6 +36,13 @@ function imageSize(image: CanvasImageSource): { width: number; height: number } 
   };
 }
 
+export type ChromaBackend = "auto" | "gpu" | "cpu";
+
+export interface CompositorOptions {
+  /** `auto` uses WebGL2 when it initialises and the CPU pass otherwise; `cpu`/`gpu` pin one for tests and measurements. */
+  chromaBackend?: ChromaBackend;
+}
+
 interface EffectGeometry { width: number; height: number; centerX: number; centerY: number }
 
 /** Canvas2D implementation of the frame plan. A GPU/WASM compositor can replace it behind the same call. */
@@ -43,8 +55,13 @@ export class Compositor {
   private scratch2: AnyCanvas;
   private scratch2Ctx: AnyContext;
   private readonly graphics = new GraphicCache();
+  private readonly masks = new MaskRasterizer();
 
-  constructor(readonly canvas: AnyCanvas) {
+  private chromaGpu: ChromaKeyGpu | null | undefined;
+  /** Which implementation ran the most recent chroma key; null until one has run. */
+  lastChromaBackend: "gpu" | "cpu" | null = null;
+
+  constructor(readonly canvas: AnyCanvas, private readonly options: CompositorOptions = {}) {
     this.ctx = context2d(canvas);
     this.layer = createCanvas(canvas.width, canvas.height);
     this.layerCtx = context2d(this.layer);
@@ -67,7 +84,7 @@ export class Compositor {
     this.drawPlan(plan, sources);
   }
 
-  drawPlan(plan: FramePlan, sources: Pick<FrameSources, "get">): void {
+  drawPlan(plan: FramePlan, sources: Pick<FrameSources, "get" | "mask">): void {
     this.setSize(plan.width, plan.height);
     const { ctx } = this;
     ctx.save();
@@ -85,7 +102,7 @@ export class Compositor {
     ctx.restore();
   }
 
-  private drawItem(item: DrawItem, plan: FramePlan, sources: Pick<FrameSources, "get">): void {
+  private drawItem(item: DrawItem, plan: FramePlan, sources: Pick<FrameSources, "get" | "mask">): void {
     switch (item.kind) {
       case "blurBackground": return this.drawBlurBackground(item, plan, sources);
       case "sceneEffect": return this.applySceneEffects(item.effects, plan);
@@ -117,11 +134,46 @@ export class Compositor {
   private applyEffects(effects: ResolvedEffect[], geometry: EffectGeometry): void {
     for (const effect of effects) {
       if (effect.type === "blur") this.applyBlur(effect, geometry);
+      else if (effect.type === "chroma-key") this.applyChroma(chromaKeyPlan(effect.params), geometry);
       else if (effect.type === "adjust") {
         const plan = adjustPlan(effect.params);
         if (plan) this.applyAdjust(plan, geometry);
       }
     }
+  }
+
+  private gpuFor(width: number, height: number): ChromaKeyGpu | null {
+    if (this.options.chromaBackend === "cpu") return null;
+    if (this.chromaGpu === undefined) this.chromaGpu = ChromaKeyGpu.tryCreate(width, height);
+    this.chromaGpu?.resize(width, height);
+    return this.chromaGpu;
+  }
+
+  /** Keys the layer in place: transparent where it matches the key colour, despilled elsewhere. */
+  private applyChroma(plan: ChromaKeyPlan, geometry: EffectGeometry): void {
+    if (chromaKeyIsNoop(plan)) return;
+    const gpu = this.gpuFor(this.layer.width, this.layer.height);
+    if (gpu) {
+      gpu.run(this.layer as CanvasImageSource, plan);
+      this.layerCtx.setTransform(1, 0, 0, 1, 0, 0);
+      this.layerCtx.globalAlpha = 1;
+      this.layerCtx.filter = "none";
+      this.layerCtx.globalCompositeOperation = "copy";
+      this.layerCtx.drawImage(gpu.canvas as CanvasImageSource, 0, 0);
+      this.layerCtx.globalCompositeOperation = "source-over";
+      this.lastChromaBackend = "gpu";
+      return;
+    }
+    const reach = Math.hypot(geometry.width, geometry.height) / 2 + 2;
+    const x = Math.max(0, Math.floor(geometry.centerX - reach));
+    const y = Math.max(0, Math.floor(geometry.centerY - reach));
+    const w = Math.min(this.layer.width, Math.ceil(geometry.centerX + reach)) - x;
+    const h = Math.min(this.layer.height, Math.ceil(geometry.centerY + reach)) - y;
+    if (w <= 0 || h <= 0) return;
+    const image = this.layerCtx.getImageData(x, y, w, h);
+    applyChromaKey(image.data, plan);
+    this.layerCtx.putImageData(image, x, y);
+    this.lastChromaBackend = "cpu";
   }
 
   private applyBlur(effect: ResolvedEffect, size: { width: number; height: number }): void {
@@ -221,7 +273,22 @@ export class Compositor {
     this.composite(item.blendMode);
   }
 
-  private drawMediaLayer(item: MediaLayer, plan: FramePlan, sources: Pick<FrameSources, "get">): void {
+  /** Cuts the person out of the freshly painted layer: the mask is painted through the layer's own transform and keeps only what it covers. */
+  private applyBackgroundRemoval(item: MediaLayer, sources: Pick<FrameSources, "get" | "mask">, paintMatte: (matte: AnyCanvas) => void): void {
+    const effect = item.effects.find((e) => e.type === "remove-background");
+    if (!effect || item.source.type === "graphic") return;
+    const frame = sources.mask?.(item.source);
+    if (!frame) return;
+    const matte = this.masks.rasterize(frame, { softness: numberParam(effect.params, "softness", 40), invert: effect.params.invert === true });
+    paintMatte(matte);
+    this.layerCtx.globalCompositeOperation = "destination-in";
+    this.layerCtx.globalAlpha = 1;
+    this.layerCtx.setTransform(1, 0, 0, 1, 0, 0);
+    this.layerCtx.drawImage(this.scratch2 as CanvasImageSource, 0, 0);
+    this.layerCtx.globalCompositeOperation = "source-over";
+  }
+
+  private drawMediaLayer(item: MediaLayer, plan: FramePlan, sources: Pick<FrameSources, "get" | "mask">): void {
     const image = item.source.type === "graphic"
       ? (this.graphics.get(item.source.definitionId, item.source.params) as CanvasImageSource)
       : sources.get(item.source);
@@ -234,28 +301,39 @@ export class Compositor {
     const drawnHeight = t.height * scale;
     this.clearLayer();
     const lc = this.layerCtx;
-    lc.save();
-    lc.globalAlpha = item.opacity * (look?.alpha ?? 1);
-    if (look?.revealX) {
-      lc.beginPath();
-      lc.rect(look.revealX.from * plan.width, 0, (look.revealX.to - look.revealX.from) * plan.width, plan.height);
-      lc.clip();
-    }
-    lc.translate(centerX, t.centerY);
-    lc.rotate((t.rotationDegrees * Math.PI) / 180);
-    lc.scale(t.flipX ? -1 : 1, t.flipY ? -1 : 1);
-    if (item.crop) {
-      const { width: iw, height: ih } = imageSize(image);
-      const c = item.crop;
-      lc.drawImage(
-        image, c.left * iw, c.top * ih, (1 - c.left - c.right) * iw, (1 - c.top - c.bottom) * ih,
-        -drawnWidth / 2 + c.left * drawnWidth, -drawnHeight / 2 + c.top * drawnHeight,
-        (1 - c.left - c.right) * drawnWidth, (1 - c.top - c.bottom) * drawnHeight,
-      );
-    } else {
-      lc.drawImage(image, -drawnWidth / 2, -drawnHeight / 2, drawnWidth, drawnHeight);
-    }
-    lc.restore();
+    const paint = (ctx: AnyContext, picture: CanvasImageSource, alpha: number): void => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      if (look?.revealX) {
+        ctx.beginPath();
+        ctx.rect(look.revealX.from * plan.width, 0, (look.revealX.to - look.revealX.from) * plan.width, plan.height);
+        ctx.clip();
+      }
+      ctx.translate(centerX, t.centerY);
+      ctx.rotate((t.rotationDegrees * Math.PI) / 180);
+      ctx.scale(t.flipX ? -1 : 1, t.flipY ? -1 : 1);
+      if (item.crop) {
+        const { width: iw, height: ih } = imageSize(picture);
+        const c = item.crop;
+        ctx.drawImage(
+          picture, c.left * iw, c.top * ih, (1 - c.left - c.right) * iw, (1 - c.top - c.bottom) * ih,
+          -drawnWidth / 2 + c.left * drawnWidth, -drawnHeight / 2 + c.top * drawnHeight,
+          (1 - c.left - c.right) * drawnWidth, (1 - c.top - c.bottom) * drawnHeight,
+        );
+      } else {
+        ctx.drawImage(picture, -drawnWidth / 2, -drawnHeight / 2, drawnWidth, drawnHeight);
+      }
+      ctx.restore();
+    };
+    paint(lc, image, item.opacity * (look?.alpha ?? 1));
+    this.applyBackgroundRemoval(item, sources, (matte) => {
+      this.scratch2Ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.scratch2Ctx.globalCompositeOperation = "source-over";
+      this.scratch2Ctx.globalAlpha = 1;
+      this.scratch2Ctx.filter = "none";
+      this.scratch2Ctx.clearRect(0, 0, this.scratch2.width, this.scratch2.height);
+      paint(this.scratch2Ctx, matte as CanvasImageSource, 1);
+    });
 
     this.applyEffects(item.effects, { width: drawnWidth, height: drawnHeight, centerX, centerY: t.centerY });
     if (look && look.darkness > 0) {

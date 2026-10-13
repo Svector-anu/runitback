@@ -7,9 +7,27 @@ export type ParamValues = Record<string, ParamValue>;
 export type TrackType = "video" | "text" | "audio" | "graphic" | "effect";
 export type MediaType = "image" | "video" | "audio";
 
+/** Playback rate at one position of the SOURCE media (`at`, absolute source ticks, not clip time). */
+export interface SpeedCurvePoint {
+  at: number;
+  rate: number;
+}
+
+/**
+ * A speed curve: playback rate as a piecewise-linear function of source position (rate is held flat before the first
+ * and after the last point). Tied to the source rather than the clip, so trimming, splitting and resizing never move
+ * the ramp relative to the footage. Between two points the rate changes linearly in source time.
+ */
+export interface SpeedCurve {
+  /** 2 to `SPEED_CURVE_MAX_POINTS` points with strictly increasing `at`. */
+  points: SpeedCurvePoint[];
+}
+
 export interface RetimeConfig {
+  /** Constant playback rate; with a `curve` it is the derived mean rate (visible source length / duration). */
   rate: number;
   maintainPitch?: boolean;
+  curve?: SpeedCurve;
 }
 
 export interface Effect {

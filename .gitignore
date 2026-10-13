@@ -15,3 +15,6 @@ evals/reports/*
 !.env.example
 *.pem
 e2e/template-frames
+
+# Downloaded e2e fixtures (MediaPipe public test images); never committed
+e2e/.fixtures

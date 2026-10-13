@@ -1,7 +1,7 @@
 import { mediaTime, roundMediaTime, type FrameRate } from "#/engine/time";
 import { frameDuration } from "#/engine/time";
 import type { ElementPatch, ElementRef, SceneTracks, TimelineElement } from "#/engine/model";
-import { sourceSpanAtClipTime, timelineDurationForSourceSpan } from "./retime";
+import { sourceSpanAtClipTime, sourceTimeAt, timelineDurationForSourceSpan } from "./retime";
 import { elementEnd, findTrack } from "./tracks";
 
 export type ResizeSide = "left" | "right";
@@ -54,12 +54,21 @@ export function memberDeltaRange(input: { member: ResizeMember; side: ResizeSide
   const retime = retimeOf(e);
   if (side === "left") {
     const byNeighbour = member.leftNeighborEnd !== null ? member.leftNeighborEnd - e.startTime : -e.startTime;
-    const bySource = hasSource(e) ? -timelineDurationForSourceSpan(e.trimStart, retime) : -Infinity;
+    const bySource = hasSource(e) ? -timelineDurationForSourceSpan(e.trimStart, retime, 0) : -Infinity;
     return { min: Math.max(byNeighbour, bySource), max: e.duration - minDuration };
   }
   const byNeighbour = member.rightNeighborStart !== null ? member.rightNeighborStart - elementEnd(e) : Infinity;
-  const bySource = hasSource(e) ? timelineDurationForSourceSpan(e.trimEnd, retime) : Infinity;
+  const bySource = hasSource(e) ? timelineDurationForSourceSpan(e.trimEnd, retime, (e.sourceDuration ?? 0) - e.trimEnd) : Infinity;
   return { min: minDuration - e.duration, max: Math.min(byNeighbour, bySource) };
+}
+
+/** How far the dragged edge moves through the source when it moves `delta` ticks on the timeline (signed). */
+function sourceEdgeShift(input: { element: TimelineElement; retime: ReturnType<typeof retimeOf>; side: ResizeSide; delta: number }): number {
+  const { element, retime, delta } = input;
+  if (!retime?.curve) return roundMediaTime(Math.sign(delta) * sourceSpanAtClipTime(Math.abs(delta), retime));
+  const edge = input.side === "left" ? 0 : element.duration;
+  const before = sourceTimeAt({ trimStart: element.trimStart, clipTime: edge, retime });
+  return roundMediaTime(sourceTimeAt({ trimStart: element.trimStart, clipTime: edge + delta, retime }) - before);
 }
 
 function roundToFrames(delta: number, frame: number): number {
@@ -82,7 +91,7 @@ export function computeGroupResize(input: {
   const patches = input.members.map(({ ref, element }) => {
     const retime = retimeOf(element);
     const media = hasSource(element);
-    const sourceDelta = media ? roundMediaTime(Math.sign(delta) * sourceSpanAtClipTime(Math.abs(delta), retime)) : 0;
+    const sourceDelta = media ? sourceEdgeShift({ element, retime, side: input.side, delta }) : 0;
     const patch: ElementPatch = input.side === "left"
       ? {
         startTime: mediaTime(element.startTime + delta),

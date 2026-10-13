@@ -17,3 +17,5 @@ export * from "./animation-targets";
 export * from "./invariants";
 export * from "./input-guards";
 export * from "./transitions";
+export * from "./speed-curve";
+export * from "./speed-ramp";

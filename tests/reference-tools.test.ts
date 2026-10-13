@@ -56,7 +56,7 @@ describe("reference tools: registry and schemas", () => {
   it("is absent unless the app injects dependencies, so existing registries are unchanged", () => {
     const plain = createAgentTools();
     expect(plain.has("save_style_profile")).toBe(false);
-    expect(plain.size).toBe(42);
+    expect(plain.size).toBe(44);
   });
 });
 

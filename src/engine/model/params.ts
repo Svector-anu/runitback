@@ -52,6 +52,7 @@ export const VOLUME_DB_MIN = -60;
 export const VOLUME_DB_MAX = 20;
 export const RETIME_MIN = 0.01;
 export const RETIME_MAX = 5;
+export const SPEED_CURVE_MAX_POINTS = 6;
 export const DEFAULT_NEW_ELEMENT_SECONDS = 5;
 /** Text font size is expressed against a 90 unit tall canvas (size 15 on 1080p => 180px). */
 export const TEXT_SIZE_REFERENCE_HEIGHT = 90;

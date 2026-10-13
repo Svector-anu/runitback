@@ -1,0 +1,381 @@
+import { describe, expect, it } from "vitest";
+import { sequentialIds, type AudioElement, type RetimeConfig, type Scene, type SceneTracks, type SpeedCurve, type VideoElement } from "#/engine/model";
+import { TICKS_PER_SECOND } from "#/engine/time";
+import { collectAudioClips, sourceWindow } from "#/engine/audio";
+import { buildFramePlan, type MediaLayer } from "#/engine/render";
+import {
+  SPEED_RAMP_PRESETS, SPEED_RAMP_PRESET_IDS, applyElementUpdate, buildResizeMembers, clipTimeAtSource, computeGroupResize, curveFromShape, curveProblem,
+  curveRateAt, curveSegments, curveSource, curveTime, currentRampShape, normalizeCurve, presetShape, rampShapeProblem, retimeForShape,
+  sceneViolations, sourceSpanAtClipTime, sourceTimeAt, splitElements, timelineDurationForSourceSpan, visibleSourceRange, withDerivedRate,
+} from "#/engine/timeline";
+import { repairProject } from "#/engine/persistence/repair";
+import { createProject } from "#/engine/model";
+import { makeRng } from "./invariants-harness";
+import { audio, sec, tracksWith, video, videoAsset } from "./helpers";
+
+const S = TICKS_PER_SECOND;
+const HERO: SpeedCurve = { points: [{ at: 0, rate: 1 }, { at: 4 * S, rate: 1 }, { at: 5 * S, rate: 0.25 }, { at: 6 * S, rate: 1 }, { at: 10 * S, rate: 1 }] };
+
+const sceneOf = (tracks: SceneTracks): Scene => ({ id: "s", name: "s", isMain: true, tracks, bookmarks: [], createdAt: "", updatedAt: "" });
+const violations = (tracks: SceneTracks): string[] => sceneViolations(sceneOf(tracks));
+const mainClips = (tracks: SceneTracks): VideoElement[] => tracks.main.elements as VideoElement[];
+
+/** Simpson integration of ds / r(s): the independent check of the closed form. */
+function numericTime(curve: SpeedCurve, a: number, b: number, steps = 4000): number {
+  const h = (b - a) / steps;
+  let sum = 1 / curveRateAt(curve, a) + 1 / curveRateAt(curve, b);
+  for (let i = 1; i < steps; i++) sum += (i % 2 === 0 ? 2 : 4) / curveRateAt(curve, a + i * h);
+  return (sum * h) / 3;
+}
+
+const ramped = (curve: SpeedCurve, seconds = 10): VideoElement => {
+  const base = video("a", 0, seconds);
+  const retime: RetimeConfig = { rate: 1, curve };
+  return withDerivedRate({ ...base, retime, duration: timelineDurationForSourceSpan(base.sourceDuration ?? seconds * S, retime, 0) });
+};
+
+describe("speed curve maths", () => {
+  it("a constant curve behaves exactly like a constant rate", () => {
+    const flat: SpeedCurve = { points: [{ at: 0, rate: 2 }, { at: 10 * S, rate: 2 }] };
+    expect(curveTime(flat, 4 * S) - curveTime(flat, S)).toBeCloseTo(1.5 * S, 6);
+    expect(curveSource(flat, curveTime(flat, 3 * S) + S)).toBeCloseTo(5 * S, 6);
+    expect(sourceTimeAt({ trimStart: S, clipTime: 2 * S, retime: { rate: 2, curve: flat } })).toBeCloseTo(S + 4 * S, 6);
+  });
+
+  it("the closed-form time equals numeric integration of 1/rate on every segment shape", () => {
+    const curves: SpeedCurve[] = [HERO,
+      { points: [{ at: 0, rate: 0.1 }, { at: 3 * S, rate: 5 }, { at: 7 * S, rate: 0.5 }] },
+      { points: [{ at: S, rate: 3 }, { at: 2 * S, rate: 3.0000001 }] }];
+    for (const curve of curves) {
+      for (const [a, b] of [[0, 10 * S], [S, 6.5 * S], [4.2 * S, 5.1 * S], [-S, 12 * S]] as const) {
+        const closed = curveTime(curve, b) - curveTime(curve, a);
+        expect(Math.abs(closed - numericTime(curve, a, b)) / Math.max(1, closed)).toBeLessThan(1e-5);
+      }
+    }
+  });
+
+  it("source position and time invert each other, including outside the curve's points", () => {
+    const rng = makeRng(7);
+    for (let i = 0; i < 400; i++) {
+      const points = Array.from({ length: 2 + rng.int(5) }, (_, k) => ({ at: (k * 2 + rng.next()) * S, rate: 0.05 + rng.next() * 4.9 }));
+      const curve = normalizeCurve(points);
+      expect(curve).not.toBeNull();
+      const s = (rng.next() * 16 - 2) * S;
+      expect(curveSource(curve as SpeedCurve, curveTime(curve as SpeedCurve, s))).toBeCloseTo(s, 3);
+      const t = (rng.next() * 30 - 5) * S;
+      expect(curveTime(curve as SpeedCurve, curveSource(curve as SpeedCurve, t))).toBeCloseTo(t, 3);
+    }
+  });
+
+  it("source time is strictly increasing in clip time", () => {
+    let last = -Infinity;
+    for (let t = 0; t <= 12 * S; t += 0.01 * S) {
+      const s = sourceTimeAt({ trimStart: 0, clipTime: t, retime: { rate: 1, curve: HERO } });
+      expect(s).toBeGreaterThan(last);
+      last = s;
+    }
+  });
+
+  it("clipTimeAtSource inverts sourceTimeAt", () => {
+    const retime = { rate: 1, curve: HERO };
+    for (const t of [0, 0.7 * S, 3 * S, 4.4 * S, 9 * S]) {
+      const s = sourceTimeAt({ trimStart: 2 * S, clipTime: t, retime });
+      expect(clipTimeAtSource({ trimStart: 2 * S, source: s, retime })).toBeCloseTo(t, 3);
+    }
+  });
+
+  it("rejects malformed curves", () => {
+    expect(curveProblem({ points: [{ at: 0, rate: 1 }] })).toMatch(/at least 2/);
+    expect(curveProblem({ points: Array.from({ length: 7 }, (_, i) => ({ at: i, rate: 1 })) })).toMatch(/at most 6/);
+    expect(curveProblem({ points: [{ at: 5, rate: 1 }, { at: 5, rate: 2 }] })).toMatch(/increasing/);
+    expect(curveProblem({ points: [{ at: 0, rate: 9 }, { at: 5, rate: 2 }] })).toMatch(/between/);
+    expect(curveProblem({ points: [{ at: 0, rate: Number.NaN }, { at: 5, rate: 2 }] })).toMatch(/finite/);
+    expect(curveProblem(HERO)).toBeNull();
+    expect(normalizeCurve([{ at: 1, rate: 1 }, { at: 1, rate: 2 }])).toBeNull();
+  });
+});
+
+describe("presets", () => {
+  it("ships Montage, Hero time, Bullet and Jump cut ease as legal ramps", () => {
+    expect(SPEED_RAMP_PRESET_IDS).toEqual(["montage", "hero", "bullet", "jump-cut-ease"]);
+    for (const id of SPEED_RAMP_PRESET_IDS) {
+      const shape = presetShape(id);
+      expect(rampShapeProblem(shape), id).toBeNull();
+      expect(shape[0]?.position).toBe(0);
+      expect(shape[shape.length - 1]?.position).toBe(1);
+      expect(SPEED_RAMP_PRESETS[id].name.length).toBeGreaterThan(3);
+      const clip = video("a", 0, 10);
+      const retime = retimeForShape({ element: clip, shape });
+      expect(retime?.curve && curveProblem(retime.curve), id).toBeNull();
+    }
+  });
+});
+
+describe("a ramped clip in the pipeline", () => {
+  const apply = (tracks: SceneTracks, retime: RetimeConfig | undefined): SceneTracks =>
+    applyElementUpdate({ tracks, ref: { trackId: "main", elementId: "a" }, patch: { retime }, newId: sequentialIds("n") });
+
+  it("derives duration from the integral of the curve and keeps the mean-rate invariant", () => {
+    const tracks = apply(tracksWith({ main: [video("a", 0, 10)] }), { rate: 1, curve: HERO });
+    const clip = mainClips(tracks)[0] as VideoElement;
+    const expected = curveTime(HERO, 10 * S) - curveTime(HERO, 0);
+    expect(Math.abs(clip.duration - expected)).toBeLessThanOrEqual(1);
+    expect(clip.duration).toBeGreaterThan(10 * S);
+    expect(clip.trimStart + clip.duration * clip.retime!.rate + clip.trimEnd).toBeCloseTo(10 * S, 0);
+    expect(violations(tracks)).toEqual([]);
+  });
+
+  it("a trimmed clip uses the part of the curve under its window", () => {
+    const base = video("a", 0, 10, { trimStart: 3 * S, trimEnd: 2 * S, duration: 5 * S });
+    const tracks = apply(tracksWith({ main: [base] }), { rate: 1, curve: HERO });
+    const clip = mainClips(tracks)[0] as VideoElement;
+    expect(Math.abs(clip.duration - (curveTime(HERO, 8 * S) - curveTime(HERO, 3 * S)))).toBeLessThanOrEqual(1);
+    expect(violations(tracks)).toEqual([]);
+  });
+
+  it("stops short of the next clip and trims the source tail instead of overlapping", () => {
+    const tracks = apply(tracksWith({ main: [video("a", 0, 10, { duration: sec(10) }), video("b", 10, 5)] }), { rate: 1, curve: HERO });
+    const [a, b] = mainClips(tracks) as [VideoElement, VideoElement];
+    expect(a.startTime + a.duration).toBeLessThanOrEqual(b.startTime);
+    expect(violations(tracks)).toEqual([]);
+    expect(a.trimEnd).toBeGreaterThan(0);
+    expect(Math.abs(sourceTimeAt({ trimStart: a.trimStart, clipTime: a.duration, retime: a.retime }) - (10 * S - a.trimEnd))).toBeLessThanOrEqual(2);
+  });
+
+  it("replacing the ramp with a constant speed or clearing it re-derives the duration", () => {
+    const rampedTracks = apply(tracksWith({ main: [video("a", 0, 10)] }), { rate: 1, curve: HERO });
+    const constant = apply(rampedTracks, { rate: 2 });
+    expect((mainClips(constant)[0] as VideoElement).duration).toBe(5 * S);
+    expect((mainClips(constant)[0] as VideoElement).retime?.curve).toBeUndefined();
+    const cleared = apply(rampedTracks, undefined);
+    expect((mainClips(cleared)[0] as VideoElement).duration).toBe(10 * S);
+    expect(violations(constant)).toEqual([]);
+    expect(violations(cleared)).toEqual([]);
+  });
+
+  it("refuses a malformed curve", () => {
+    expect(() => apply(tracksWith({ main: [video("a", 0, 10)] }), { rate: 1, curve: { points: [{ at: 0, rate: 1 }] } })).toThrow(/curve/);
+  });
+});
+
+describe("split on a ramp", () => {
+  const rampedTracks = (): SceneTracks => tracksWith({ main: [ramped(HERO)] });
+
+  it("both halves keep the curve and the exact source mapping, at every split point", () => {
+    const rng = makeRng(11);
+    const original = mainClips(rampedTracks())[0] as VideoElement;
+    for (let i = 0; i < 60; i++) {
+      const at = Math.max(1, Math.round(rng.next() * (original.duration - 2)) + 1);
+      const result = splitElements({ tracks: rampedTracks(), refs: [{ trackId: "main", elementId: "a" }], splitTime: at, newId: sequentialIds("n") });
+      const [left, right] = mainClips(result.tracks) as [VideoElement, VideoElement];
+      expect(violations(result.tracks), `split at ${at}`).toEqual([]);
+      expect(left.duration + right.duration).toBe(original.duration);
+      expect(left.retime?.curve).toEqual(HERO);
+      expect(right.retime?.curve).toEqual(HERO);
+      expect(Math.abs(right.trimStart - sourceTimeAt({ trimStart: 0, clipTime: at, retime: original.retime }))).toBeLessThanOrEqual(1);
+      for (const t of [0, at / 3, at - 1]) {
+        expect(Math.abs(sourceTimeAt({ trimStart: left.trimStart, clipTime: t, retime: left.retime }) - sourceTimeAt({ trimStart: 0, clipTime: t, retime: original.retime }))).toBeLessThanOrEqual(2);
+      }
+      for (const t of [0, (right.duration - 1) / 2, right.duration - 1]) {
+        expect(Math.abs(sourceTimeAt({ trimStart: right.trimStart, clipTime: t, retime: right.retime }) - sourceTimeAt({ trimStart: 0, clipTime: at + t, retime: original.retime }))).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  it("split then join (a second split's halves measured end to end) matches the original within a frame", () => {
+    const original = mainClips(rampedTracks())[0] as VideoElement;
+    const frame = S / 30;
+    const first = splitElements({ tracks: rampedTracks(), refs: [{ trackId: "main", elementId: "a" }], splitTime: 3 * S, newId: sequentialIds("n") });
+    const [, right] = mainClips(first.tracks) as [VideoElement, VideoElement];
+    const second = splitElements({ tracks: first.tracks, refs: [{ trackId: "main", elementId: right.id }], splitTime: 7.3 * S, newId: sequentialIds("m") });
+    const [c1, c2, c3] = mainClips(second.tracks) as [VideoElement, VideoElement, VideoElement];
+    const joined = (t: number): number => {
+      const piece = t < c2.startTime ? c1 : t < c3.startTime ? c2 : c3;
+      return sourceTimeAt({ trimStart: piece.trimStart, clipTime: t - piece.startTime, retime: piece.retime });
+    };
+    for (let t = 0; t < original.duration; t += S / 7) {
+      expect(Math.abs(joined(t) - sourceTimeAt({ trimStart: 0, clipTime: t, retime: original.retime }))).toBeLessThan(frame * (HERO.points[0]!.rate + 1));
+    }
+    expect(c1.duration + c2.duration + c3.duration).toBe(original.duration);
+    expect(violations(second.tracks)).toEqual([]);
+  });
+});
+
+describe("resize on a ramp", () => {
+  const sized = (side: "left" | "right", delta: number): SceneTracks => {
+    const tracks = tracksWith({ main: [video("z", 0, 2), { ...ramped(HERO), id: "a", startTime: 2 * S } as VideoElement] });
+    const members = buildResizeMembers({ tracks, refs: [{ trackId: "main", elementId: "a" }] });
+    const { patches } = computeGroupResize({ members, side, delta, fps: { numerator: 30, denominator: 1 } });
+    return patches.reduce((acc, { ref, patch }) => applyElementUpdate({ tracks: acc, ref, patch, newId: sequentialIds("n") }), tracks);
+  };
+
+  it("trimming the right edge keeps the head mapping and re-derives the tail trim from the curve", () => {
+    for (const delta of [-S, -4.5 * S, -0.3 * S]) {
+      const tracks = sized("right", delta);
+      const clip = mainClips(tracks)[1] as VideoElement;
+      expect(violations(tracks), `delta ${delta}`).toEqual([]);
+      expect(Math.abs(clip.duration - (ramped(HERO).duration + delta))).toBeLessThan(S / 30);
+      expect(clip.trimStart).toBe(0);
+      expect(clip.trimEnd).toBeGreaterThan(0);
+    }
+  });
+
+  it("trimming the left edge moves trimStart along the curve and keeps later frames in place", () => {
+    const original = mainClips(tracksWith({ main: [video("z", 0, 2), { ...ramped(HERO), id: "a", startTime: 2 * S } as VideoElement] }))[1] as VideoElement;
+    for (const delta of [S, 3 * S, 4.6 * S]) {
+      const tracks = sized("left", delta);
+      const clip = mainClips(tracks)[1] as VideoElement;
+      expect(violations(tracks), `delta ${delta}`).toEqual([]);
+      const tl = clip.startTime + 2 * S;
+      const before = sourceTimeAt({ trimStart: 0, clipTime: tl - original.startTime, retime: original.retime });
+      const after = sourceTimeAt({ trimStart: clip.trimStart, clipTime: tl - clip.startTime, retime: clip.retime });
+      expect(Math.abs(before - after)).toBeLessThan(S / 30);
+    }
+  });
+
+  it("extending an edge back out recovers the trimmed source (resize round trip)", () => {
+    const original = mainClips(sized("right", 0))[1] as VideoElement;
+    const shrunk = sized("right", -2 * S);
+    const members = buildResizeMembers({ tracks: shrunk, refs: [{ trackId: "main", elementId: "a" }] });
+    const { patches } = computeGroupResize({ members, side: "right", delta: 2 * S, fps: { numerator: 30, denominator: 1 } });
+    const back = patches.reduce((acc, { ref, patch }) => applyElementUpdate({ tracks: acc, ref, patch, newId: sequentialIds("n") }), shrunk);
+    const clip = mainClips(back)[1] as VideoElement;
+    expect(Math.abs(clip.duration - original.duration)).toBeLessThan(S / 30);
+    expect(clip.trimEnd).toBeLessThan(S / 30 * 5);
+  });
+});
+
+describe("pictures and sound follow the same ramp", () => {
+  it("buildFramePlan reads the source frame from the curve", () => {
+    const clip = ramped(HERO);
+    const tracks = tracksWith({ main: [clip] });
+    for (const t of [0, 2 * S, 4.5 * S, 8 * S, clip.duration - 1]) {
+      const plan = buildFramePlan({ tracks, canvas: { width: 1920, height: 1080 }, background: { type: "color", color: "#000" }, assets: [videoAsset("asset-a", 10)], time: t });
+      const layer = plan.items[0] as MediaLayer;
+      const expected = sourceTimeAt({ trimStart: 0, clipTime: t, retime: clip.retime }) / S;
+      expect(layer.source.type === "video" && layer.source.sourceSeconds).toBeCloseTo(expected, 4);
+    }
+  });
+
+  it("audio is scheduled as contiguous pieces that land exactly on the curve", () => {
+    const base = audio("m", 0, 10);
+    const retime: RetimeConfig = { rate: 1, curve: HERO, maintainPitch: true };
+    const clip = withDerivedRate({ ...base, retime, duration: timelineDurationForSourceSpan(10 * S, retime, 0) }) as AudioElement;
+    const clips = collectAudioClips({ tracks: tracksWith({ audio: [{ id: "au", elements: [clip] }] }), assets: [] });
+    expect(clips.length).toBeGreaterThan(8);
+    expect(clips.every((c) => c.maintainPitch)).toBe(true);
+    let cursor = 0, source = 0;
+    for (const piece of clips) {
+      expect(piece.start).toBeCloseTo(cursor, 6);
+      expect(piece.trimStart).toBeCloseTo(source, 4);
+      cursor = piece.start + piece.duration;
+      source = piece.trimStart + piece.duration * piece.rate;
+    }
+    expect(cursor * S).toBeCloseTo(clip.duration, 0);
+    expect(source).toBeCloseTo(10, 3);
+    const rates = clips.map((c) => c.rate);
+    expect(Math.min(...rates)).toBeLessThan(0.5);
+    expect(Math.max(...rates)).toBeGreaterThan(0.99);
+    for (let i = 1; i < rates.length; i++) expect(Math.max(rates[i]!, rates[i - 1]!) / Math.min(rates[i]!, rates[i - 1]!)).toBeLessThan(1.5);
+    const win = sourceWindow({ clip: clips[3]!, from: clips[3]!.start, to: clips[3]!.start + clips[3]!.duration });
+    expect(win?.start).toBeCloseTo(clips[3]!.trimStart, 6);
+  });
+
+  it("a constant-speed clip is still one piece", () => {
+    const clips = collectAudioClips({ tracks: tracksWith({ audio: [{ id: "au", elements: [{ ...audio("m", 0, 10), retime: { rate: 2 } }] }] }), assets: [] });
+    expect(clips).toHaveLength(1);
+  });
+
+  it("curveSegments cover the window with no gaps and respect the limits", () => {
+    const segments = curveSegments({ curve: HERO, trimStart: S, duration: 12 * S, maxSegmentTicks: 0.5 * S });
+    let t = 0;
+    for (const s of segments) {
+      expect(s.clipOffset).toBe(t);
+      expect(s.duration).toBeGreaterThan(0);
+      expect(s.duration).toBeLessThanOrEqual(0.5 * S + 1);
+      t += s.duration;
+    }
+    expect(t).toBe(12 * S);
+  });
+});
+
+describe("persistence", () => {
+  it("the curve survives a save and reload; an invalid one is dropped to the average speed", () => {
+    const project = createProject({ id: "p", name: "p", ids: sequentialIds("p"), now: "2026-01-01T00:00:00.000Z" });
+    const clip = ramped(HERO);
+    const scene = project.scenes[0] as Scene;
+    scene.tracks.main.elements.push(clip);
+    const reloaded = repairProject(JSON.parse(JSON.stringify(project)));
+    expect((reloaded.project.scenes[0]!.tracks.main.elements[0] as VideoElement).retime?.curve).toEqual(HERO);
+    expect(reloaded.repairs).toEqual([]);
+    const broken = JSON.parse(JSON.stringify(project));
+    broken.scenes[0].tracks.main.elements[0].retime.curve.points = [{ at: 5, rate: 1 }];
+    const fixed = repairProject(broken);
+    const el = fixed.project.scenes[0]!.tracks.main.elements[0] as VideoElement;
+    expect(el.retime?.curve).toBeUndefined();
+    expect(fixed.repairs.join(" ")).toMatch(/speed curve/);
+  });
+});
+
+describe("seeded fuzz: random ramps, splits, resizes and speed changes", () => {
+  it("never break the source-mapping or overlap invariants, and a ramp's duration is always its integral", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const rng = makeRng(seed * 7919);
+      const newId = sequentialIds(`f${seed}`);
+      let tracks = tracksWith({ main: [video("a", 0, 12), video("b", 12, 6)] });
+      const clipIds = (): string[] => mainClips(tracks).map((c) => c.id);
+      for (let step = 0; step < 30; step++) {
+        const id = rng.pick(clipIds());
+        const clip = mainClips(tracks).find((c) => c.id === id) as VideoElement;
+        const label = `seed ${seed} step ${step}`;
+        const op = rng.int(5);
+        try {
+          if (op === 0) {
+            const preset = rng.pick(SPEED_RAMP_PRESET_IDS);
+            const retime = retimeForShape({ element: clip, shape: presetShape(preset) });
+            if (retime) tracks = applyElementUpdate({ tracks, ref: { trackId: "main", elementId: id }, patch: { retime }, newId });
+          } else if (op === 1) {
+            const points = Array.from({ length: 2 + rng.int(5) }, (_, k) => ({ position: (k + rng.next() * 0.9) / 6, speed: 0.1 + rng.next() * 4.5 })).sort((x, y) => x.position - y.position);
+            const retime = rampShapeProblem(points) === null ? retimeForShape({ element: clip, shape: points }) : null;
+            if (retime) tracks = applyElementUpdate({ tracks, ref: { trackId: "main", elementId: id }, patch: { retime }, newId });
+          } else if (op === 2 && clip.duration > 4) {
+            const at = clip.startTime + 1 + rng.int(clip.duration - 2);
+            tracks = splitElements({ tracks, refs: [{ trackId: "main", elementId: id }], splitTime: at, newId }).tracks;
+          } else if (op === 3) {
+            const members = buildResizeMembers({ tracks, refs: [{ trackId: "main", elementId: id }] });
+            const { patches } = computeGroupResize({ members, side: rng.chance(0.5) ? "left" : "right", delta: Math.round((rng.next() - 0.5) * 4 * S), fps: { numerator: 30, denominator: 1 } });
+            tracks = patches.reduce((acc, { ref, patch }) => applyElementUpdate({ tracks: acc, ref, patch, newId }), tracks);
+          } else {
+            tracks = applyElementUpdate({ tracks, ref: { trackId: "main", elementId: id }, patch: { retime: rng.chance(0.3) ? undefined : { rate: 0.25 + rng.next() * 3 } }, newId });
+          }
+        } catch (error) {
+          expect(String(error), label).toMatch(/Invalid|invalid|retime|duration|needs more media/);
+        }
+        expect(violations(tracks), label).toEqual([]);
+        for (const c of mainClips(tracks)) {
+          if (!c.retime?.curve) continue;
+          const visible = (c.sourceDuration ?? 0) - c.trimStart - c.trimEnd;
+          const integral = curveTime(c.retime.curve, c.trimStart + visible) - curveTime(c.retime.curve, c.trimStart);
+          const slowest = Math.min(...c.retime.curve.points.map((p) => p.rate));
+          expect(Math.abs(integral - c.duration), `${label} duration vs integral`).toBeLessThanOrEqual(1 + 0.5 / slowest);
+          expect(Math.abs(sourceSpanAtClipTime(c.duration, c.retime, c.trimStart) - visible), `${label} visible source`).toBeLessThanOrEqual(2 + 5);
+        }
+      }
+    }
+  });
+});
+
+describe("rampShape and presets applied to a clip", () => {
+  it("reports a flat shape for constant speed and the window points for a ramp", () => {
+    expect(currentRampShape(video("a", 0, 10))).toEqual([{ position: 0, speed: 1 }, { position: 1, speed: 1 }]);
+    const clip = ramped(HERO);
+    const shape = currentRampShape(clip);
+    expect(shape[0]).toEqual({ position: 0, speed: 1 });
+    expect(shape.some((p) => p.speed === 0.25 && Math.abs(p.position - 0.5) < 1e-5)).toBe(true);
+    expect(visibleSourceRange(clip)).toEqual({ from: 0, to: 10 * S });
+  });
+  it("curveFromShape rounds to ticks and rejects too-short windows", () => {
+    expect(curveFromShape({ shape: [[0, 1], [1, 2]], from: 0, to: 0 })).toBeNull();
+    expect(curveFromShape({ shape: [[0, 1], [1, 2]], from: 0, to: 100 })?.points.map((p) => p.at)).toEqual([0, 100]);
+  });
+});

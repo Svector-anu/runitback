@@ -1,0 +1,13 @@
+/* Speed curve editor (Properties > Speed). */
+.speed-curve { width: 100%; height: auto; background: var(--accent); border-radius: var(--radius-md); touch-action: none; user-select: none; }
+.speed-curve__grid { stroke: var(--border); stroke-width: 0.5; }
+.speed-curve__grid[data-unity="true"] { stroke: var(--muted-foreground); stroke-dasharray: 3 3; }
+.speed-curve__label { fill: var(--muted-foreground); font-size: 7px; pointer-events: none; }
+.speed-curve__line { stroke: var(--primary); stroke-width: 1.75; stroke-linejoin: round; pointer-events: none; }
+.speed-curve__point { fill: var(--background); stroke: var(--primary); stroke-width: 2; cursor: grab; }
+.speed-curve__point:hover, .speed-curve__point:focus-visible { fill: var(--primary); outline: none; }
+.speed-curve__point:active { cursor: grabbing; }
+
+.bg-removal { display: grid; gap: 0.375rem; font-size: var(--text-xs); }
+.bg-removal__bar { width: 100%; height: 0.375rem; accent-color: var(--primary); }
+.bg-removal__error { color: var(--destructive, #d33); margin: 0; }

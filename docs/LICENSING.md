@@ -35,6 +35,7 @@ No GPL or AGPL packages. The build does not emit a third-party notices file; `NO
 | --- | --- | --- |
 | Inter (`public/fonts`, the only bundled font) | SIL OFL 1.1 | `Inter-OFL.txt` ships alongside; the font may not be sold on its own and the reserved-name rules apply to modified versions. |
 | MediaPipe wasm runtime (`public/mediapipe/wasm`) | Apache-2.0 | `@mediapipe/tasks-vision`. |
+| MediaPipe Selfie Segmenter `.tflite` (two files) | Believed Apache-2.0 (MediaPipe) | **Unconfirmed**: model card PDF links to the Apache licence but its text was not readable here. |
 | BlazeFace short-range `.tflite` | Believed Apache-2.0 (MediaPipe) | **Unconfirmed**: check the model card. |
 
 ## Models downloaded at runtime

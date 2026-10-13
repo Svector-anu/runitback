@@ -19,6 +19,8 @@ export const PROJECT_MIGRATIONS: ReadonlyArray<ProjectMigration> = [
   { from: 3, to: 4, run: (project) => project },
   /** v5 added `crop.*` params (absent means 0) and `freezeAt` on image clips (absent means an ordinary image). */
   { from: 4, to: 5, run: (project) => project },
+  /** v6 added the optional `retime.curve` (speed ramp) and the `chroma-key` / `remove-background` effect types: absent on older projects. */
+  { from: 5, to: 6, run: (project) => project },
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,7 +1,7 @@
 import { mediaTime, roundMediaTime } from "#/engine/time";
 import { splitAnimationsAtTime } from "#/engine/animation";
-import type { ElementRef, IdGenerator, SceneTracks, TimelineElement } from "#/engine/model";
-import { sourceSpanAtClipTime } from "./retime";
+import type { ElementRef, IdGenerator, RetimeConfig, SceneTracks, TimelineElement } from "#/engine/model";
+import { clipTimeAtSource, sourceSpanAtClipTime, sourceTimeAt, withDerivedRate } from "./retime";
 import { elementEnd, mapTracks, withElements } from "./tracks";
 
 export type RetainSide = "both" | "left" | "right";
@@ -18,13 +18,33 @@ function retimeOf(element: TimelineElement) {
   return "retime" in element ? element.retime : undefined;
 }
 
+/**
+ * Rounding the cut position to a whole source tick shifts the right half by up to half a tick of source, which a slow
+ * stretch of the curve turns into several ticks of timeline and a following fast stretch into several more of source.
+ * The halves keep their cut point and start; their tails are re-derived from the curve so that
+ * `trimStart + mapped span + trimEnd == sourceDuration` still holds for each (the right half gives up, at most, a few
+ * ticks at its far end rather than breaking the invariant).
+ */
+function reconcileCurvedHalves(input: { left: TimelineElement; right: TimelineElement; retime: RetimeConfig; sourceDuration: number }): void {
+  const { left, right, retime, sourceDuration } = input;
+  for (const half of [left, right]) {
+    if (half.type !== "video" && half.type !== "audio") continue;
+    let end = Math.round(sourceTimeAt({ trimStart: half.trimStart, clipTime: half.duration, retime }));
+    if (end > sourceDuration + 1) {
+      half.duration = mediaTime(Math.max(1, Math.floor(clipTimeAtSource({ trimStart: half.trimStart, source: sourceDuration, retime }))));
+      end = Math.min(sourceDuration, Math.round(sourceTimeAt({ trimStart: half.trimStart, clipTime: half.duration, retime })));
+    }
+    half.trimEnd = mediaTime(Math.max(0, sourceDuration - end));
+  }
+}
+
 function cut(element: TimelineElement, splitTime: number, newId: IdGenerator): { left: TimelineElement; right: TimelineElement } {
   const rel = splitTime - element.startTime;
   const rightDuration = element.duration - rel;
   const isMedia = element.type === "video" || element.type === "audio";
   const retime = retimeOf(element);
-  const leftSource = roundMediaTime(sourceSpanAtClipTime(rel, retime));
-  const totalSource = roundMediaTime(sourceSpanAtClipTime(element.duration, retime));
+  const leftSource = roundMediaTime(sourceSpanAtClipTime(rel, retime, element.trimStart));
+  const totalSource = roundMediaTime(sourceSpanAtClipTime(element.duration, retime, element.trimStart));
   const rightSource = totalSource - leftSource;
   const anims = splitAnimationsAtTime({ animations: element.animations, splitTime: rel, includeBoundary: true, newId });
 
@@ -39,6 +59,7 @@ function cut(element: TimelineElement, splitTime: number, newId: IdGenerator): {
   if (isMedia) {
     left.trimEnd = mediaTime(element.trimEnd + rightSource);
     right.trimStart = mediaTime(element.trimStart + leftSource);
+    if (retime?.curve && element.sourceDuration !== undefined) reconcileCurvedHalves({ left, right, retime, sourceDuration: element.sourceDuration });
   }
   delete left.animations;
   delete right.animations;
@@ -47,7 +68,7 @@ function cut(element: TimelineElement, splitTime: number, newId: IdGenerator): {
   delete (right as { textAnimation?: unknown }).textAnimation;
   if (anims.left) left.animations = anims.left;
   if (anims.right) right.animations = anims.right;
-  return { left, right };
+  return { left: withDerivedRate(left as TimelineElement & { trimStart: number }) as TimelineElement, right: withDerivedRate(right as TimelineElement & { trimStart: number }) as TimelineElement };
 }
 
 export function splitElements(input: {

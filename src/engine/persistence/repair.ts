@@ -5,6 +5,7 @@ import {
 } from "#/engine/model";
 import { isSaneCanvas, isSaneFrameRate } from "#/engine/commands/limits";
 import { MAX_TIMELINE_TICKS } from "#/engine/timeline/invariants";
+import { curveProblem } from "#/engine/timeline/speed-curve";
 import { isTransitionType, reconcileTransitions } from "#/engine/timeline/transitions";
 
 type Raw = Record<string, unknown>;
@@ -110,6 +111,12 @@ function repairElement(raw: unknown, notes: Notes): TimelineElement | null {
   if (isRaw(el.retime) && !(isFiniteNumber(el.retime.rate) && el.retime.rate > 0)) {
     delete el.retime;
     notes.add(`${owner}: dropped an invalid playback speed`);
+  }
+  if (isRaw(el.retime) && el.retime.curve !== undefined && curveProblem(el.retime.curve) !== null) {
+    const rest: Raw = { ...el.retime };
+    delete rest.curve;
+    el.retime = rest;
+    notes.add(`${owner}: dropped an invalid speed curve and kept the average speed`);
   }
   el.params = cleanParams(raw.params, owner, notes);
   const effects = cleanDecorations(raw.effects, owner, "effects", notes);

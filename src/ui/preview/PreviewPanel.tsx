@@ -9,6 +9,8 @@ import { Icon } from "../icons";
 import { Button } from "../primitives/Button";
 import { SelectField } from "../primitives/fields";
 import { PreviewOverlay } from "./PreviewOverlay";
+import { ColorPickCapture } from "./ColorPickCapture";
+import { PointPickCapture } from "./PointPickCapture";
 import { clampPreviewZoom, PREVIEW_ZOOM_PRESETS, PREVIEW_ZOOM_STEP, type PreviewView } from "./view";
 
 function EditableTimecode(): ReactNode {
@@ -131,6 +133,8 @@ export function PreviewPanel(): ReactNode {
           <canvas ref={canvasRef} width={canvas.width} height={canvas.height} aria-label="Preview of the composition" role="img" />
         </div>
         {renderer ? <PreviewOverlay renderer={renderer} view={view} onPan={(dx, dy) => setCenter((c) => clampCenter({ x: c.x - dx / scale, y: c.y - dy / scale }, scale))} /> : null}
+        {renderer ? <ColorPickCapture view={view} renderer={renderer} /> : null}
+        {renderer ? <PointPickCapture view={view} renderer={renderer} /> : null}
         {!hasProject ? null : duration === 0 ? (
           <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", color: "var(--muted-foreground)", textAlign: "center", padding: 16 }}>
             <div style={{ background: "color-mix(in srgb, var(--background) 85%, transparent)", padding: "8px 14px", borderRadius: 8 }}>

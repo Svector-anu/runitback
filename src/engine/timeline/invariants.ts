@@ -1,6 +1,7 @@
 import { TICKS_PER_SECOND } from "#/engine/time";
 import { InvariantViolationError, orderedTracks, type Scene, type TimelineElement } from "#/engine/model";
-import { effectiveRate } from "./retime";
+import { effectiveRate, sourceSpanAtClipTime } from "./retime";
+import { curveProblem } from "./speed-curve";
 import { transitionViolations } from "./transitions";
 
 /** No clip may start or end beyond 24 hours; keeps every tick count a safe integer and exports finite. */
@@ -35,9 +36,19 @@ function elementViolations(element: TimelineElement): string[] {
   if (startTime + duration > MAX_TIMELINE_TICKS) out.push(`element ${id}: ends beyond the 24 hour limit`);
   if ((element.type === "video" || element.type === "audio") && element.sourceDuration !== undefined) {
     const rate = effectiveRate(element.retime);
+    const curve = element.retime?.curve;
+    const curveIssue = curve ? curveProblem(curve) : null;
+    if (curveIssue) {
+      out.push(`element ${id}: ${curveIssue}`);
+    } else if (curve) {
+      const visible = sourceSpanAtClipTime(duration, element.retime, trimStart);
+      if (Math.abs(trimStart + visible + trimEnd - element.sourceDuration) > 2 + Math.max(...curve.points.map((p) => p.rate))) {
+        out.push(`element ${id}: trim ${trimStart} + ${visible.toFixed(1)} of source over the speed curve + trim ${trimEnd} does not add up to the source length ${element.sourceDuration}`);
+      }
+    }
     if (!Number.isFinite(rate)) {
       out.push(`element ${id}: non-finite playback rate`);
-    } else {
+    } else if (!curveIssue) {
       const total = trimStart + duration * rate + trimEnd;
       if (Math.abs(total - element.sourceDuration) > 2 + rate) {
         out.push(`element ${id}: trim ${trimStart} + ${duration} x ${rate} + trim ${trimEnd} does not add up to the source length ${element.sourceDuration}`);

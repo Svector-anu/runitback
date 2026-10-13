@@ -51,6 +51,7 @@ export function useKeyboardShortcuts(options: { enabled: boolean; recording: boo
         return;
       }
       if (isTypableTarget(target)) return;
+      if (target?.closest("[data-owns-keys]")) return;
       if (shouldYieldToFocusedControl(e, target)) return;
       if (target?.closest("[role='slider'], [role='separator'], select") && (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End")) return;
       const action = resolveAction(e, keybindingsStore.get().bindings, isApple());

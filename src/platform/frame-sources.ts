@@ -1,5 +1,7 @@
 import type { FramePlan, LayerSource } from "#/engine/render";
+import type { MaskFrame } from "#/engine/segmentation";
 import type { FrameSources } from "#/render/compositor";
+import { sharedMaskProvider, type MaskProvider } from "./segmentation/mask-provider";
 import type { VideoFrameCache } from "./video-frames";
 
 type VisualSource = Extract<LayerSource, { type: "video" | "image" }>;
@@ -41,7 +43,11 @@ export class ImageCache {
 export class CachedFrameSources implements FrameSources {
   private frames = new Map<string, CanvasImageSource>();
 
-  constructor(private readonly video: VideoFrameCache, private readonly images: ImageCache) {}
+  constructor(private readonly video: VideoFrameCache, private readonly images: ImageCache, private readonly masksOverride?: MaskProvider) {}
+
+  private get masks(): MaskProvider | null {
+    return this.masksOverride ?? sharedMaskProvider();
+  }
 
   async prepare(plan: FramePlan): Promise<void> {
     const wanted = new Map<string, VisualSource>();
@@ -56,6 +62,17 @@ export class CachedFrameSources implements FrameSources {
       if (image) next.set(k, image);
     }));
     this.frames = next;
+    if (this.masks) {
+      const needed = new Set<string>();
+      for (const item of plan.items) {
+        if (item.kind === "layer" && item.source.type !== "graphic" && item.effects.some((e) => e.type === "remove-background")) needed.add(item.source.mediaId);
+      }
+      await Promise.all([...needed].map((id) => this.masks?.ensure(id)));
+    }
+  }
+
+  mask(source: VisualSource): MaskFrame | null {
+    return this.masks?.get(source.mediaId, source.type === "video" ? source.sourceSeconds : 0) ?? null;
   }
 
   get(source: VisualSource): CanvasImageSource | null {

@@ -4,7 +4,7 @@ import {
   type TimelineTrack, type TransitionType,
 } from "#/engine/model";
 import { TICKS_PER_SECOND } from "#/engine/time";
-import { effectiveRate, effectiveTransition, resolveEffectParams, resolveElementParams, sourceTimeAt } from "#/engine/timeline";
+import { effectiveTransition, resolveEffectParams, resolveElementParams, sourceTimeAt } from "#/engine/timeline";
 import { easeTransition, isTransitionLayerVisible, type LayerTransition } from "./transitions";
 
 export interface LayerTransform {
@@ -143,7 +143,7 @@ function heldSourceSeconds(input: { element: Extract<TimelineElement, { type: "v
   const known = element.sourceDuration ?? input.assetDuration;
   const first = known === undefined ? element.trimStart : 0;
   const last = known === undefined
-    ? element.trimStart + element.duration * effectiveRate(element.retime) - SOURCE_END_GUARD_TICKS
+    ? sourceTimeAt({ trimStart: element.trimStart, clipTime: element.duration, retime: element.retime }) - SOURCE_END_GUARD_TICKS
     : known - SOURCE_END_GUARD_TICKS;
   return Math.max(first, Math.min(raw, Math.max(first, last))) / TICKS_PER_SECOND;
 }
