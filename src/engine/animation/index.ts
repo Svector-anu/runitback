@@ -4,3 +4,4 @@ export * from "./evaluate";
 export * from "./mutate";
 export * from "./easing";
 export * from "./text-presets";
+export * from "./cursor-path";

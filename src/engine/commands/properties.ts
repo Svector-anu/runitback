@@ -4,7 +4,7 @@ import {
   type MaskType, type ParamValue, type TimelineElement, type ParamValues,
 } from "#/engine/model";
 import {
-  applyTextAnimation, TEXT_ANIMATION_PATHS, keyframeIdAtTime, maxTextAnimationDuration, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
+  applyTextAnimation, cursorAnimations, cursorPathProblem, TEXT_ANIMATION_PATHS, type CursorWaypoint, keyframeIdAtTime, maxTextAnimationDuration, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
   type ScalarCurvePatch,
 } from "#/engine/animation";
 import {
@@ -274,6 +274,28 @@ export function setTextAnimationCommand(input: { ref: ElementRef; in?: TextAnima
         if (next.in || next.out) (out as { textAnimation?: TextAnimationState }).textAnimation = next;
         else delete (out as { textAnimation?: TextAnimationState }).textAnimation;
         return out;
+      }) };
+    },
+  };
+}
+
+// ---- Cursor path ---------------------------------------------------------------------------------------------
+
+/**
+ * Moves a cursor graphic through `waypoints` (ticks from the clip start, px from the canvas centre) and plays the click
+ * ripple at the clicking stops. The static position becomes the first stop. One undo step.
+ */
+export function setCursorPathCommand(input: { ref: ElementRef; waypoints: ReadonlyArray<CursorWaypoint> }): Command {
+  return {
+    label: "Cursor path",
+    run(doc, ctx) {
+      return { doc: editElement(doc, ctx, input.ref, (el) => {
+        if (el.type !== "graphic" || el.definitionId !== "cursor") throw new InvalidInputError("A cursor path applies to cursor graphics");
+        const problem = cursorPathProblem({ waypoints: input.waypoints, clipDuration: el.duration });
+        if (problem) throw new InvalidInputError(`Cannot apply the cursor path: ${problem}`);
+        const first = input.waypoints[0] as CursorWaypoint;
+        const animations = cursorAnimations({ animations: el.animations, waypoints: input.waypoints, clipDuration: el.duration, newId: ctx.newId });
+        return { ...el, animations, params: { ...el.params, [PARAM.positionX]: first.x, [PARAM.positionY]: first.y, click: 0 } };
       }) };
     },
   };

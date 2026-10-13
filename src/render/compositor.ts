@@ -5,7 +5,7 @@ import type { MaskFrame } from "#/engine/segmentation";
 import { ChromaKeyGpu } from "./chroma-gpu";
 import { MaskRasterizer } from "./segmentation";
 import { context2d, createCanvas, resizeCanvas, type AnyCanvas, type AnyContext } from "./canvas";
-import { GraphicCache } from "./graphics";
+import { GraphicCache, isSizedGraphic } from "./graphics";
 import { isInverted, renderMask, renderMaskStroke } from "./masks";
 import { drawText } from "./text";
 
@@ -289,11 +289,13 @@ export class Compositor {
   }
 
   private drawMediaLayer(item: MediaLayer, plan: FramePlan, sources: Pick<FrameSources, "get" | "mask">): void {
+    const t = item.transform;
     const image = item.source.type === "graphic"
-      ? (this.graphics.get(item.source.definitionId, item.source.params) as CanvasImageSource)
+      ? (isSizedGraphic(item.source.definitionId)
+        ? this.graphics.getSized(item.source.definitionId, item.source.params, { width: t.width, height: t.height, canvasHeight: plan.height })
+        : this.graphics.get(item.source.definitionId, item.source.params)) as CanvasImageSource
       : sources.get(item.source);
     if (!image) return;
-    const t = item.transform;
     const look = item.transition ? transitionLook(item.transition) : null;
     const centerX = t.centerX + (look ? look.shiftX * plan.width : 0);
     const scale = look?.scale ?? 1;

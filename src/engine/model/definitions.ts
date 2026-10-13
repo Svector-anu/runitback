@@ -124,10 +124,23 @@ export const STROKE_PARAMS: ReadonlyArray<ParamDef> = [
     options: [{ value: "inside", label: "Inside" }, { value: "center", label: "Center" }, { value: "outside", label: "Outside" }] },
 ];
 
+export const CURSOR_STYLES = ["arrow", "hand", "dot"] as const;
+export type CursorStyle = (typeof CURSOR_STYLES)[number];
+export const WINDOW_FRAME_STYLES = ["mac", "browser", "plain"] as const;
+export type WindowFrameStyle = (typeof WINDOW_FRAME_STYLES)[number];
+
+const optionsOf = (values: ReadonlyArray<string>, labels: Record<string, string>): Array<{ value: string; label: string }> =>
+  values.map((value) => ({ value, label: labels[value] ?? value }));
+
 export interface GraphicDefinition {
   id: string;
   name: string;
   params: ReadonlyArray<ParamDef>;
+  /**
+   * Drawn at the size it ends up on screen instead of into a square that is then stretched, so corner radii, window
+   * buttons and pointer shapes stay undistorted at any box size (the compositor passes the laid-out pixel size).
+   */
+  sized?: boolean;
 }
 
 export const GRAPHIC_DEFINITIONS: Record<string, GraphicDefinition> = {
@@ -143,6 +156,26 @@ export const GRAPHIC_DEFINITIONS: Record<string, GraphicDefinition> = {
     { type: "number", key: "points", label: "Points", default: 5, min: 3, max: 12, step: 1 },
     { type: "number", key: "depth", label: "Depth", default: 45, min: 1, max: 99, step: 1 },
   ] },
+  cursor: {
+    id: "cursor", name: "Cursor", sized: true,
+    params: [
+      { type: "select", key: "style", label: "Style", default: "arrow", options: optionsOf(CURSOR_STYLES, { arrow: "Arrow", hand: "Hand", dot: "Touch dot" }) },
+      { type: "color", key: "fill", label: "Fill", default: "#ffffff" },
+      { type: "color", key: "stroke", label: "Outline", default: "#111111" },
+      { type: "color", key: "rippleColor", label: "Click ripple", default: "#3b82f6" },
+      { type: "number", key: "click", label: "Click", default: 0, min: 0, max: 1, step: 0.01 },
+    ],
+  },
+  "window-frame": {
+    id: "window-frame", name: "Window frame", sized: true,
+    params: [
+      { type: "select", key: "style", label: "Style", default: "mac", options: optionsOf(WINDOW_FRAME_STYLES, { mac: "Mac window", browser: "Browser", plain: "Plain card" }) },
+      { type: "color", key: "fill", label: "Body", default: "#ffffff" },
+      { type: "color", key: "barColor", label: "Title bar", default: "#ececf1" },
+      { type: "color", key: "stroke", label: "Outline", default: "#d4d4dc" },
+      { type: "number", key: "cornerRadius", label: "Corner radius", default: 12, min: 0, max: 50, step: 1 },
+    ],
+  },
 };
 
 export const DEFAULT_GRAPHIC_SOURCE_SIZE = 512;
