@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("the landing has a Templates section with four featured cards, a nav link and a link to /templates", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   // Smooth scrolling aims at where the section is when the click lands; let fonts and images settle first so the layout does not move under it.
   await page.waitForLoadState("load");
