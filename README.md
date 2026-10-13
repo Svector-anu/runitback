@@ -26,6 +26,9 @@ Built and covered by tests (see [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.m
 - Preview that renders the real composition, shared with export (one frame plan, one compositor).
 - Text (stroke, shadow, background, animation presets), shapes, masks, blur, colour adjust and eight filters, crop, freeze frame, speed with optional pitch preservation, seven transitions.
 - Captions import (SRT/ASS) and local speech transcription (Whisper) with transcript search and delete-by-sentence.
+- Video effects: chroma key with an eyedropper, speed ramps with a curve editor and presets, on-device background removal, point tracking and stabilization.
+- Audio and voice: snap cuts to the beat, on-device noise removal, local text to speech and caption translation (models download only after consent).
+- Generate images, video, music and speech with your own Surplus key (bring your own key; nothing is generated without it; see [`docs/GENERATE.md`](docs/GENERATE.md)).
 - MP4 (H.264/AAC) and WebM (VP9/Opus) export, run in the browser with WebCodecs.
 - Templates: eight original templates (product launch, kinetic announcement, feature callouts, before and after, numbered list, testimonial, talking head with captions, metric reveal) in a gallery at `/templates`, applied in one undo step from the editor, the Projects page or the agent. Importing or saving your own template in the app is not built yet ([`docs/TEMPLATES.md`](docs/TEMPLATES.md)).
 - Agent layer: an in-app chat agent and an MCP server over the same typed tools, with plan-then-approve, local perception (silence, loudness, beats, scene cuts), a per-asset temporal index, visual search (CLIP) and face detection (MediaPipe).
@@ -33,7 +36,8 @@ Built and covered by tests (see [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.m
 In progress or known gaps (stated plainly):
 
 - The in-app agent's quality with a real model is not yet measured end to end; the scripted evals pass, the real-model run is partial ([`docs/EVALS.md`](docs/EVALS.md), [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)).
-- Word-level caption styling is data plumbing only. Stickers, speed curves, chroma key, background removal and audio effects do not exist yet.
+- Word-level caption styling is data plumbing only. There are no stickers and no large effects or music libraries.
+- Background removal can flicker on fast motion and fine hair; tracking and stabilization handle translation only (no rotation, zoom or rolling shutter); text to speech is English only and clearly synthetic; caption translation covers three language pairs ([`docs/VIDEO_FX.md`](docs/VIDEO_FX.md), [`docs/AUDIO_VOICE.md`](docs/AUDIO_VOICE.md)).
 - Long media and large projects are untested; whole-timeline audio mixing happens in memory.
 - Safari is the least capable browser: canvas filters (blur, colour adjustments) do not render there. See [Browser support](#browser-support).
 
