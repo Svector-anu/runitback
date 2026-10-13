@@ -7,10 +7,16 @@ import listicle from "./listicle.json";
 import testimonialQuote from "./testimonial-quote.json";
 import talkingHeadCaptions from "./talking-head-captions.json";
 import metricChangelog from "./metric-changelog.json";
+import kineticSentences from "./kinetic-sentences.json";
+import promptToResult from "./prompt-to-result.json";
+import appWalkthrough from "./app-walkthrough.json";
+import tiltedUiTour from "./tilted-ui-tour.json";
+import growthNumbers from "./growth-numbers.json";
 
 /** Source files, in gallery order. Each one is validated the moment this module loads, so a malformed template fails the build and the tests. */
 const SOURCES: ReadonlyArray<unknown> = [
   productLaunch, kineticAnnouncement, featureCallouts, beforeAfter, listicle, testimonialQuote, talkingHeadCaptions, metricChangelog,
+  kineticSentences, promptToResult, appWalkthrough, tiltedUiTour, growthNumbers,
 ];
 
 const CATALOG: ReadonlyArray<ProjectTemplate> = SOURCES.map((source) => parseTemplate(source));

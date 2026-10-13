@@ -93,7 +93,7 @@ describe("landing content shape", () => {
       "Open source", "Runs in your browser", "Files stay on your device while editing", "Edit by describing it", "Price", "Mobile app", "Templates, stickers and effects",
     ]);
     const templates = rows.find((r) => r.feature.startsWith("Templates"));
-    expect(templates?.runitback).toMatch(/8 original templates/);
+    expect(templates?.runitback).toMatch(/13 original templates/);
     expect(templates?.runitback).not.toMatch(/not yet/i);
     expect(templates?.runitback).not.toMatch(/no template library|coming soon/i);
     expect(checked).toMatch(/\d{4}/);

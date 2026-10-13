@@ -10,10 +10,10 @@ const playingCount = (page: Page) =>
 const videoCount = (page: Page) => page.locator("video[data-testid='template-preview']").count();
 const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
-test("/templates renders the eight original templates with badges, chips and the Use button", async ({ page }) => {
+test("/templates renders the thirteen original templates with badges, chips and the Use button", async ({ page }) => {
   await page.goto("/templates");
   await expect(page.getByRole("heading", { level: 1, name: "Start from a template" })).toBeVisible();
-  await expect(page.getByTestId("template-grid").locator("[data-template-id]")).toHaveCount(8);
+  await expect(page.getByTestId("template-grid").locator("[data-template-id]")).toHaveCount(13);
   const first = cards(page).first();
   await expect(first.getByRole("heading", { level: 3 })).toHaveText("Product launch");
   await expect(first.getByRole("button", { name: /Use template/ })).toBeVisible();
@@ -25,7 +25,7 @@ test("/templates renders the eight original templates with badges, chips and the
 
 test("/#/templates reaches the same page", async ({ page }) => {
   await page.goto("/#/templates");
-  await expect(cards(page)).toHaveCount(8);
+  await expect(cards(page)).toHaveCount(13);
 });
 
 test("category chips and search filter the grid", async ({ page }) => {
@@ -36,11 +36,11 @@ test("category chips and search filter the grid", async ({ page }) => {
   await expect(cards(page).first()).toContainText("Numbered list");
   await expect(group.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "true");
   await group.getByRole("button", { name: "All" }).click();
-  await expect(cards(page)).toHaveCount(8);
+  await expect(cards(page)).toHaveCount(13);
   await page.getByRole("searchbox", { name: "Search templates" }).fill("zzzz");
   await expect(page.getByText("No template matches")).toBeVisible();
   await page.getByRole("button", { name: "Clear filters" }).click();
-  await expect(cards(page)).toHaveCount(8);
+  await expect(cards(page)).toHaveCount(13);
 });
 
 test("at most four previews play at once and the pause toggle persists", async ({ page }) => {
@@ -64,7 +64,7 @@ test.describe("reduced motion", () => {
   test.use({ reducedMotion: "reduce" });
   test("shows posters only and disables the toggle", async ({ page }) => {
     await page.goto("/templates");
-    await expect(cards(page)).toHaveCount(8);
+    await expect(cards(page)).toHaveCount(13);
     await page.waitForTimeout(800);
     expect(await videoCount(page)).toBe(0);
     await expect(page.getByRole("button", { name: "Pause previews" })).toBeDisabled();
@@ -101,7 +101,7 @@ test("the Inspiration list is collapsed, text-only, and links out safely", async
 test("dark theme screenshot", async ({ page }) => {
   await page.goto("/templates");
   await page.getByRole("button", { name: "Switch to dark theme" }).first().click();
-  await expect(cards(page)).toHaveCount(8);
+  await expect(cards(page)).toHaveCount(13);
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${SHOTS}/gallery-desktop-dark.png`, fullPage: false });
 });
@@ -110,7 +110,7 @@ for (const width of [360, 390]) {
   test(`mobile ${width}: no horizontal scroll, one column, reachable controls`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/templates");
-    await expect(cards(page)).toHaveCount(8);
+    await expect(cards(page)).toHaveCount(13);
     expect(await overflow(page)).toBeLessThanOrEqual(0);
     const boxes = await cards(page).evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
     expect(new Set(boxes).size).toBe(1);

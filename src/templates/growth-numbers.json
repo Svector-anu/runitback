@@ -1,0 +1,317 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "growth-numbers",
+  "name": "Growth numbers",
+  "category": "update",
+  "tags": [
+    "text-only",
+    "square",
+    "metrics",
+    "count-up"
+  ],
+  "description": "Square, text-only milestone video: a title, then each metric on a glass card with a number that counts up and a label that arrives word by word, over a drifting gradient. No footage needed.",
+  "canvas": {
+    "aspect": "1:1",
+    "fps": 30,
+    "backgroundColor": "#0b1020",
+    "gradient": {
+      "style": "mesh",
+      "colors": [
+        "#0b1020",
+        "#4a30f3",
+        "#ef007e"
+      ],
+      "motion": 40
+    }
+  },
+  "durationSeconds": 15.6,
+  "slots": [
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "title",
+      "label": "Title",
+      "default": "Numbers that move",
+      "style": "headline",
+      "maxChars": 40,
+      "maxWidth": 900,
+      "overrides": {
+        "sizePx": 124
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.8
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "Our year so far",
+      "style": "kicker",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 40
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "outro-title",
+      "label": "Closing line",
+      "default": "Join them",
+      "style": "headline",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 140
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.7
+        }
+      }
+    },
+    {
+      "id": "outro-url",
+      "label": "Web address",
+      "default": "yourproduct.com",
+      "style": "label",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 50
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.4
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "intro",
+      "at": 0,
+      "duration": 2.4,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "subtitle",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -150
+          },
+          "duration": 2.2
+        },
+        {
+          "kind": "text",
+          "text": "title",
+          "at": 0.3,
+          "position": {
+            "x": 0,
+            "y": 20
+          },
+          "duration": 2.0
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "at": 0,
+      "duration": 3,
+      "afterRepeat": "metrics",
+      "layers": [
+        {
+          "kind": "text",
+          "text": "outro-title",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -70
+          }
+        },
+        {
+          "kind": "text",
+          "text": "outro-url",
+          "at": 0.6,
+          "position": {
+            "x": 0,
+            "y": 130
+          }
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 15.6,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "repeat": [
+    {
+      "id": "metrics",
+      "label": "Metric",
+      "min": 3,
+      "max": 5,
+      "at": 2.4,
+      "itemSeconds": 3.4,
+      "slots": [],
+      "texts": [
+        {
+          "id": "tag",
+          "label": "Tag",
+          "default": "MILESTONE {n} OF {count}",
+          "style": "kicker",
+          "maxChars": 40,
+          "overrides": {
+            "sizePx": 34,
+            "color": "#ffa3d0"
+          },
+          "animation": {
+            "in": {
+              "preset": "fade",
+              "seconds": 0.3
+            },
+            "out": {
+              "preset": "fade",
+              "seconds": 0.2
+            }
+          }
+        },
+        {
+          "id": "value",
+          "label": "Number",
+          "default": "12,400+",
+          "style": "numeral",
+          "maxChars": 12,
+          "overrides": {
+            "sizePx": 205,
+            "shadow.enabled": false
+          },
+          "animation": {
+            "in": {
+              "preset": "count-up",
+              "seconds": 1.6
+            },
+            "out": {
+              "preset": "fade",
+              "seconds": 0.25
+            }
+          }
+        },
+        {
+          "id": "label",
+          "label": "Label",
+          "default": "teams onboarded",
+          "style": "subhead",
+          "maxChars": 40,
+          "maxWidth": 800,
+          "overrides": {
+            "sizePx": 58
+          },
+          "animation": {
+            "in": {
+              "preset": "stagger-words",
+              "seconds": 0.9
+            },
+            "out": {
+              "preset": "fade",
+              "seconds": 0.25
+            }
+          }
+        }
+      ],
+      "beats": [
+        {
+          "id": "card",
+          "at": 0,
+          "duration": 3.4,
+          "layers": [
+            {
+              "kind": "graphic",
+              "shape": "app-frame",
+              "at": 0,
+              "box": {
+                "x": 0,
+                "y": 0,
+                "width": 920,
+                "height": 640
+              },
+              "params": {
+                "style": "plain",
+                "fill": "#0b1020d9",
+                "stroke": "#ffffff33",
+                "cornerRadius": 48
+              },
+              "shadow": {
+                "blur": 90,
+                "opacity": 55,
+                "offsetY": 36
+              }
+            },
+            {
+              "kind": "text",
+              "text": "tag",
+              "at": 0.1,
+              "position": {
+                "x": 0,
+                "y": -205
+              },
+              "duration": 3.1
+            },
+            {
+              "kind": "text",
+              "text": "value",
+              "at": 0.2,
+              "position": {
+                "x": 0,
+                "y": -25
+              },
+              "duration": 3.0
+            },
+            {
+              "kind": "text",
+              "text": "label",
+              "at": 0.8,
+              "position": {
+                "x": 0,
+                "y": 175
+              },
+              "duration": 2.5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preview": {
+    "poster": "growth-numbers.webp",
+    "video": "growth-numbers.mp4"
+  }
+}

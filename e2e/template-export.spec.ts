@@ -14,6 +14,9 @@ const MIN_LIT_FRACTION = 0.05;
 const CASES = [
   { id: "kinetic-announcement", expectedSeconds: 15, times: [0.5, 2.5, 4.5, 6.5, 9, 13.5], width: 1080, height: 1920 },
   { id: "product-launch", expectedSeconds: 25, times: [1, 5, 12, 19, 22, 24.5], width: 1920, height: 1080 },
+  { id: "kinetic-sentences", expectedSeconds: 19, times: [1, 4.5, 8, 12, 16.5, 18.5], width: 1920, height: 1080 },
+  { id: "app-walkthrough", expectedSeconds: 25, times: [1.5, 6.5, 10, 16, 20, 24], width: 1920, height: 1080 },
+  { id: "tilted-ui-tour", expectedSeconds: 25.2, times: [1.5, 6, 9.6, 12, 18, 24], width: 1920, height: 1080 },
 ] as const;
 
 for (const c of CASES) {

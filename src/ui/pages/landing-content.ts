@@ -141,7 +141,7 @@ export const LANDING_CONTENT: LandingContent = {
     status: "Open source · MIT",
     kicker: "The open-source CapCut alternative",
     headline: "Tell your video editor what to do",
-    sub: "RunItBack is a free video editor with an AI agent built in. Describe the edit in plain words, review the plan, and export, or start from one of eight original templates. It runs in your browser, and the code is yours to read and change.",
+    sub: "RunItBack is a free video editor with an AI agent built in. Describe the edit in plain words, review the plan, and export, or start from one of thirteen original templates. It runs in your browser, and the code is yours to read and change.",
     primaryCta: "Start editing",
     githubCta: "Star on GitHub",
     templatesCta: "Start from a template",
@@ -179,7 +179,7 @@ export const LANDING_CONTENT: LandingContent = {
   templates: {
     eyebrow: "Templates",
     title: "Start from a template.",
-    intro: "Eight original templates for launch videos, lists, quotes and captions. Pick one, drop in your clips and words, and edit the result like any other project.",
+    intro: "Thirteen original templates for launch videos, lists, quotes, captions, screen tours and numbers. Pick one, drop in your clips and words, and edit the result like any other project.",
     featured: ["product-launch", "kinetic-announcement", "listicle", "testimonial-quote"],
     cta: "Browse all templates",
     note: "Applying a template is one undo step. Your media stays in your browser.",
@@ -227,7 +227,7 @@ export const LANDING_CONTENT: LandingContent = {
       {
         id: "templates",
         title: "Start from a template",
-        body: "Eight original templates lay out a whole video from your clips, with text, animation and transitions already set. One undo removes it.",
+        body: "Thirteen original templates lay out a whole video from your clips, with text, animation and transitions already set. One undo removes it.",
         visual: "templates",
         span: 5,
       },
@@ -288,7 +288,7 @@ export const LANDING_CONTENT: LandingContent = {
       { feature: "Edit by describing it", runitback: "Yes. An agent proposes a plan, you approve it, and one undo reverts it.", capcut: "AI tools that generate and edit. Check CapCut for how they work." },
       { feature: "Price", runitback: "Free. The agent uses your own Anthropic API key.", capcut: "A free plan, plus paid Pro, Ultra and Teams plans." },
       { feature: "Mobile app", runitback: "Desktop browsers. Chrome is the tested one, and the phone layout is limited.", capcut: "Yes, on mobile, tablet and desktop." },
-      { feature: "Templates, stickers and effects", runitback: "Filters, transitions, chroma key, speed ramps, background removal and 8 original templates are built in. It has no sticker packs or large music and effects library.", capcut: "A large library of templates, stickers, effects and AI tools." },
+      { feature: "Templates, stickers and effects", runitback: "Filters, transitions, chroma key, speed ramps, background removal and 13 original templates are built in. It has no sticker packs or large music and effects library.", capcut: "A large library of templates, stickers, effects and AI tools." },
     ],
     checked: "CapCut details checked on capcut.com on 12 October 2026. Plans and features change, so check CapCut for the latest.",
   },
@@ -317,7 +317,7 @@ export const LANDING_CONTENT: LandingContent = {
       },
       {
         question: "What can it do today?",
-        answer: "A multi-track timeline, keyframes, masks, text with stroke, shadow and animations, filters and colour adjustments, 7 transitions, crop, freeze frame, speed with pitch kept, captions from files or speech, 8 original templates, and export to MP4 or WebM. The agent can remove dead air, cut to the beat, find a spoken phrase or what is on screen, reframe to a face, and apply templates. Also built in: chroma key, speed ramps with a curve editor, background removal, point tracking and stabilization, snap cuts to the beat, noise removal, text to speech, and caption translation.",
+        answer: "A multi-track timeline, keyframes, masks, text with stroke, shadow and animations, filters and colour adjustments, 10 transitions, crop, freeze frame, speed with pitch kept, captions from files or speech, 13 original templates, and export to MP4 or WebM. The agent can remove dead air, cut to the beat, find a spoken phrase or what is on screen, reframe to a face, and apply templates. Also built in: chroma key, speed ramps with a curve editor, background removal, point tracking and stabilization, snap cuts to the beat, noise removal, text to speech, and caption translation.",
       },
       {
         question: "Is my video uploaded?",
@@ -354,7 +354,7 @@ export const LANDING_CONTENT: LandingContent = {
       },
       {
         question: "Why not just use CapCut?",
-        answer: "You may well like CapCut. It has mobile apps, accounts and cloud features, and far larger libraries of templates, stickers, music and effects. RunItBack is open source (MIT), runs in the browser, keeps your files on your device, and has an agent that plans before it edits. Its core effects, filters, transitions and 8 templates are built in, but its libraries are small.",
+        answer: "You may well like CapCut. It has mobile apps, accounts and cloud features, and far larger libraries of templates, stickers, music and effects. RunItBack is open source (MIT), runs in the browser, keeps your files on your device, and has an agent that plans before it edits. Its core effects, filters, transitions and 13 templates are built in, but its libraries are small.",
       },
       {
         question: "How do I contribute?",

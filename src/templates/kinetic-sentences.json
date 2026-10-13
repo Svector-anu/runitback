@@ -1,0 +1,537 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "kinetic-sentences",
+  "name": "Kinetic sentences",
+  "category": "explainer",
+  "tags": [
+    "text-only",
+    "kinetic",
+    "numbers"
+  ],
+  "description": "Sentences that arrive word by word on a soft mint wash: a blur-in opener, a counting hero number, four icon-led lines with one accent word, and a call to action. Footage is optional.",
+  "canvas": {
+    "aspect": "16:9",
+    "fps": 30,
+    "backgroundColor": "#fbfcfc",
+    "gradient": {
+      "style": "linear",
+      "colors": [
+        "#fbfcfc",
+        "#e9fbf0",
+        "#c8f5da"
+      ],
+      "angle": 180
+    }
+  },
+  "durationSeconds": 19,
+  "slots": [
+    {
+      "id": "logo",
+      "kind": "image",
+      "label": "Logo",
+      "optional": true,
+      "hint": "A square logo shown above the opening line."
+    },
+    {
+      "id": "icon-1",
+      "kind": "image",
+      "label": "Icon 1",
+      "optional": true,
+      "hint": "A square image; it sits to the left of the sentence."
+    },
+    {
+      "id": "icon-2",
+      "kind": "image",
+      "label": "Icon 2",
+      "optional": true,
+      "hint": "A square image; it sits to the left of the sentence."
+    },
+    {
+      "id": "icon-3",
+      "kind": "image",
+      "label": "Icon 3",
+      "optional": true,
+      "hint": "A square image; it sits to the left of the sentence."
+    },
+    {
+      "id": "icon-4",
+      "kind": "image",
+      "label": "Icon 4",
+      "optional": true,
+      "hint": "A square image; it sits to the left of the sentence."
+    }
+  ],
+  "texts": [
+    {
+      "id": "hook",
+      "label": "Opening line",
+      "default": "Teams ship faster when the work explains itself",
+      "style": "headline",
+      "maxChars": 80,
+      "maxWidth": 1500,
+      "overrides": {
+        "sizePx": 104,
+        "color": "#14181f",
+        "shadow.enabled": false
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.8
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "INTRODUCING",
+      "style": "kicker",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 40,
+        "color": "#0ba66a"
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "hero",
+      "label": "Big number",
+      "default": "12,400+",
+      "style": "numeral",
+      "maxChars": 12,
+      "overrides": {
+        "sizePx": 340,
+        "color": "#14181f",
+        "shadow.enabled": false
+      },
+      "animation": {
+        "in": {
+          "preset": "count-up",
+          "seconds": 1.8
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "hero-label",
+      "label": "Big number label",
+      "default": "teams ship with it every week",
+      "style": "subhead",
+      "maxChars": 60,
+      "overrides": {
+        "sizePx": 64,
+        "color": "#4b5563",
+        "shadow.enabled": false
+      },
+      "animation": {
+        "in": {
+          "preset": "stagger-words",
+          "seconds": 1.0
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "s1",
+      "label": "Sentence 1",
+      "default": "Plan the whole launch in one place",
+      "style": "headline",
+      "maxChars": 70,
+      "maxWidth": 1250,
+      "overrides": {
+        "sizePx": 78,
+        "textAlign": "left",
+        "color": "#14181f",
+        "shadow.enabled": false,
+        "highlightWord": 2,
+        "highlightColor": "#0ba66a"
+      },
+      "animation": {
+        "in": {
+          "preset": "stagger-words",
+          "seconds": 0.7
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.25
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "label": "Sentence 2",
+      "default": "Turn one recording into a hero video",
+      "style": "headline",
+      "maxChars": 70,
+      "maxWidth": 1250,
+      "overrides": {
+        "sizePx": 78,
+        "textAlign": "left",
+        "color": "#14181f",
+        "shadow.enabled": false,
+        "highlightWord": 2,
+        "highlightColor": "#0ba66a"
+      },
+      "animation": {
+        "in": {
+          "preset": "stagger-words",
+          "seconds": 0.7
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.25
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "label": "Sentence 3",
+      "default": "Review every change together",
+      "style": "headline",
+      "maxChars": 70,
+      "maxWidth": 1250,
+      "overrides": {
+        "sizePx": 78,
+        "textAlign": "left",
+        "color": "#14181f",
+        "shadow.enabled": false,
+        "highlightWord": 2,
+        "highlightColor": "#0ba66a"
+      },
+      "animation": {
+        "in": {
+          "preset": "stagger-words",
+          "seconds": 0.7
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.25
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "label": "Sentence 4",
+      "default": "Ship it before lunch",
+      "style": "headline",
+      "maxChars": 70,
+      "maxWidth": 1250,
+      "overrides": {
+        "sizePx": 78,
+        "textAlign": "left",
+        "color": "#14181f",
+        "shadow.enabled": false,
+        "highlightWord": 2,
+        "highlightColor": "#0ba66a"
+      },
+      "animation": {
+        "in": {
+          "preset": "stagger-words",
+          "seconds": 0.7
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.25
+        }
+      }
+    },
+    {
+      "id": "cta",
+      "label": "Call to action",
+      "default": "Start free today",
+      "style": "headline",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 118,
+        "color": "#14181f",
+        "shadow.enabled": false
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.6
+        }
+      }
+    },
+    {
+      "id": "url",
+      "label": "Web address",
+      "default": "yourproduct.com",
+      "style": "label",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 56,
+        "color": "#ffffff",
+        "background.color": "#14181f"
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.4
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "logo",
+      "at": 0,
+      "duration": 3.4,
+      "media": {
+        "slot": "logo",
+        "track": "overlay",
+        "fit": "contain",
+        "box": {
+          "x": 0,
+          "y": -330,
+          "width": 170,
+          "height": 170
+        },
+        "corners": 22,
+        "shadow": {
+          "blur": 40,
+          "opacity": 22,
+          "offsetY": 14
+        }
+      }
+    },
+    {
+      "id": "intro",
+      "at": 0,
+      "duration": 3.4,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "kicker",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -165
+          },
+          "duration": 3.2
+        },
+        {
+          "kind": "text",
+          "text": "hook",
+          "at": 0.3,
+          "position": {
+            "x": 0,
+            "y": 30
+          },
+          "duration": 3.0
+        }
+      ]
+    },
+    {
+      "id": "hero",
+      "at": 3.4,
+      "duration": 3.6,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "hero",
+          "at": 0,
+          "position": {
+            "x": 0,
+            "y": -70
+          }
+        },
+        {
+          "kind": "text",
+          "text": "hero-label",
+          "at": 1.0,
+          "position": {
+            "x": 0,
+            "y": 215
+          },
+          "duration": 2.6
+        }
+      ]
+    },
+    {
+      "id": "sentence-1",
+      "at": 7.0,
+      "duration": 2.2,
+      "media": {
+        "slot": "icon-1",
+        "track": "overlay",
+        "fit": "cover",
+        "box": {
+          "x": -480,
+          "y": 0,
+          "width": 170,
+          "height": 170
+        },
+        "corners": 26,
+        "shadow": {
+          "blur": 50,
+          "opacity": 25,
+          "offsetY": 18
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "s1",
+          "at": 0.15,
+          "position": {
+            "x": -360,
+            "y": 0
+          },
+          "duration": 1.95
+        }
+      ]
+    },
+    {
+      "id": "sentence-2",
+      "at": 9.2,
+      "duration": 2.2,
+      "media": {
+        "slot": "icon-2",
+        "track": "overlay",
+        "fit": "cover",
+        "box": {
+          "x": -480,
+          "y": 0,
+          "width": 170,
+          "height": 170
+        },
+        "corners": 26,
+        "shadow": {
+          "blur": 50,
+          "opacity": 25,
+          "offsetY": 18
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "s2",
+          "at": 0.15,
+          "position": {
+            "x": -360,
+            "y": 0
+          },
+          "duration": 1.95
+        }
+      ]
+    },
+    {
+      "id": "sentence-3",
+      "at": 11.4,
+      "duration": 2.2,
+      "media": {
+        "slot": "icon-3",
+        "track": "overlay",
+        "fit": "cover",
+        "box": {
+          "x": -480,
+          "y": 0,
+          "width": 170,
+          "height": 170
+        },
+        "corners": 26,
+        "shadow": {
+          "blur": 50,
+          "opacity": 25,
+          "offsetY": 18
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "s3",
+          "at": 0.15,
+          "position": {
+            "x": -360,
+            "y": 0
+          },
+          "duration": 1.95
+        }
+      ]
+    },
+    {
+      "id": "sentence-4",
+      "at": 13.600000000000001,
+      "duration": 2.2,
+      "media": {
+        "slot": "icon-4",
+        "track": "overlay",
+        "fit": "cover",
+        "box": {
+          "x": -480,
+          "y": 0,
+          "width": 170,
+          "height": 170
+        },
+        "corners": 26,
+        "shadow": {
+          "blur": 50,
+          "opacity": 25,
+          "offsetY": 18
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "s4",
+          "at": 0.15,
+          "position": {
+            "x": -360,
+            "y": 0
+          },
+          "duration": 1.95
+        }
+      ]
+    },
+    {
+      "id": "cta",
+      "at": 15.8,
+      "duration": 3.2,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "cta",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -70
+          }
+        },
+        {
+          "kind": "text",
+          "text": "url",
+          "at": 0.6,
+          "position": {
+            "x": 0,
+            "y": 140
+          }
+        }
+      ]
+    }
+  ],
+  "preview": {
+    "poster": "kinetic-sentences.webp",
+    "video": "kinetic-sentences.mp4"
+  }
+}

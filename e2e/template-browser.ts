@@ -302,6 +302,24 @@ const logoImage = (): Promise<Blob> => pngOf(512, 512, (ctx, w, h) => {
   ctx.fill();
 });
 
+/** A flat glyph on a rounded tile: stands in for the small icons of icon-led templates. */
+const iconImage = (variant: number): Promise<Blob> => pngOf(384, 384, (ctx, w, h) => {
+  const palette = [["#34d399", "#047857"], ["#60a5fa", "#1d4ed8"], ["#f472b6", "#be185d"], ["#fbbf24", "#b45309"]][variant % 4] as [string, string];
+  const g = ctx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, palette[0]);
+  g.addColorStop(1, palette[1]);
+  ctx.fillStyle = g;
+  roundRect(ctx, 0, 0, w, h, 90);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  if (variant % 4 === 0) { ctx.arc(w / 2, h / 2, 88, 0, TAU); ctx.fill(); ctx.fillStyle = palette[1]; ctx.beginPath(); ctx.arc(w / 2, h / 2, 40, 0, TAU); }
+  else if (variant % 4 === 1) { roundRect(ctx, w / 2 - 92, h / 2 - 92, 184, 184, 34); }
+  else if (variant % 4 === 2) { for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5; const r = i % 2 === 0 ? 104 : 44; if (i === 0) ctx.moveTo(w / 2 + r * Math.cos(a), h / 2 + r * Math.sin(a)); else ctx.lineTo(w / 2 + r * Math.cos(a), h / 2 + r * Math.sin(a)); } ctx.closePath(); }
+  else { ctx.moveTo(w / 2 + 14, h / 2 - 108); ctx.lineTo(w / 2 - 70, h / 2 + 18); ctx.lineTo(w / 2 - 4, h / 2 + 18); ctx.lineTo(w / 2 - 14, h / 2 + 108); ctx.lineTo(w / 2 + 70, h / 2 - 22); ctx.lineTo(w / 2 + 4, h / 2 - 22); ctx.closePath(); }
+  ctx.fill();
+});
+
 // ---- Template fill ------------------------------------------------------------------------------------------------
 
 const BROLL_HUES = [210, 30, 330, 150, 270];
@@ -310,6 +328,23 @@ const ITEM_TITLES = ["Light it from the side", "Cut on the action", "Keep the au
 /** Words that make the previews read like real videos. A template listed here overrides the placeholder text of the ids named. */
 const PREVIEW_TEXTS: Record<string, Record<string, string>> = {
   "product-launch": { headline: "Meet the faster way to work", "callout-1": "Plan everything in one place", "callout-2": "Share with a single click", "callout-3": "Ship before lunch" },
+};
+
+/** Words for the items of a repeat group, by template and group; a template listed here overrides the placeholder text of the ids named, item by item. */
+const PREVIEW_ITEM_TEXTS: Record<string, Record<string, ReadonlyArray<Record<string, string>>>> = {
+  "prompt-to-result": {
+    cycles: [
+      { prompt: "Make a 20 second launch video for my app", answer: "Your launch video, ready to share" },
+      { prompt: "Turn this screen recording into a tutorial", answer: "A tutorial, captions included" },
+    ],
+  },
+  "growth-numbers": {
+    metrics: [
+      { value: "12,400+", label: "teams onboarded" },
+      { value: "98%", label: "say they would recommend us" },
+      { value: "4.9", label: "average rating across stores" },
+    ],
+  },
 };
 
 /** Seconds and look of each preview. */
@@ -322,6 +357,11 @@ export const PREVIEW_PLAN: Record<string, { seconds: number; posterAt: number }>
   "testimonial-quote": { seconds: 8, posterAt: 7 },
   "talking-head-captions": { seconds: 6, posterAt: 1.5 },
   "metric-changelog": { seconds: 8, posterAt: 6 },
+  "kinetic-sentences": { seconds: 9, posterAt: 7.9 },
+  "prompt-to-result": { seconds: 9, posterAt: 7.2 },
+  "app-walkthrough": { seconds: 9, posterAt: 6.4 },
+  "tilted-ui-tour": { seconds: 8, posterAt: 7 },
+  "growth-numbers": { seconds: 8, posterAt: 4.4 },
 };
 
 interface MadeAsset { info: MediaAssetInfo; blob: Blob }
@@ -335,8 +375,9 @@ async function makeAsset(input: { id: string; slot: TemplateSlot; variant: numbe
   }
   if (slot.kind === "image") {
     const portrait = /portrait/i.test(slot.label);
-    const blob = await (portrait ? portraitImage() : logoImage());
-    return { blob, info: { ...base, name: `${id}.png`, type: "image", size: blob.size, width: portrait ? 960 : 512, height: portrait ? 1200 : 512 } };
+    const icon = /icon/i.test(slot.label);
+    const blob = await (portrait ? portraitImage() : icon ? iconImage(variant) : logoImage());
+    return { blob, info: { ...base, name: `${id}.png`, type: "image", size: blob.size, width: portrait ? 960 : icon ? 384 : 512, height: portrait ? 1200 : icon ? 384 : 512 } };
   }
   const vertical = slot.aspect === "9:16";
   const width = vertical ? 540 : 1280, height = vertical ? 960 : 720;
@@ -391,7 +432,8 @@ export async function buildTemplateProject(templateId: string, options: BuildOpt
     for (const group of template.repeat) {
       const items: RepeatItemInput[] = [];
       for (let i = 0; i < (options.items ?? 4); i++) {
-        items.push({ slots: await fill(group.slots, `${group.id}-${i}-`), texts: group.texts.some((t) => t.id === "title") ? { title: ITEM_TITLES[i % ITEM_TITLES.length] ?? "" } : {} });
+        const given = PREVIEW_ITEM_TEXTS[templateId]?.[group.id]?.[i];
+        items.push({ slots: await fill(group.slots, `${group.id}-${i}-`), texts: given ?? (group.texts.some((t) => t.id === "title") ? { title: ITEM_TITLES[i % ITEM_TITLES.length] ?? "" } : {}) });
       }
       repeat[group.id] = items;
     }

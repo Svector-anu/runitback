@@ -16,8 +16,8 @@ const need = <T>(value: T | undefined): T => {
 const describeById = (id: string) => describeTemplate(need(getTemplate(id)));
 
 describe("gallery filters", () => {
-  it("lists all eight templates with previews", () => {
-    expect(cards).toHaveLength(8);
+  it("lists all thirteen templates with previews", () => {
+    expect(cards).toHaveLength(13);
     for (const card of cards) {
       expect(card.poster).toBe(`/templates/${card.id}.webp`);
       expect(card.video).toBe(`/templates/${card.id}.mp4`);
@@ -25,7 +25,7 @@ describe("gallery filters", () => {
   });
 
   it("filters by category, by search terms across name, tags and aspect, and by both", () => {
-    expect(filterCards(cards, { category: "all", query: "" })).toHaveLength(8);
+    expect(filterCards(cards, { category: "all", query: "" })).toHaveLength(13);
     expect(filterCards(cards, { category: "list", query: "" }).map((c) => c.id)).toEqual(["listicle"]);
     expect(filterCards(cards, { category: "all", query: "9:16" }).length).toBeGreaterThanOrEqual(3);
     expect(filterCards(cards, { category: "all", query: "  saas  launch " }).map((c) => c.id)).toEqual(["product-launch"]);
