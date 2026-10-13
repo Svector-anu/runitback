@@ -39,7 +39,7 @@ export function Faq(): ReactNode {
           {faq.items.map((item, index) => {
             const open = openIndex === index;
             return (
-              <div key={item.question} className={`lp-faq__item zn-reveal${open ? " is-open" : ""}`} style={stagger(index % 4)}>
+              <div key={item.question} className={`lp-faq__item${open ? " is-open" : ""}`}>
                 <h3 className="lp-faq__q">
                   <button
                     type="button"

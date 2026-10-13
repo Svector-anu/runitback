@@ -127,10 +127,22 @@ test("reduced motion shows every section immediately without reveal transitions"
 test("scroll reveals fade sections in when they enter the viewport", async ({ page }) => {
   await openLanding(page);
   await expect(page.locator(".zn")).toHaveAttribute("data-reveal", "armed");
-  const faq = page.locator("#faq .lp-faq__item").nth(3);
+  const faq = page.locator("#faq .lp-faq__aside");
   await expect(faq).not.toHaveClass(/is-in/);
   await faq.scrollIntoViewIfNeeded();
   await expect(faq).toHaveClass(/is-in/);
+});
+
+test("every FAQ item stays visible and opens after a jump scroll to the section", async ({ page }) => {
+  await openLanding(page);
+  await page.locator("#faq").scrollIntoViewIfNeeded();
+  const questions = page.locator("#faq h3 button");
+  for (const index of [6, 0, 9]) {
+    await questions.nth(index).click();
+    await expect(questions.nth(index)).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator(`#faq-a-${index}`)).toBeVisible();
+    await expect(page.locator("#faq .lp-faq__item").nth(index)).toHaveCSS("opacity", "1");
+  }
 });
 
 test("mobile 390: no horizontal scroll, the menu opens and navigates, the page fits", async ({ page }) => {
