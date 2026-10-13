@@ -21,7 +21,7 @@ export function Templates(): ReactNode {
             <li key={card.id} className="lp-tpl__item zn-reveal" style={stagger(index)} data-template-id={card.id}>
               <a className="lp-tpl__card zn-surface" href="/templates" aria-label={`${card.name}, ${card.aspect}, ${durationBadge(card.durationSeconds)}. Browse templates`}>
                 <span className="lp-tpl__media">
-                  {card.poster ? <img src={card.poster} alt="" loading="lazy" decoding="async" /> : null}
+                  {card.poster ? <img src={card.poster} alt={`${card.name} template preview`} loading="lazy" decoding="async" /> : null}
                   <span className="lp-tpl__badge zn-mono">{durationBadge(card.durationSeconds)}</span>
                 </span>
                 <span className="lp-tpl__name">{card.name}</span>

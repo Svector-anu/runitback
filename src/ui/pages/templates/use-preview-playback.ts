@@ -65,7 +65,6 @@ export function usePreviewPlayback(order: ReadonlyArray<string>, enabled: boolea
         observer.current?.unobserve(known);
         ids.current.delete(known);
       }
-      callbacks.current.delete(id);
       setVisible((previous) => {
         if (!previous.has(id)) return previous;
         const next = new Set(previous);

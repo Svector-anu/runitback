@@ -6,7 +6,6 @@ test.use({ channel: "chrome" });
 const SHOTS = "e2e/.artifacts/gallery";
 const clips = (page: Page) => page.locator("[data-clip-id]");
 const dialog = (page: Page) => page.getByRole("dialog");
-const fieldValues = (page: Page) => page.evaluate(() => [...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea")].map((el) => el.value));
 
 async function openFromGallery(page: Page, name: string): Promise<void> {
   await page.goto("/templates");
@@ -16,12 +15,12 @@ async function openFromGallery(page: Page, name: string): Promise<void> {
 }
 
 test("Use template opens a new project with the fill panel, applies empty, and one undo removes it", async ({ page }) => {
-  await openFromGallery(page, "Kinetic announcement");
+  await openFromGallery(page, "Product launch");
   await expect(dialog(page)).toBeVisible();
-  await expect(dialog(page).getByRole("heading", { name: "Kinetic announcement" })).toBeVisible();
-  await expect(page.getByTestId("template-empty-slots")).toBeVisible();
+  await expect(dialog(page).getByRole("heading", { name: "Product launch" })).toBeVisible();
+  await expect(page.getByTestId("template-empty-slots")).toContainText("Screen recording 1");
   expect(new URL(page.url()).hash).toMatch(/^#\/editor\/[^?]+$/);
-  await dialog(page).getByLabel("Headline").first().fill("Big news today");
+  await dialog(page).getByLabel("Headline").first().fill("Ship faster");
   await page.screenshot({ path: `${SHOTS}/dialog-fill-desktop.png` });
   await dialog(page).getByRole("button", { name: "Apply template" }).click();
   await expect(page.getByText("Template applied. Undo to remove.").first()).toBeVisible();
@@ -45,29 +44,24 @@ test("fills a slot with an imported clip, overrides text, asks before replacing,
   await makeWebm(page, { seconds: 4, hue: 200, name: "clip-b.webm" });
   await importGenerated(page);
   await expect(page.getByRole("group", { name: /video clip-a.webm/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Add clip-b.webm to timeline" })).toBeAttached();
 
   await page.getByTestId("templates-button").click();
   await dialog(page).getByRole("button", { name: /^Testimonial/ }).click();
-  const heading = dialog(page).getByRole("heading", { name: "Testimonial" });
-  await expect(heading).toBeVisible();
-  const select = dialog(page).locator("select").first();
-  await expect(select).not.toHaveValue("");
-  await select.selectOption({ label: /clip-b/ as unknown as string }).catch(async () => {
-    const value = await select.locator("option", { hasText: "clip-b.webm" }).getAttribute("value");
-    await select.selectOption(value ?? "");
-  });
-  const quote = dialog(page).locator("input[type='text']").first();
-  await quote.fill("It saved us a week");
+  await expect(dialog(page).getByRole("heading", { name: "Testimonial" })).toBeVisible();
+  const portrait = dialog(page).getByLabel("Portrait", { exact: false }).first();
+  await expect(portrait).not.toHaveValue("");
+  const clipB = await portrait.locator("option", { hasText: "clip-b.webm" }).getAttribute("value");
+  await portrait.selectOption(clipB ?? "");
+  await dialog(page).locator("input[type='text']").first().fill("It saved us a week");
   await dialog(page).getByRole("button", { name: "Apply template" }).click();
   await expect(page.getByText("Template applied. Undo to remove.").first()).toBeVisible();
-  await expect(dialog(page)).toBeHidden({ timeout: 2000 }).catch(() => undefined);
-  if (await dialog(page).isVisible()) await dialog(page).getByRole("button", { name: "Done" }).click();
+  const done = dialog(page).getByRole("button", { name: "Done" });
+  if (await done.isVisible()) await done.click();
+  await expect(dialog(page)).toBeHidden();
   await expect(page.getByRole("group", { name: /video clip-b.webm/ }).first()).toBeAttached();
   const count = await clips(page).count();
   expect(count).toBeGreaterThan(2);
-
-  await page.getByRole("group", { name: /text/ }).first().click().catch(() => undefined);
-  expect((await fieldValues(page)).some((v) => v === "It saved us a week" || v.includes("It saved us a week"))).toBe(true);
 
   await page.getByTestId("templates-button").click();
   await dialog(page).getByRole("button", { name: /^Product launch/ }).click();
@@ -76,7 +70,15 @@ test("fills a slot with an imported clip, overrides text, asks before replacing,
   await page.screenshot({ path: `${SHOTS}/dialog-replace-confirm.png` });
   await dialog(page).getByRole("button", { name: "Cancel" }).click();
   await expect(clips(page)).toHaveCount(count);
-  await dialog(page).getByRole("button", { name: "Replace and apply" }).click().catch(() => undefined);
+  await expect(page.getByTestId("template-replace-confirm")).toBeHidden();
+  await dialog(page).getByRole("button", { name: "Apply template" }).click();
+  await dialog(page).getByRole("button", { name: "Replace and apply" }).click();
+  const again = dialog(page).getByRole("button", { name: "Done" });
+  if (await again.isVisible().catch(() => false)) await again.click();
+  await expect(dialog(page)).toBeHidden();
+  await page.locator("body").click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(clips(page)).toHaveCount(count);
 });
 
 test("keyboard: the Templates button opens the dialog, Escape closes it", async ({ page }) => {

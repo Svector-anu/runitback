@@ -22,7 +22,7 @@ export function TemplateCard({ card, playing, busy, disabled, observe, onUse }: 
             <video
               className="tg-media__video" src={card.video} poster={card.poster ?? undefined} aria-hidden="true" tabIndex={-1}
               muted loop playsInline autoPlay preload="auto" data-testid="template-preview"
-              ref={(video) => { if (video) video.muted = true; }}
+              ref={(video) => { if (video) { video.muted = true; void video.play().catch(() => undefined); } }}
             />
           ) : null}
           <span className="tg-badge tg-badge--aspect zn-mono">{card.aspect}</span>

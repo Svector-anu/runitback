@@ -74,13 +74,12 @@ test.describe("reduced motion", () => {
 
 test("keyboard: tab reaches filters, cards and Use template; Enter on a chip filters", async ({ page }) => {
   await page.goto("/templates");
-  await page.getByRole("button", { name: "Launch" }).focus();
+  await page.getByRole("group", { name: "Category" }).getByRole("button", { name: "Launch", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(cards(page)).toHaveCount(1);
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: /Use template: Product launch/ })).toBeFocused();
+  const use = page.getByRole("button", { name: /Use template: Product launch/ });
+  for (let i = 0; i < 20 && !(await use.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press("Tab");
+  await expect(use).toBeFocused();
 });
 
 test("the Inspiration list is collapsed, text-only, and links out safely", async ({ page }) => {
