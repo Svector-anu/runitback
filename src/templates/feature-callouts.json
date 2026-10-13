@@ -1,0 +1,410 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "feature-callouts",
+  "name": "Feature callouts",
+  "category": "explainer",
+  "tags": [
+    "zoom",
+    "tour",
+    "screen-recording"
+  ],
+  "description": "Tour one screen recording in 30 seconds: an overview, three zoom-ins on the parts that matter with a ring and a label each, and an outro.",
+  "canvas": {
+    "aspect": "16:9",
+    "fps": 30,
+    "backgroundColor": "#0b0e1a"
+  },
+  "durationSeconds": 30,
+  "slots": [
+    {
+      "id": "recording",
+      "kind": "video",
+      "label": "Screen recording",
+      "expectedSeconds": 30,
+      "aspect": "16:9",
+      "hint": "One continuous recording; each callout plays on from where the last stopped."
+    },
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "title",
+      "label": "Title",
+      "default": "Everything in one view",
+      "style": "headline",
+      "maxChars": 50,
+      "maxWidth": 1700,
+      "overrides": {
+        "sizePx": 118
+      },
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.6
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.4
+        }
+      }
+    },
+    {
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "A 30 second tour",
+      "style": "subhead",
+      "maxChars": 60,
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.4
+        }
+      }
+    },
+    {
+      "id": "label-1",
+      "label": "Callout 1",
+      "default": "Smart filters",
+      "style": "callout",
+      "maxChars": 36,
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.35
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "label-2",
+      "label": "Callout 2",
+      "default": "Live collaboration",
+      "style": "callout",
+      "maxChars": 36,
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.35
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "label-3",
+      "label": "Callout 3",
+      "default": "One-click export",
+      "style": "callout",
+      "maxChars": 36,
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.35
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "outro-title",
+      "label": "Outro title",
+      "default": "Ready to try it?",
+      "style": "display",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 150
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "outro-url",
+      "label": "Outro link",
+      "default": "yourproduct.com",
+      "style": "label",
+      "maxChars": 40,
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.5
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "overview",
+      "at": 0,
+      "duration": 5,
+      "media": {
+        "slot": "recording"
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080
+          },
+          "params": {
+            "fill": "#0b0e1a",
+            "opacity": 0.55
+          }
+        },
+        {
+          "kind": "text",
+          "text": "title",
+          "at": 0.3,
+          "position": {
+            "x": 0,
+            "y": -30
+          },
+          "duration": 4.4
+        },
+        {
+          "kind": "text",
+          "text": "subtitle",
+          "at": 0.9,
+          "position": {
+            "x": 0,
+            "y": 130
+          },
+          "duration": 3.8
+        }
+      ]
+    },
+    {
+      "id": "zoom-1",
+      "at": 5,
+      "duration": 7,
+      "media": {
+        "slot": "recording",
+        "sourceStart": 5,
+        "zoom": {
+          "scale": 1.8,
+          "x": -420,
+          "y": -220
+        },
+        "transitionIn": {
+          "type": "dissolve",
+          "seconds": 0.7
+        }
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0.9,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 560,
+            "height": 360
+          },
+          "duration": 5.6,
+          "params": {
+            "fill": "#5b6cff33",
+            "stroke": "#5b6cff",
+            "strokeWidth": 10
+          }
+        },
+        {
+          "kind": "text",
+          "text": "label-1",
+          "at": 1.1,
+          "position": {
+            "x": 0,
+            "y": 400
+          },
+          "duration": 5.4
+        }
+      ]
+    },
+    {
+      "id": "zoom-2",
+      "at": 12,
+      "duration": 7,
+      "media": {
+        "slot": "recording",
+        "sourceStart": 12,
+        "zoom": {
+          "scale": 1.8,
+          "x": 430,
+          "y": 200
+        },
+        "transitionIn": {
+          "type": "dissolve",
+          "seconds": 0.7
+        }
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0.9,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 560,
+            "height": 360
+          },
+          "duration": 5.6,
+          "params": {
+            "fill": "#5b6cff33",
+            "stroke": "#5b6cff",
+            "strokeWidth": 10
+          }
+        },
+        {
+          "kind": "text",
+          "text": "label-2",
+          "at": 1.1,
+          "position": {
+            "x": 0,
+            "y": 400
+          },
+          "duration": 5.4
+        }
+      ]
+    },
+    {
+      "id": "zoom-3",
+      "at": 19,
+      "duration": 7,
+      "media": {
+        "slot": "recording",
+        "sourceStart": 19,
+        "zoom": {
+          "scale": 2.0,
+          "x": 0,
+          "y": -260
+        },
+        "transitionIn": {
+          "type": "dissolve",
+          "seconds": 0.7
+        }
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0.9,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 640,
+            "height": 300
+          },
+          "duration": 5.6,
+          "params": {
+            "fill": "#5b6cff33",
+            "stroke": "#5b6cff",
+            "strokeWidth": 10
+          }
+        },
+        {
+          "kind": "text",
+          "text": "label-3",
+          "at": 1.1,
+          "position": {
+            "x": 0,
+            "y": 400
+          },
+          "duration": 5.4
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "at": 26,
+      "duration": 4,
+      "media": {
+        "slot": "recording",
+        "sourceStart": 26,
+        "transitionIn": {
+          "type": "fade-black",
+          "seconds": 0.6
+        }
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080
+          },
+          "params": {
+            "fill": "#0b0e1a",
+            "opacity": 0.7
+          }
+        },
+        {
+          "kind": "text",
+          "text": "outro-title",
+          "at": 0.3,
+          "position": {
+            "x": 0,
+            "y": -40
+          },
+          "duration": 3.4
+        },
+        {
+          "kind": "text",
+          "text": "outro-url",
+          "at": 0.9,
+          "position": {
+            "x": 0,
+            "y": 150
+          },
+          "duration": 2.8
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 30,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "feature-callouts.webp",
+    "video": "feature-callouts.mp4"
+  }
+}

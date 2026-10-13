@@ -1,0 +1,378 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "product-launch",
+  "name": "Product launch",
+  "category": "launch",
+  "tags": [
+    "saas",
+    "screen-recording",
+    "announcement"
+  ],
+  "description": "Announce a feature in 25 seconds: a hook headline over your first recording, three captioned screen recordings and a branded end card.",
+  "canvas": {
+    "aspect": "16:9",
+    "fps": 30,
+    "backgroundColor": "#0b0e1a"
+  },
+  "durationSeconds": 25,
+  "slots": [
+    {
+      "id": "rec-1",
+      "kind": "video",
+      "label": "Screen recording 1 (hook and result)",
+      "expectedSeconds": 8,
+      "aspect": "16:9"
+    },
+    {
+      "id": "rec-2",
+      "kind": "video",
+      "label": "Screen recording 2",
+      "expectedSeconds": 7,
+      "aspect": "16:9"
+    },
+    {
+      "id": "rec-3",
+      "kind": "video",
+      "label": "Screen recording 3",
+      "expectedSeconds": 7,
+      "aspect": "16:9"
+    },
+    {
+      "id": "logo",
+      "kind": "image",
+      "label": "Logo",
+      "optional": true,
+      "hint": "A transparent PNG works best."
+    },
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "INTRODUCING",
+      "style": "kicker",
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "headline",
+      "label": "Headline",
+      "default": "Meet the faster way to work",
+      "style": "headline",
+      "maxChars": 60,
+      "maxWidth": 1500,
+      "overrides": {
+        "sizePx": 124
+      },
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.6
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.4
+        }
+      }
+    },
+    {
+      "id": "callout-1",
+      "label": "Callout 1",
+      "default": "Plan everything in one place",
+      "style": "callout",
+      "maxChars": 40,
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "callout-2",
+      "label": "Callout 2",
+      "default": "Share with a single click",
+      "style": "callout",
+      "maxChars": 40,
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "callout-3",
+      "label": "Callout 3",
+      "default": "Ship before lunch",
+      "style": "callout",
+      "maxChars": 40,
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "end-title",
+      "label": "End card title",
+      "default": "Try it today",
+      "style": "display",
+      "maxChars": 30,
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "end-url",
+      "label": "End card link",
+      "default": "yourproduct.com",
+      "style": "label",
+      "maxChars": 40,
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.5
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "hook",
+      "at": 0,
+      "duration": 4,
+      "media": {
+        "slot": "rec-1",
+        "pushIn": 1.08
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080
+          },
+          "params": {
+            "fill": "#0b0e1a",
+            "opacity": 0.62
+          }
+        },
+        {
+          "kind": "text",
+          "text": "kicker",
+          "at": 0.3,
+          "position": {
+            "x": 0,
+            "y": -230
+          },
+          "duration": 3.4
+        },
+        {
+          "kind": "text",
+          "text": "headline",
+          "at": 0.6,
+          "position": {
+            "x": 0,
+            "y": 20
+          },
+          "duration": 3.2
+        }
+      ]
+    },
+    {
+      "id": "feature-1",
+      "at": 4,
+      "duration": 6.5,
+      "media": {
+        "slot": "rec-2",
+        "transitionIn": {
+          "type": "dissolve",
+          "seconds": 0.6
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "callout-1",
+          "at": 0.8,
+          "position": {
+            "x": 0,
+            "y": 400
+          },
+          "duration": 5.2
+        }
+      ]
+    },
+    {
+      "id": "feature-2",
+      "at": 10.5,
+      "duration": 6.5,
+      "media": {
+        "slot": "rec-3",
+        "transitionIn": {
+          "type": "wipe-left",
+          "seconds": 0.6
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "callout-2",
+          "at": 0.8,
+          "position": {
+            "x": 0,
+            "y": 400
+          },
+          "duration": 5.2
+        }
+      ]
+    },
+    {
+      "id": "result",
+      "at": 17,
+      "duration": 4,
+      "media": {
+        "slot": "rec-1",
+        "sourceStart": 4,
+        "pushIn": 1.06,
+        "transitionIn": {
+          "type": "zoom",
+          "seconds": 0.6
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "callout-3",
+          "at": 0.6,
+          "position": {
+            "x": 0,
+            "y": 400
+          },
+          "duration": 3.0
+        }
+      ]
+    },
+    {
+      "id": "end-card",
+      "at": 21,
+      "duration": 4,
+      "media": {
+        "slot": "logo",
+        "track": "overlay",
+        "fit": "contain",
+        "box": {
+          "x": 0,
+          "y": -250,
+          "width": 260,
+          "height": 260
+        }
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": -720,
+            "y": -380,
+            "width": 760,
+            "height": 760
+          },
+          "params": {
+            "fill": "#5b6cff",
+            "opacity": 0.28
+          }
+        },
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": 760,
+            "y": 400,
+            "width": 980,
+            "height": 980
+          },
+          "params": {
+            "fill": "#ff6b6b",
+            "opacity": 0.18
+          }
+        },
+        {
+          "kind": "text",
+          "text": "end-title",
+          "at": 0.2,
+          "position": {
+            "x": 0,
+            "y": -20
+          },
+          "duration": 3.6
+        },
+        {
+          "kind": "text",
+          "text": "end-url",
+          "at": 0.8,
+          "position": {
+            "x": 0,
+            "y": 170
+          },
+          "duration": 3.0
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 25,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "product-launch.webp",
+    "video": "product-launch.mp4"
+  }
+}

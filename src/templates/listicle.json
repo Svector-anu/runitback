@@ -1,0 +1,334 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "listicle",
+  "name": "Numbered list",
+  "category": "list",
+  "tags": [
+    "tips",
+    "vertical",
+    "repeat"
+  ],
+  "description": "A vertical countdown of three to five items: an intro, one numbered card per clip and an outro. Add as many items as you have clips.",
+  "canvas": {
+    "aspect": "9:16",
+    "fps": 30,
+    "backgroundColor": "#0b0e1a"
+  },
+  "durationSeconds": 24,
+  "slots": [
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "intro-kicker",
+      "label": "Intro kicker",
+      "default": "QUICK LIST",
+      "style": "kicker",
+      "maxChars": 24,
+      "overrides": {
+        "sizePx": 60
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "intro-title",
+      "label": "Intro title",
+      "default": "Tips for better videos",
+      "style": "display",
+      "maxChars": 50,
+      "maxWidth": 900,
+      "overrides": {
+        "sizePx": 150
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "outro-title",
+      "label": "Outro title",
+      "default": "Follow for more",
+      "style": "headline",
+      "maxChars": 40,
+      "maxWidth": 900,
+      "overrides": {
+        "sizePx": 130
+      },
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "outro-handle",
+      "label": "Outro handle",
+      "default": "@yourname",
+      "style": "label",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 64
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.5
+        }
+      }
+    }
+  ],
+  "repeat": [
+    {
+      "id": "items",
+      "label": "Item",
+      "min": 3,
+      "max": 5,
+      "at": 3,
+      "itemSeconds": 6,
+      "slots": [
+        {
+          "id": "clip",
+          "kind": "video",
+          "label": "Clip",
+          "expectedSeconds": 6,
+          "aspect": "9:16"
+        }
+      ],
+      "texts": [
+        {
+          "id": "number",
+          "label": "Number",
+          "default": "{n}",
+          "style": "numeral",
+          "maxChars": 4,
+          "overrides": {
+            "sizePx": 250,
+            "color": "#ffd166"
+          },
+          "animation": {
+            "in": {
+              "preset": "pop",
+              "seconds": 0.35
+            }
+          }
+        },
+        {
+          "id": "title",
+          "label": "Item title",
+          "default": "Tip {n}: your title",
+          "style": "headline",
+          "maxChars": 60,
+          "maxWidth": 600,
+          "overrides": {
+            "sizePx": 80,
+            "textAlign": "left"
+          },
+          "animation": {
+            "in": {
+              "preset": "slide-up",
+              "seconds": 0.4
+            },
+            "out": {
+              "preset": "fade",
+              "seconds": 0.3
+            }
+          }
+        }
+      ],
+      "beats": [
+        {
+          "id": "item",
+          "at": 0,
+          "duration": 6,
+          "media": {
+            "slot": "clip",
+            "transitionIn": {
+              "type": "slide-left",
+              "seconds": 0.5
+            }
+          },
+          "layers": [
+            {
+              "kind": "graphic",
+              "shape": "rectangle",
+              "at": 0.3,
+              "box": {
+                "x": 0,
+                "y": 640,
+                "width": 940,
+                "height": 420
+              },
+              "params": {
+                "fill": "#0b0e1a",
+                "opacity": 0.8,
+                "cornerRadius": 10
+              }
+            },
+            {
+              "kind": "text",
+              "text": "number",
+              "at": 0.5,
+              "position": {
+                "x": -335,
+                "y": 620
+              },
+              "duration": 5.2
+            },
+            {
+              "kind": "text",
+              "text": "title",
+              "at": 0.7,
+              "position": {
+                "x": -200,
+                "y": 640
+              },
+              "duration": 5.0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "beats": [
+    {
+      "id": "intro",
+      "at": 0,
+      "duration": 3,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": 300,
+            "y": -760,
+            "width": 960,
+            "height": 960
+          },
+          "params": {
+            "fill": "#5b6cff",
+            "opacity": 0.35
+          }
+        },
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": -360,
+            "y": 820,
+            "width": 1200,
+            "height": 1200
+          },
+          "params": {
+            "fill": "#ff6b6b",
+            "opacity": 0.2
+          }
+        },
+        {
+          "kind": "text",
+          "text": "intro-kicker",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -300
+          },
+          "duration": 2.8
+        },
+        {
+          "kind": "text",
+          "text": "intro-title",
+          "at": 0.3,
+          "position": {
+            "x": 0,
+            "y": -20
+          },
+          "duration": 2.6
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "at": 0,
+      "duration": 3,
+      "afterRepeat": "items",
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": -320,
+            "y": -700,
+            "width": 1000,
+            "height": 1000
+          },
+          "params": {
+            "fill": "#5b6cff",
+            "opacity": 0.3
+          }
+        },
+        {
+          "kind": "text",
+          "text": "outro-title",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -80
+          },
+          "duration": 2.8
+        },
+        {
+          "kind": "text",
+          "text": "outro-handle",
+          "at": 0.5,
+          "position": {
+            "x": 0,
+            "y": 200
+          },
+          "duration": 2.4
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 24,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "listicle.webp",
+    "video": "listicle.mp4"
+  }
+}

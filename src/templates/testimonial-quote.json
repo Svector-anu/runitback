@@ -1,0 +1,217 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "testimonial-quote",
+  "name": "Testimonial",
+  "category": "social-proof",
+  "tags": [
+    "quote",
+    "customer",
+    "portrait"
+  ],
+  "description": "Put a customer quote on screen for 18 seconds: a portrait beside a typed-out quote, the name and role, and your logo.",
+  "canvas": {
+    "aspect": "16:9",
+    "fps": 30,
+    "backgroundColor": "#0b0e1a"
+  },
+  "durationSeconds": 18,
+  "slots": [
+    {
+      "id": "portrait",
+      "kind": "image",
+      "label": "Portrait or clip",
+      "optional": true,
+      "aspect": "4:3",
+      "hint": "A photo or a short clip of the customer."
+    },
+    {
+      "id": "logo",
+      "kind": "image",
+      "label": "Logo",
+      "optional": true
+    },
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "quote",
+      "label": "Quote",
+      "default": "This cut our editing time in half. We ship a launch video every week now.",
+      "style": "quote",
+      "maxChars": 160,
+      "maxWidth": 1000,
+      "overrides": {
+        "textAlign": "left",
+        "sizePx": 72
+      },
+      "animation": {
+        "in": {
+          "preset": "typewriter",
+          "seconds": 3
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.5
+        }
+      }
+    },
+    {
+      "id": "name",
+      "label": "Name",
+      "default": "JORDAN LEE",
+      "style": "attribution",
+      "maxChars": 40,
+      "overrides": {
+        "textAlign": "left",
+        "sizePx": 52
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.6
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.4
+        }
+      }
+    },
+    {
+      "id": "role",
+      "label": "Role and company",
+      "default": "Head of Product, Northwind",
+      "style": "subhead",
+      "maxChars": 60,
+      "maxWidth": 1000,
+      "overrides": {
+        "textAlign": "left",
+        "sizePx": 48
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.6
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.4
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "portrait",
+      "at": 0,
+      "duration": 18,
+      "media": {
+        "slot": "portrait",
+        "track": "overlay",
+        "fit": "cover",
+        "pushIn": 1.06,
+        "box": {
+          "x": -560,
+          "y": 0,
+          "width": 640,
+          "height": 840
+        }
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": 700,
+            "y": -420,
+            "width": 900,
+            "height": 900
+          },
+          "params": {
+            "fill": "#5b6cff",
+            "opacity": 0.22
+          }
+        },
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0.4,
+          "box": {
+            "x": -118,
+            "y": -60,
+            "width": 10,
+            "height": 380
+          },
+          "params": {
+            "fill": "#ffd166"
+          }
+        },
+        {
+          "kind": "text",
+          "text": "quote",
+          "at": 0.8,
+          "position": {
+            "x": -80,
+            "y": -60
+          },
+          "duration": 15.6
+        },
+        {
+          "kind": "text",
+          "text": "name",
+          "at": 5.5,
+          "position": {
+            "x": -80,
+            "y": 250
+          },
+          "duration": 12.3
+        },
+        {
+          "kind": "text",
+          "text": "role",
+          "at": 6,
+          "position": {
+            "x": -80,
+            "y": 315
+          },
+          "duration": 11.8
+        }
+      ]
+    },
+    {
+      "id": "logo",
+      "at": 12,
+      "duration": 6,
+      "media": {
+        "slot": "logo",
+        "track": "overlay",
+        "fit": "contain",
+        "box": {
+          "x": 760,
+          "y": 440,
+          "width": 240,
+          "height": 110
+        }
+      }
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 18,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "testimonial-quote.webp",
+    "video": "testimonial-quote.mp4"
+  }
+}

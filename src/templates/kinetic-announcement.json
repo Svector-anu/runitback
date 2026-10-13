@@ -1,0 +1,438 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "kinetic-announcement",
+  "name": "Kinetic announcement",
+  "category": "announcement",
+  "tags": [
+    "text-only",
+    "vertical",
+    "teaser"
+  ],
+  "description": "A text-only teaser for stories and reels: four big words on flashing colour panels, a headline reveal and a call to action. No footage needed.",
+  "canvas": {
+    "aspect": "9:16",
+    "fps": 30,
+    "backgroundColor": "#0b0e1a"
+  },
+  "durationSeconds": 15,
+  "slots": [
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "word-1",
+      "label": "Word 1",
+      "default": "WE'RE",
+      "style": "display",
+      "maxChars": 14,
+      "overrides": {
+        "sizePx": 270
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.35
+        }
+      }
+    },
+    {
+      "id": "word-2",
+      "label": "Word 2",
+      "default": "LAUNCHING",
+      "style": "display",
+      "maxChars": 14,
+      "overrides": {
+        "sizePx": 165
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.35
+        }
+      }
+    },
+    {
+      "id": "word-3",
+      "label": "Word 3",
+      "default": "SOMETHING",
+      "style": "display",
+      "maxChars": 14,
+      "overrides": {
+        "sizePx": 165,
+        "color": "#101322",
+        "shadow.enabled": false
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.35
+        }
+      }
+    },
+    {
+      "id": "word-4",
+      "label": "Word 4",
+      "default": "NEW",
+      "style": "display",
+      "maxChars": 14,
+      "overrides": {
+        "sizePx": 400,
+        "color": "#101322",
+        "shadow.enabled": false
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.35
+        }
+      }
+    },
+    {
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "BIG NEWS",
+      "style": "kicker",
+      "maxChars": 24,
+      "overrides": {
+        "sizePx": 60
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "headline",
+      "label": "Headline",
+      "default": "Version 2.0 is here",
+      "style": "headline",
+      "maxChars": 50,
+      "maxWidth": 960,
+      "overrides": {
+        "sizePx": 150
+      },
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.6
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "subhead",
+      "label": "Subhead",
+      "default": "Available today",
+      "style": "subhead",
+      "maxChars": 50,
+      "overrides": {
+        "sizePx": 76
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "cta-kicker",
+      "label": "Call to action kicker",
+      "default": "GET IT NOW",
+      "style": "kicker",
+      "maxChars": 24,
+      "overrides": {
+        "color": "#ffffff",
+        "sizePx": 60
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.4
+        }
+      }
+    },
+    {
+      "id": "cta",
+      "label": "Call to action",
+      "default": "yourproduct.com",
+      "style": "label",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 68
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.4
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "w1",
+      "at": 0,
+      "duration": 1.8,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1080,
+            "height": 1920
+          },
+          "params": {
+            "fill": "#5b6cff"
+          }
+        },
+        {
+          "kind": "text",
+          "text": "word-1",
+          "at": 0,
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "duration": 1.8
+        }
+      ]
+    },
+    {
+      "id": "w2",
+      "at": 1.8,
+      "duration": 1.8,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1080,
+            "height": 1920
+          },
+          "params": {
+            "fill": "#ff6b6b"
+          }
+        },
+        {
+          "kind": "text",
+          "text": "word-2",
+          "at": 0,
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "duration": 1.8
+        }
+      ]
+    },
+    {
+      "id": "w3",
+      "at": 3.6,
+      "duration": 1.8,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1080,
+            "height": 1920
+          },
+          "params": {
+            "fill": "#ffd166"
+          }
+        },
+        {
+          "kind": "text",
+          "text": "word-3",
+          "at": 0,
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "duration": 1.8
+        }
+      ]
+    },
+    {
+      "id": "w4",
+      "at": 5.4,
+      "duration": 1.8,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1080,
+            "height": 1920
+          },
+          "params": {
+            "fill": "#3ddc97"
+          }
+        },
+        {
+          "kind": "text",
+          "text": "word-4",
+          "at": 0,
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "duration": 1.8
+        }
+      ]
+    },
+    {
+      "id": "reveal",
+      "at": 7.2,
+      "duration": 4.8,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": 300,
+            "y": -700,
+            "width": 900,
+            "height": 900
+          },
+          "params": {
+            "fill": "#5b6cff",
+            "opacity": 0.35
+          }
+        },
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": -380,
+            "y": 820,
+            "width": 1100,
+            "height": 1100
+          },
+          "params": {
+            "fill": "#ff6b6b",
+            "opacity": 0.22
+          }
+        },
+        {
+          "kind": "text",
+          "text": "kicker",
+          "at": 0.2,
+          "position": {
+            "x": 0,
+            "y": -390
+          },
+          "duration": 4.4
+        },
+        {
+          "kind": "text",
+          "text": "headline",
+          "at": 0.5,
+          "position": {
+            "x": 0,
+            "y": -50
+          },
+          "duration": 4.1
+        },
+        {
+          "kind": "text",
+          "text": "subhead",
+          "at": 1.4,
+          "position": {
+            "x": 0,
+            "y": 300
+          },
+          "duration": 3.2
+        }
+      ]
+    },
+    {
+      "id": "cta",
+      "at": 12,
+      "duration": 3,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1080,
+            "height": 1920
+          },
+          "params": {
+            "fill": "#5b6cff"
+          }
+        },
+        {
+          "kind": "text",
+          "text": "cta-kicker",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -140
+          },
+          "duration": 2.8
+        },
+        {
+          "kind": "text",
+          "text": "cta",
+          "at": 0.4,
+          "position": {
+            "x": 0,
+            "y": 20
+          },
+          "duration": 2.5
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 15,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "kinetic-announcement.webp",
+    "video": "kinetic-announcement.mp4"
+  }
+}

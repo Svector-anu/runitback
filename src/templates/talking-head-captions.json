@@ -1,0 +1,130 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "talking-head-captions",
+  "name": "Talking head with captions",
+  "category": "creator",
+  "tags": [
+    "vertical",
+    "captions",
+    "reels"
+  ],
+  "description": "A vertical talking-head cut: a hook bar, a name tag and room for burned-in captions in a bold lower-third style. Pass caption cues to style them.",
+  "canvas": {
+    "aspect": "9:16",
+    "fps": 30,
+    "backgroundColor": "#0b0e1a"
+  },
+  "durationSeconds": 20,
+  "slots": [
+    {
+      "id": "talking",
+      "kind": "video",
+      "label": "Talking-head clip",
+      "expectedSeconds": 20,
+      "aspect": "9:16"
+    },
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "hook",
+      "label": "Hook",
+      "default": "Wait for the last tip",
+      "style": "title-bar",
+      "maxChars": 48,
+      "maxWidth": 860,
+      "overrides": {
+        "sizePx": 84
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.35
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "handle",
+      "label": "Name tag",
+      "default": "@yourname",
+      "style": "label",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 60
+      },
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    }
+  ],
+  "captions": {
+    "style": "bold-lower"
+  },
+  "beats": [
+    {
+      "id": "clip",
+      "at": 0,
+      "duration": 20,
+      "media": {
+        "slot": "talking",
+        "filter": {
+          "preset": "vivid",
+          "intensity": 0.35
+        },
+        "pushIn": 1.05
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "hook",
+          "at": 0.3,
+          "position": {
+            "x": 0,
+            "y": -700
+          },
+          "duration": 3.2
+        },
+        {
+          "kind": "text",
+          "text": "handle",
+          "at": 3.5,
+          "position": {
+            "x": 0,
+            "y": 800
+          },
+          "duration": 16.0
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 20,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "talking-head-captions.webp",
+    "video": "talking-head-captions.mp4"
+  }
+}

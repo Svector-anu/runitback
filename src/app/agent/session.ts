@@ -12,6 +12,7 @@ import { createAppTemporalTools } from "./temporal-wiring";
 import { createAppTranscriptTools } from "./transcript-wiring";
 import { createAppUnderstandTools } from "./understand-wiring";
 import { createAppFaceTools } from "./face-wiring";
+import { createAppTemplateTools } from "./templates-wiring";
 import { createAppVisualTools } from "./visual-wiring";
 
 export interface PlanStepView {
@@ -242,6 +243,7 @@ export class AgentSession {
     for (const tool of createAppVisualTools()) tools.set(tool.name, tool);
     for (const tool of createAppFaceTools(provider)) tools.set(tool.name, tool);
     for (const tool of createAppUnderstandTools()) tools.set(tool.name, tool);
+    for (const tool of createAppTemplateTools()) tools.set(tool.name, tool);
 
     const toolItems = new Map<string, number>();
     const onEvent = (event: AgentEvent): void => {

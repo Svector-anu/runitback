@@ -919,9 +919,75 @@ const WARM_TITLE_CASE: EvalCase = {
   ],
 };
 
+// 19. Apply the product launch template ----------------------------------------------------------------------------
+
+const LAUNCH_RECORDINGS = ["rec1.mp4", "rec2.mp4", "rec3.mp4"] as const;
+const LAUNCH_HEADLINE = "Ship faster";
+const LAUNCH_CALLOUTS = ["Plan it", "Share it", "Ship it"] as const;
+const LAUNCH_SECONDS = { min: 22, max: 28 } as const;
+const launchTexts = (input: CheckInput): ClipView[] => clipsOf(input.final).filter((c) => c.type === "text").sort(byStart);
+const textOf = (clip: ClipView): string => normalizeText(String(clip.params["content"] ?? ""));
+
+const launchRecording = (name: string): FixtureSpec => ({ id: name.replace(".mp4", ""), name, kind: "video", durationSeconds: 14, audio: { kind: "tone" } });
+
+const APPLY_LAUNCH_TEMPLATE: EvalCase = {
+  id: "apply-launch-template",
+  title: "Build a launch video from the product launch template",
+  brief: `Make a product launch video with the product launch template from my three screen recordings, rec1.mp4, rec2.mp4 and rec3.mp4, in that order. The headline should read "${LAUNCH_HEADLINE}" and the three callouts, in order, should read "${LAUNCH_CALLOUTS[0]}", "${LAUNCH_CALLOUTS[1]}" and "${LAUNCH_CALLOUTS[2]}".`,
+  fixtures: LAUNCH_RECORDINGS.map(launchRecording),
+  budget: BUDGET,
+  checks: [
+    {
+      id: "launch-format",
+      description: "The project is 1920x1080 at 30 fps, the template's own format.",
+      run(input) {
+        const { canvasSize, fps } = input.final.settings;
+        const rate = fps.numerator / fps.denominator;
+        return verdict(canvasSize.width === 1920 && canvasSize.height === 1080 && Math.abs(rate - 30) < 0.01, `canvas ${canvasSize.width}x${canvasSize.height} at ${rate.toFixed(2)} fps`);
+      },
+    },
+    {
+      id: "recordings-in-order",
+      description: "rec1.mp4 opens the video at 0 s, then rec2.mp4, then rec3.mp4 each start a segment, in that order.",
+      run(input) {
+        const firstStart = (name: string): number | undefined => clipsOfFixture(input, fixtureByName(input, name)).filter((c) => c.type === "video" || c.type === "image").sort(byStart)[0]?.start;
+        const [a, b, c] = LAUNCH_RECORDINGS.map(firstStart);
+        if (a === undefined || b === undefined || c === undefined) return fail(`recordings on the timeline: ${LAUNCH_RECORDINGS.map((n, i) => `${n}=${[a, b, c][i] === undefined ? "missing" : "yes"}`).join(", ")}`);
+        return verdict(a <= FRAME_SLACK && a < b && b < c, `rec1 from ${a.toFixed(2)}s, rec2 from ${b.toFixed(2)}s, rec3 from ${c.toFixed(2)}s`);
+      },
+    },
+    {
+      id: "headline-text",
+      description: `A text clip reads "${LAUNCH_HEADLINE}" within the first 5 seconds.`,
+      run(input) {
+        const hit = launchTexts(input).find((c) => textOf(c) === normalizeText(LAUNCH_HEADLINE));
+        return hit ? verdict(hit.start < 5, `headline starts at ${hit.start.toFixed(2)}s`) : fail("no text clip reads the headline");
+      },
+    },
+    {
+      id: "callouts-in-order",
+      description: `Text clips read ${LAUNCH_CALLOUTS.map((t) => `"${t}"`).join(", ")} and appear in that order.`,
+      run(input) {
+        const starts = LAUNCH_CALLOUTS.map((t) => launchTexts(input).find((c) => textOf(c) === normalizeText(t))?.start);
+        if (starts.some((s) => s === undefined)) return fail(`found ${starts.filter((s) => s !== undefined).length} of ${LAUNCH_CALLOUTS.length} callouts`);
+        const [a, b, c] = starts as number[];
+        return verdict((a as number) < (b as number) && (b as number) < (c as number), `callouts start at ${starts.map((s) => (s as number).toFixed(1)).join("s, ")}s`);
+      },
+    },
+    {
+      id: "launch-length",
+      description: `The finished timeline runs ${LAUNCH_SECONDS.min}-${LAUNCH_SECONDS.max} s, the template's length.`,
+      run(input) {
+        const length = timelineEnd(clipsOf(input.final));
+        return verdict(length >= LAUNCH_SECONDS.min && length <= LAUNCH_SECONDS.max, `timeline is ${length.toFixed(2)}s`);
+      },
+    },
+  ],
+};
+
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
-  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE,
+  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, APPLY_LAUNCH_TEMPLATE,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);

@@ -1,6 +1,6 @@
 import { runAgent, type AgentEvent, type PlanningOptions } from "#/app/agent/loop";
 import type { ModelClient } from "#/app/agent/model-client";
-import { createAgentTools, createTemporalTools, createTranscriptTools, type AgentTool } from "#/engine/agent";
+import { createAgentTools, createTemplateTools, createTemporalTools, createTranscriptTools, type AgentTool } from "#/engine/agent";
 import { Editor } from "#/engine/editor";
 import { createProject, sequentialIds, type Project } from "#/engine/model";
 import { createMapAnalysisProvider, createMemoryStyleProfileStore } from "#/engine/reference";
@@ -11,6 +11,7 @@ import { placeInitialTimeline } from "./setup";
 import { faceToolsFor } from "./faces";
 import { visualToolsFor } from "./visual";
 import { createStubPlatformTools } from "./stub-tools";
+import { listTemplates } from "#/templates";
 import type { CaseResult, EvalCase, ResolvedFixture, RunSummary } from "./types";
 
 const FIXED_NOW = "2026-01-01T00:00:00.000Z";
@@ -37,6 +38,7 @@ export async function buildWorld(evalCase: EvalCase): Promise<World> {
   for (const f of transcripts) store.save({ version: TRANSCRIPT_VERSION, assetId: f.assetId, language: "en", model: "fixture", words: f.spec.transcript ?? [] });
   if (transcripts.length > 0) for (const tool of createTranscriptTools({ store })) tools.set(tool.name, tool);
   for (const tool of createTemporalTools({ analysis: provider, transcripts: store })) tools.set(tool.name, tool);
+  for (const tool of createTemplateTools({ list: listTemplates })) tools.set(tool.name, tool);
   for (const tool of visualToolsFor(fixtures)) tools.set(tool.name, tool);
   for (const tool of faceToolsFor({ fixtures, provider })) tools.set(tool.name, tool);
   for (const tool of createStubPlatformTools({ editor, fixtures, analyses })) tools.set(tool.name, tool);

@@ -14,6 +14,7 @@ Vision: an agent-native video editor, a "Claude for video editors". The agent ed
 | Faces (MediaPipe) | detection + storage only; not in index, UI or tools | `platform/visual/face-*` |
 | Word-level caption styling | data plumbing only; compositor has no rich text | `CaptionCue.words` |
 | Reference-style matching | engine + tools; opt-in | `engine/reference` |
+| Templates | engine, 8 templates, previews, agent tools and eval built; fuzzed for invariants; gallery UI separate; count-up, beat sync, speed ramps, device frames not available | `engine/templates`, `src/templates`, `docs/TEMPLATES.md` |
 | Evals | 70 scripted policy runs; real-model run **not done** | `evals/`, `docs/EVALS.md` |
 | Hosted build | deployed behind Vercel login | Deployment Protection on |
 | Speed / pitch | built; export pitch verified on real audio | `e2e/pitch-real-audio.spec.ts`; live playback not measured |

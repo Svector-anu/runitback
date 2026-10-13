@@ -1,0 +1,490 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "metric-changelog",
+  "name": "Metric reveal",
+  "category": "update",
+  "tags": [
+    "milestone",
+    "release-notes",
+    "numbers"
+  ],
+  "description": "Announce a milestone or a release in 15 seconds: a version chip, a stepped number reveal, a label, two secondary stats and a thank-you.",
+  "canvas": {
+    "aspect": "16:9",
+    "fps": 30,
+    "backgroundColor": "#0b0e1a"
+  },
+  "durationSeconds": 15,
+  "slots": [
+    {
+      "id": "logo",
+      "kind": "image",
+      "label": "Logo",
+      "optional": true
+    },
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "version",
+      "label": "Version chip",
+      "default": "v2.4",
+      "style": "label",
+      "maxChars": 16,
+      "overrides": {
+        "sizePx": 66
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.3
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "context",
+      "label": "Context line",
+      "default": "What's new this release",
+      "style": "headline",
+      "maxChars": 50,
+      "maxWidth": 1500,
+      "overrides": {
+        "sizePx": 100
+      },
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "step-1",
+      "label": "Count step 1",
+      "default": "250",
+      "style": "numeral",
+      "maxChars": 12,
+      "overrides": {
+        "sizePx": 330
+      }
+    },
+    {
+      "id": "step-2",
+      "label": "Count step 2",
+      "default": "1,200",
+      "style": "numeral",
+      "maxChars": 12,
+      "overrides": {
+        "sizePx": 330
+      }
+    },
+    {
+      "id": "step-3",
+      "label": "Count step 3",
+      "default": "5,000",
+      "style": "numeral",
+      "maxChars": 12,
+      "overrides": {
+        "sizePx": 330
+      }
+    },
+    {
+      "id": "metric",
+      "label": "Final number",
+      "default": "10,000",
+      "style": "numeral",
+      "maxChars": 12,
+      "overrides": {
+        "sizePx": 360,
+        "color": "#ffd166"
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "metric-label",
+      "label": "Number label",
+      "default": "teams shipping with us",
+      "style": "subhead",
+      "maxChars": 50,
+      "overrides": {
+        "sizePx": 72
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "stat-1",
+      "label": "Stat 1",
+      "default": "99.9%",
+      "style": "headline",
+      "maxChars": 12,
+      "overrides": {
+        "sizePx": 170,
+        "color": "#3ddc97"
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "stat-1-label",
+      "label": "Stat 1 label",
+      "default": "uptime",
+      "style": "subhead",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 66
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "stat-2",
+      "label": "Stat 2",
+      "default": "2x",
+      "style": "headline",
+      "maxChars": 12,
+      "overrides": {
+        "sizePx": 170,
+        "color": "#ff6b6b"
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "stat-2-label",
+      "label": "Stat 2 label",
+      "default": "faster exports",
+      "style": "subhead",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 66
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "thanks",
+      "label": "Thank you",
+      "default": "Thank you for building with us",
+      "style": "headline",
+      "maxChars": 60,
+      "maxWidth": 1500,
+      "overrides": {
+        "sizePx": 96
+      },
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "intro",
+      "at": 0,
+      "duration": 3,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": -700,
+            "y": -400,
+            "width": 800,
+            "height": 800
+          },
+          "params": {
+            "fill": "#5b6cff",
+            "opacity": 0.25
+          }
+        },
+        {
+          "kind": "text",
+          "text": "version",
+          "at": 0.2,
+          "position": {
+            "x": 0,
+            "y": -170
+          },
+          "duration": 2.6
+        },
+        {
+          "kind": "text",
+          "text": "context",
+          "at": 0.5,
+          "position": {
+            "x": 0,
+            "y": 0
+          },
+          "duration": 2.4
+        }
+      ]
+    },
+    {
+      "id": "count-1",
+      "at": 3,
+      "duration": 0.7,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "step-1",
+          "at": 0,
+          "position": {
+            "x": 0,
+            "y": -40
+          },
+          "duration": 0.7
+        }
+      ]
+    },
+    {
+      "id": "count-2",
+      "at": 3.7,
+      "duration": 0.7,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "step-2",
+          "at": 0,
+          "position": {
+            "x": 0,
+            "y": -40
+          },
+          "duration": 0.7
+        }
+      ]
+    },
+    {
+      "id": "count-3",
+      "at": 4.4,
+      "duration": 0.7,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "step-3",
+          "at": 0,
+          "position": {
+            "x": 0,
+            "y": -40
+          },
+          "duration": 0.7
+        }
+      ]
+    },
+    {
+      "id": "reveal",
+      "at": 5.1,
+      "duration": 4.4,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "ellipse",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": -40,
+            "width": 1100,
+            "height": 1100
+          },
+          "params": {
+            "fill": "#5b6cff",
+            "opacity": 0.3
+          }
+        },
+        {
+          "kind": "text",
+          "text": "metric",
+          "at": 0,
+          "position": {
+            "x": 0,
+            "y": -40
+          },
+          "duration": 4.4
+        },
+        {
+          "kind": "text",
+          "text": "metric-label",
+          "at": 0.7,
+          "position": {
+            "x": 0,
+            "y": 250
+          },
+          "duration": 3.5
+        }
+      ]
+    },
+    {
+      "id": "stats",
+      "at": 9.5,
+      "duration": 3.5,
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 420
+          },
+          "params": {
+            "fill": "#ffffff",
+            "opacity": 0.25
+          }
+        },
+        {
+          "kind": "text",
+          "text": "stat-1",
+          "at": 0.1,
+          "position": {
+            "x": -420,
+            "y": -40
+          },
+          "duration": 3.2
+        },
+        {
+          "kind": "text",
+          "text": "stat-1-label",
+          "at": 0.5,
+          "position": {
+            "x": -420,
+            "y": 120
+          },
+          "duration": 2.8
+        },
+        {
+          "kind": "text",
+          "text": "stat-2",
+          "at": 0.4,
+          "position": {
+            "x": 420,
+            "y": -40
+          },
+          "duration": 2.9
+        },
+        {
+          "kind": "text",
+          "text": "stat-2-label",
+          "at": 0.8,
+          "position": {
+            "x": 420,
+            "y": 120
+          },
+          "duration": 2.5
+        }
+      ]
+    },
+    {
+      "id": "thanks",
+      "at": 13,
+      "duration": 2,
+      "media": {
+        "slot": "logo",
+        "track": "overlay",
+        "fit": "contain",
+        "box": {
+          "x": 0,
+          "y": -250,
+          "width": 220,
+          "height": 220
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "thanks",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": 50
+          },
+          "duration": 1.8
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 15,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "metric-changelog.webp",
+    "video": "metric-changelog.mp4"
+  }
+}

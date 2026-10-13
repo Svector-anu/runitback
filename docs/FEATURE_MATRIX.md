@@ -97,6 +97,7 @@ Source column: **C** = opencut-classic, **N** = current OpenCut. Paths are under
 | Crop (normalized edges, before transform) | ADVANCED (CapCut parity; new) | `docs/CAPCUT_PARITY.md` |
 | Text stroke, drop shadow, typewriter reveal, in/out animation presets | ADVANCED (CapCut parity; new) | `docs/CAPCUT_PARITY.md` |
 | Colour adjust effect (brightness, contrast, saturation, exposure, temperature, tint, vignette, sharpen) + 8 filter presets | ADVANCED (CapCut parity; new, not in classic) | `docs/CAPCUT_PARITY.md` |
+| Project templates: versioned JSON recipe (slots, texts, beats, repeat groups, captions style), pure planner, one-undo apply, 8 shipped templates with generated previews, agent tools `list_templates` / `describe_template` / `apply_template` | ADVANCED (new; gallery UI separate) | `docs/TEMPLATES.md` |
 
 ## 6. Animation
 

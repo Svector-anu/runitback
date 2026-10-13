@@ -14,3 +14,4 @@ evals/reports/*
 .env.*
 !.env.example
 *.pem
+e2e/template-frames

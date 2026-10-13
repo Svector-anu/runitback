@@ -1,0 +1,226 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "before-after",
+  "name": "Before and after",
+  "category": "showcase",
+  "tags": [
+    "comparison",
+    "transformation"
+  ],
+  "description": "Show a change in 14 seconds: the before clip, a wipe to the after clip, and a closing line. Each side carries its own tag.",
+  "canvas": {
+    "aspect": "16:9",
+    "fps": 30,
+    "backgroundColor": "#0b0e1a"
+  },
+  "durationSeconds": 14,
+  "slots": [
+    {
+      "id": "before",
+      "kind": "video",
+      "label": "Before clip",
+      "expectedSeconds": 6,
+      "aspect": "16:9"
+    },
+    {
+      "id": "after",
+      "kind": "video",
+      "label": "After clip",
+      "expectedSeconds": 9,
+      "aspect": "16:9"
+    },
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "tag-before",
+      "label": "Before tag",
+      "default": "BEFORE",
+      "style": "label",
+      "maxChars": 16,
+      "overrides": {
+        "background.color": "#ff6b6b",
+        "color": "#ffffff"
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.3
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "tag-after",
+      "label": "After tag",
+      "default": "AFTER",
+      "style": "label",
+      "maxChars": 16,
+      "overrides": {
+        "background.color": "#3ddc97"
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.3
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "closing",
+      "label": "Closing line",
+      "default": "The difference is clear",
+      "style": "headline",
+      "maxChars": 50,
+      "maxWidth": 1500,
+      "overrides": {
+        "sizePx": 110
+      },
+      "animation": {
+        "in": {
+          "preset": "slide-up",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.4
+        }
+      }
+    },
+    {
+      "id": "closing-sub",
+      "label": "Closing subline",
+      "default": "Try it on your own footage",
+      "style": "subhead",
+      "maxChars": 60,
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.4
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "before",
+      "at": 0,
+      "duration": 5.5,
+      "media": {
+        "slot": "before"
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "tag-before",
+          "at": 0.3,
+          "position": {
+            "x": -720,
+            "y": -440
+          },
+          "duration": 5.0
+        }
+      ]
+    },
+    {
+      "id": "after",
+      "at": 5.5,
+      "duration": 5.5,
+      "media": {
+        "slot": "after",
+        "transitionIn": {
+          "type": "wipe-right",
+          "seconds": 0.8
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "tag-after",
+          "at": 0.5,
+          "position": {
+            "x": -720,
+            "y": -440
+          },
+          "duration": 4.8
+        }
+      ]
+    },
+    {
+      "id": "closing",
+      "at": 11,
+      "duration": 3,
+      "media": {
+        "slot": "after",
+        "sourceStart": 5.5
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "rectangle",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080
+          },
+          "params": {
+            "fill": "#0b0e1a",
+            "opacity": 0.58
+          }
+        },
+        {
+          "kind": "text",
+          "text": "closing",
+          "at": 0.2,
+          "position": {
+            "x": 0,
+            "y": -30
+          },
+          "duration": 2.6
+        },
+        {
+          "kind": "text",
+          "text": "closing-sub",
+          "at": 0.6,
+          "position": {
+            "x": 0,
+            "y": 120
+          },
+          "duration": 2.2
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 14,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "before-after.webp",
+    "video": "before-after.mp4"
+  }
+}

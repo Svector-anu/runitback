@@ -24,7 +24,7 @@ Schema: version 2 (transitions), 3 (adjust effect), 4 (text params, `textAnimati
 
 ## Still missing versus CapCut
 
-Stickers and emoji, templates, speed curves / ramps (only constant speed), reverse, beat sync (beat detection exists in analysis; no snap-to-beat editing UI), chroma key, background removal, tracking, keyframe graph editor beyond easing presets, LUT import, curves/HSL/colour wheels, split-tone grading (teal-orange here is a single cast), masks beyond the first, audio crossfade to match a transition, audio effects (denoise, voice changer, EQ), text-to-speech, auto captions styling presets and word-level highlight animation, text templates and curved text, transitions beyond the seven (glitch, spin, blur, light leaks), per-clip transition in/out distinction, multi-clip compound clips, proxy media, cloud/team features.
+Stickers and emoji, text templates and curved text (project templates exist: `docs/TEMPLATES.md`), speed curves / ramps (only constant speed), reverse, beat sync (beat detection exists in analysis; no snap-to-beat editing UI), chroma key, background removal, tracking, keyframe graph editor beyond easing presets, LUT import, curves/HSL/colour wheels, split-tone grading (teal-orange here is a single cast), masks beyond the first, audio crossfade to match a transition, audio effects (denoise, voice changer, EQ), text-to-speech, auto captions styling presets and word-level highlight animation, transitions beyond the seven (glitch, spin, blur, light leaks), per-clip transition in/out distinction, multi-clip compound clips, proxy media, cloud/team features.
 
 ## UI wiring (done in the editor, usable by hand)
 

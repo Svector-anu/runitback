@@ -509,6 +509,47 @@ const FAKES: Turn[] = [
   () => [say("Done, the voice is now French.")],
 ];
 
+// Apply the product launch template ----------------------------------------------------------------------------------
+
+interface TemplateRow { id: string; name: string }
+interface TemplateDescription {
+  slots: Array<{ id: string; kind: string; label: string; optional: boolean }>;
+  texts: Array<{ id: string; label: string }>;
+}
+
+function launchTemplate(options: { mode: "oracle" | "default-words" | "swapped" | "wrong-template" }): () => Turn[] {
+  return () => {
+    let templateId = "";
+    return [
+      (_seen, use) => [say("Looking at the templates and the footage."), use("list_templates"), use("list_assets")],
+      (seen, use) => {
+        const wanted = options.mode === "wrong-template" ? /kinetic/i : /launch/i;
+        const row = seen.data<{ templates: TemplateRow[] }>("list_templates").templates.find((t) => wanted.test(t.name));
+        if (!row) throw new Error("policy: no matching template listed");
+        templateId = row.id;
+        return [use("describe_template", { templateId }), use("list_assets")];
+      },
+      (seen, use) => {
+        const description = seen.data<TemplateDescription>("describe_template");
+        const quoted = [...seen.brief.matchAll(/"([^"]+)"/g)].map((m) => m[1] as string);
+        const [headline, ...callouts] = quoted;
+        const recordings = ["rec1.mp4", "rec2.mp4", "rec3.mp4"].map((name) => assetNamed(seen, name).id);
+        const [first, second, third] = recordings;
+        const order = options.mode === "swapped" ? [first, third, second] : [first, second, third];
+        const videoSlots = description.slots.filter((s) => s.kind === "video");
+        const slots = options.mode === "wrong-template" ? {} : Object.fromEntries(videoSlots.slice(0, 3).map((s, i) => [s.id, order[i] as string]));
+        const calloutIds = description.texts.filter((t) => /callout/i.test(t.label)).map((t) => t.id);
+        const headlineId = description.texts.find((t) => /headline/i.test(t.label))?.id;
+        const texts = options.mode === "default-words" || options.mode === "wrong-template" || !headlineId
+          ? {}
+          : { [headlineId]: headline as string, ...Object.fromEntries(calloutIds.map((id, i) => [id, callouts[i] as string])) };
+        return [say("Applying the template."), use("apply_template", { templateId, slots, texts })];
+      },
+      () => [say("The launch video is built from the template.")],
+    ];
+  };
+}
+
 interface PolicySpec {
   id: string;
   caseId: string;
@@ -582,6 +623,10 @@ const SPECS: PolicySpec[] = [
   { id: "oracle", caseId: "apply-warm-filter-to-title-clip", kind: "oracle", description: "insert_text for 3 s, apply_filter warm to the title only.", turns: warmTitle({ filter: "warm", target: "title" }) },
   { id: "filter-on-video", caseId: "apply-warm-filter-to-title-clip", kind: "mutation", description: "Warms the video clip instead of the title.", mustFail: ["title-is-warm", "video-untouched"], turns: warmTitle({ filter: "warm", target: "video" }) },
   { id: "cool-filter", caseId: "apply-warm-filter-to-title-clip", kind: "mutation", description: "Gives the title the cool filter.", mustFail: ["title-is-warm"], turns: warmTitle({ filter: "cool", target: "title" }) },
+  { id: "oracle", caseId: "apply-launch-template", kind: "oracle", description: "list_templates, describe_template, then apply_template with the recordings in order and the requested words.", turns: launchTemplate({ mode: "oracle" }) },
+  { id: "default-words", caseId: "apply-launch-template", kind: "mutation", description: "Applies the template but keeps its placeholder headline and callouts.", mustFail: ["headline-text", "callouts-in-order"], turns: launchTemplate({ mode: "default-words" }) },
+  { id: "swapped-recordings", caseId: "apply-launch-template", kind: "mutation", description: "Maps the second and third recordings to each other's slots.", mustFail: ["recordings-in-order"], turns: launchTemplate({ mode: "swapped" }) },
+  { id: "wrong-template", caseId: "apply-launch-template", kind: "mutation", description: "Applies the kinetic announcement template instead, with none of the footage.", mustFail: ["launch-format", "recordings-in-order", "headline-text", "launch-length"], turns: launchTemplate({ mode: "wrong-template" }) },
   {
     id: "oracle", caseId: "ambiguous-request", kind: "oracle", description: "Inspect, then ask what 'better' means.",
     turns: ask("What would you like me to improve: the pacing, the audio level, add titles or captions, or something else? Tell me what 'better' means for this video and I'll do it."),
@@ -614,6 +659,7 @@ const LAZY_FAILS: Record<string, string[]> = {
   "reframe-to-speaker": ["canvas-is-vertical", "speaker-in-frame"],
   "add-transition-between-clips": ["dissolve-between"],
   "apply-warm-filter-to-title-clip": ["title-present", "title-is-warm"],
+  "apply-launch-template": ["recordings-in-order", "headline-text", "callouts-in-order", "launch-length"],
 };
 
 const OVERREACH_FAILS: Record<string, string[]> = {
@@ -635,6 +681,7 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "reframe-to-speaker": ["canvas-is-vertical", "speaker-in-frame", "whole-clip-kept"],
   "add-transition-between-clips": ["dissolve-between", "clips-untouched"],
   "apply-warm-filter-to-title-clip": ["title-present", "title-is-warm", "video-untouched"],
+  "apply-launch-template": ["recordings-in-order", "headline-text", "callouts-in-order", "launch-length"],
 };
 
 function generic(): PolicySpec[] {

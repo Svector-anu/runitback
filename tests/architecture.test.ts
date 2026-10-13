@@ -22,11 +22,12 @@ const layerOf = (specifier: string): string | null => {
 /** Layers may import only from these layers (plus themselves). */
 const ALLOWED: Record<string, string[]> = {
   engine: ["engine"],
+  templates: ["engine", "templates"],
   render: ["engine", "render"],
   platform: ["engine", "render", "platform"],
   export: ["engine", "render", "platform", "export"],
-  app: ["engine", "render", "platform", "export", "app", "ui"],
-  ui: ["engine", "render", "platform", "export", "app", "ui"],
+  app: ["engine", "render", "platform", "export", "templates", "app", "ui"],
+  ui: ["engine", "render", "platform", "export", "templates", "app", "ui"],
 };
 
 describe("architecture", () => {
