@@ -62,7 +62,7 @@ describe("vercel.json content security policy", () => {
 
   it("grants unsafe-eval to exactly two scripts: the MediaPipe face and segmenter workers", () => {
     expect(policyFor("/assets/face-worker-AbC123.js").get("script-src")).toContain("'unsafe-eval'");
-    expect(policyFor("/assets/segmenter-worker-AbC123.js").get("script-src")).toContain("'unsafe-eval'");
+    expect(policyFor("/assets/face-worker-segmenter-AbC123.js").get("script-src")).toContain("'unsafe-eval'");
     for (const path of ["/", "/app", "/assets/whisper-worker-AbC123.js", "/assets/clip-worker-AbC123.js", "/assets/index-AbC123.js"]) {
       expect(policyFor(path).get("script-src"), path).not.toContain("'unsafe-eval'");
     }

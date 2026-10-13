@@ -7,7 +7,7 @@ interface Pending {
 
 /** Runs the segmenter in a dedicated module worker; `dispose` terminates it (this is how cancelling frees the model). */
 export function createSegmentWorkerBackend(): SegmentBackend {
-  const worker = new Worker(new URL("./segmenter-worker.ts", import.meta.url), { type: "module" });
+  const worker = new Worker(new URL("./face-worker-segmenter.ts", import.meta.url), { type: "module" });
   const pending = new Map<number, Pending>();
   let nextId = 1;
 
