@@ -291,7 +291,7 @@ export const LANDING_CONTENT: LandingContent = {
       { feature: "Edit by describing it", runitback: "Yes. An agent proposes a plan, you approve it, and one undo reverts it.", capcut: "AI tools that generate and edit. Check CapCut for how they work." },
       { feature: "Price", runitback: "Free. The agent uses your own Anthropic API key.", capcut: "A free plan, plus paid Pro, Ultra and Teams plans." },
       { feature: "Mobile app", runitback: "Not yet. Desktop Chrome for now.", capcut: "Yes, on mobile, tablet and desktop.", ahead: "capcut" },
-      { feature: "Templates, stickers and effects", runitback: "Core effects, filters, transitions and 8 original templates are built in. Stickers and a large music and effects library: not yet.", capcut: "A large library of templates, stickers, effects and AI tools.", ahead: "capcut" },
+      { feature: "Templates, stickers and effects", runitback: "Filters, transitions, chroma key, speed ramps, background removal and 8 original templates are built in. Stickers and a large music and effects library: not yet.", capcut: "A large library of templates, stickers, effects and AI tools.", ahead: "capcut" },
     ],
     aheadLabel: "Ahead",
     checked: "CapCut details checked on capcut.com on 12 October 2026. Plans and features change, so check CapCut for the latest.",
@@ -321,7 +321,7 @@ export const LANDING_CONTENT: LandingContent = {
       },
       {
         question: "What can it do today?",
-        answer: "A multi-track timeline, keyframes, masks, text with stroke, shadow and animations, filters and colour adjustments, 7 transitions, crop, freeze frame, speed with pitch kept, captions from files or speech, 8 original templates, and export to MP4 or WebM. The agent can remove dead air, cut to the beat, find a spoken phrase or what is on screen, reframe to a face, and apply templates. In progress: beat-sync button, noise removal, text to speech, chroma key, speed ramps and background removal.",
+        answer: "A multi-track timeline, keyframes, masks, text with stroke, shadow and animations, filters and colour adjustments, 7 transitions, crop, freeze frame, speed with pitch kept, captions from files or speech, 8 original templates, and export to MP4 or WebM. The agent can remove dead air, cut to the beat, find a spoken phrase or what is on screen, reframe to a face, and apply templates. Also built in: chroma key, speed ramps with a curve editor, background removal, point tracking and stabilization, snap cuts to the beat, noise removal, text to speech, and caption translation.",
       },
       {
         question: "Is my video uploaded?",
@@ -341,7 +341,7 @@ export const LANDING_CONTENT: LandingContent = {
       },
       {
         question: "Which browsers work?",
-        answer: "Chrome on desktop is the supported browser. Firefox and Safari are not supported yet. On a phone the layout is limited, so it works best in desktop Chrome.",
+        answer: "Desktop Chrome is the tested browser. Firefox and Safari pass our import, edit and export smoke tests, but treat them as experimental: Safari does not draw blur, colour-adjust or sharpen, and Firefox exports MP4 with Opus audio. On a phone the layout is limited, so it works best in desktop Chrome.",
       },
       {
         question: "What does Understand download?",
