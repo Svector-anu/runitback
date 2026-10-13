@@ -12,6 +12,7 @@ import { faceToolsFor } from "./faces";
 import { visualToolsFor } from "./visual";
 import { createStubPlatformTools } from "./stub-tools";
 import { listTemplates } from "#/templates";
+import { voiceoverToolsFor } from "./speech";
 import type { CaseResult, EvalCase, ResolvedFixture, RunSummary } from "./types";
 
 const FIXED_NOW = "2026-01-01T00:00:00.000Z";
@@ -43,7 +44,9 @@ export async function buildWorld(evalCase: EvalCase): Promise<World> {
   for (const tool of faceToolsFor({ fixtures, provider })) tools.set(tool.name, tool);
   for (const tool of createStubPlatformTools({ editor, fixtures, analyses })) tools.set(tool.name, tool);
 
-  await placeInitialTimeline({ editor, tools, fixtures });
+  if (evalCase.extraTools?.includes("voiceover")) for (const tool of voiceoverToolsFor(editor)) tools.set(tool.name, tool);
+
+  await placeInitialTimeline({ editor, tools, fixtures, ...(evalCase.setup ? { setup: evalCase.setup } : {}) });
   return { editor, fixtures, tools, initial: editor.toProject() };
 }
 

@@ -56,13 +56,12 @@ describe("P1-5 a tick in flight across a seek", () => {
     const { playback, setTime } = fakePlayback();
     const pending = new Map<string, Array<() => void>>();
     let auto = false;
-    const sinks = {
-      get: (id: string) => auto ? Promise.resolve({}) : new Promise((resolve) => {
-        const list = pending.get(id) ?? [];
-        list.push(() => resolve({}));
-        pending.set(id, list);
-      }),
-    };
+    const get = (id: string) => auto ? Promise.resolve({}) : new Promise((resolve) => {
+      const list = pending.get(id) ?? [];
+      list.push(() => resolve({}));
+      pending.set(id, list);
+    });
+    const sinks = { get, forClip: (clip: { mediaId: string }) => get(clip.mediaId) };
     const engine = new AudioEngine({ playback, getClips: () => [clip("a"), clip("b")], sinks: sinks as never });
 
     setTime(10);
@@ -98,7 +97,7 @@ describe("P1-5 a tick in flight across a seek", () => {
 describe("P1-3 restart after dispose", () => {
   it("does not create an AudioContext or timer", () => {
     const { playback } = fakePlayback();
-    const engine = new AudioEngine({ playback, getClips: () => [], sinks: { get: async () => null } as never });
+    const engine = new AudioEngine({ playback, getClips: () => [], sinks: { get: async () => null, forClip: async () => null } as never });
     engine.dispose();
     engine.restart();
     expect(contextsCreated).toBe(0);

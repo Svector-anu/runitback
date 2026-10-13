@@ -10,6 +10,8 @@ export const PARAM = {
   rotate: "transform.rotate",
   volume: "volume",
   muted: "muted",
+  /** Noise removal strength 0-1 on clips with audio; absent means 0 (off). */
+  denoise: "denoise",
   content: "content",
   fontSize: "fontSize",
   fontFamily: "fontFamily",

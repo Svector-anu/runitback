@@ -18,7 +18,7 @@ interface MixInput {
   signal?: AbortSignal;
 }
 
-type MixClip = { clip: AudioClip; sink: NonNullable<Awaited<ReturnType<AudioSinkCache["get"]>>> };
+type MixClip = { clip: AudioClip; sink: NonNullable<Awaited<ReturnType<AudioSinkCache["forClip"]>>> };
 
 export interface AudioMix {
   sampleRate: number;
@@ -41,7 +41,7 @@ export async function openAudioMix(input: MixInput): Promise<AudioMix | null> {
   const mixClips: MixClip[] = [];
   for (const clip of input.clips) {
     input.signal?.throwIfAborted();
-    const sink = await input.sinks.get(clip.mediaId).catch(() => null);
+    const sink = await input.sinks.forClip(clip).catch(() => null);
     if (sink) mixClips.push({ clip, sink });
   }
   if (mixClips.length === 0) return null;

@@ -160,6 +160,37 @@ function cutToBeat(options: { shift: number }): () => Turn[] {
   };
 }
 
+/** Moves the cuts of a hand-made montage onto the beats: the oracle uses snap_cuts_to_beat; mutations break one promise each. */
+function snapToBeat(options: { mode: "snap" | "tiny-tolerance" | "left-trim-only" }): () => Turn[] {
+  return () => [
+    (_seen, use) => orient(use),
+    (seen, use) => {
+      if (options.mode === "left-trim-only") {
+        const clips = elementsOf(seen.data<TimelineData>("get_timeline")).filter((e) => e.type === "video").sort((a, b) => a.start - b.start);
+        return [say("Pulling each cut earlier by trimming the clip before it."), ...clips.slice(0, -1).map((e) => use("trim", { elementId: e.id, end: e.end - 0.1 }))];
+      }
+      const toleranceSeconds = options.mode === "tiny-tolerance" ? 0.05 : 0.2;
+      return [say("Snapping the cuts onto the beats of the music."), use("snap_cuts_to_beat", { toleranceSeconds })];
+    },
+    (_seen, use) => [use("get_timeline"), use("analyze_timeline")],
+    () => [say("Every cut now sits on a beat; the video still runs 10 s and no footage was lost.")],
+  ];
+}
+
+/** Adds a voice-over through generate_voiceover; mutations say the wrong words, start at the wrong time, or fake it with a text clip. */
+function addVoiceover(options: { mode: "voiceover" | "wrong-text" | "wrong-start" | "text-clip" }): () => Turn[] {
+  return () => [
+    (_seen, use) => orient(use),
+    (_seen, use) => {
+      if (options.mode === "text-clip") return [say("Adding the line as a title."), use("insert_text", { text: "Welcome to the show", start: 1, duration: 3 })];
+      const text = options.mode === "wrong-text" ? "Hello and goodbye" : "Welcome to the show";
+      return [say("Generating the voice-over."), use("generate_voiceover", { text, start: options.mode === "wrong-start" ? 0 : 1 })];
+    },
+    (_seen, use) => [use("get_timeline")],
+    () => [say("The voice-over is on its own audio track from 1 s; the video is untouched.")],
+  ];
+}
+
 function numberFrom(brief: string, pattern: RegExp): number {
   const match = pattern.exec(brief);
   if (!match?.[1]) throw new Error(`policy: could not read a number with ${pattern} from the brief`);
@@ -674,6 +705,13 @@ const SPECS: PolicySpec[] = [
   { id: "constant-slow", caseId: "speed-ramp-hero", kind: "mutation", description: "Plays the whole clip at half speed instead of ramping.", mustFail: ["is-a-ramp", "slows-to-quarter", "slow-moment-centred"], turns: speedRamp({ mode: "constant" }) },
   { id: "slow-too-early", caseId: "speed-ramp-hero", kind: "mutation", description: "Ramps, but the slow moment is at 1 s instead of the middle.", mustFail: ["slow-moment-centred"], turns: speedRamp({ mode: "early" }) },
   { id: "wrong-preset", caseId: "speed-ramp-hero", kind: "mutation", description: "Applies the montage preset (fast and only half-speed slow) instead of the hero moment.", mustFail: ["slows-to-quarter"], turns: speedRamp({ mode: "montage" }) },
+  { id: "oracle", caseId: "snap-cuts-to-beat", kind: "oracle", description: "snap_cuts_to_beat with a 0.2 s tolerance, then read the timeline back.", turns: snapToBeat({ mode: "snap" }) },
+  { id: "tiny-tolerance", caseId: "snap-cuts-to-beat", kind: "mutation", description: "Calls snap_cuts_to_beat with a 0.05 s tolerance, too small to reach any beat, and says it is done.", mustFail: ["cuts-on-beat"], turns: snapToBeat({ mode: "tiny-tolerance" }) },
+  { id: "left-trim-only", caseId: "snap-cuts-to-beat", kind: "mutation", description: "Moves each cut earlier by trimming only the clip before it, leaving gaps and moving the cut off the beat.", mustFail: ["footage-continuous", "cuts-on-beat"], turns: snapToBeat({ mode: "left-trim-only" }) },
+  { id: "oracle", caseId: "add-voiceover", kind: "oracle", description: "generate_voiceover with the quoted text at 1 s.", turns: addVoiceover({ mode: "voiceover" }) },
+  { id: "wrong-text", caseId: "add-voiceover", kind: "mutation", description: "Speaks different words.", mustFail: ["says-the-text"], turns: addVoiceover({ mode: "wrong-text" }) },
+  { id: "wrong-start", caseId: "add-voiceover", kind: "mutation", description: "Starts the voice-over at 0 s instead of 1 s.", mustFail: ["voiceover-on-audio-track"], turns: addVoiceover({ mode: "wrong-start" }) },
+  { id: "text-clip", caseId: "add-voiceover", kind: "mutation", description: "Fakes it with a text clip instead of speech.", mustFail: ["voiceover-on-audio-track", "says-the-text"], turns: addVoiceover({ mode: "text-clip" }) },
   {
     id: "oracle", caseId: "ambiguous-request", kind: "oracle", description: "Inspect, then ask what 'better' means.",
     turns: ask("What would you like me to improve: the pacing, the audio level, add titles or captions, or something else? Tell me what 'better' means for this video and I'll do it."),
@@ -709,6 +747,8 @@ const LAZY_FAILS: Record<string, string[]> = {
   "apply-launch-template": ["recordings-in-order", "headline-text", "callouts-in-order", "launch-length"],
   "green-screen-overlay": ["green-is-keyed", "on-top-of-beach"],
   "speed-ramp-hero": ["is-a-ramp", "slows-to-quarter"],
+  "snap-cuts-to-beat": ["cuts-on-beat"],
+  "add-voiceover": ["voiceover-on-audio-track", "says-the-text"],
 };
 
 const OVERREACH_FAILS: Record<string, string[]> = {
@@ -733,6 +773,8 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "apply-launch-template": ["recordings-in-order", "headline-text", "callouts-in-order", "launch-length"],
   "green-screen-overlay": ["green-is-keyed", "beach-intact"],
   "speed-ramp-hero": ["is-a-ramp", "whole-source-kept"],
+  "snap-cuts-to-beat": ["cuts-on-beat", "footage-continuous"],
+  "add-voiceover": ["voiceover-on-audio-track", "says-the-text", "video-untouched"],
 };
 
 function generic(): PolicySpec[] {

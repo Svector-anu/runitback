@@ -137,3 +137,9 @@
 .color-field:focus-within { border-color: var(--primary); }
 .color-field input[type="color"] { width: 1.125rem; height: 1.125rem; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: none; cursor: pointer; }
 .color-field input[type="text"] { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; text-transform: uppercase; font-size: var(--text-sm); }
+
+.field-note { margin: 0.25rem 0 0; font-size: var(--text-xs); line-height: 1.4; color: var(--muted-foreground); display: flex; flex-direction: column; gap: 0.35rem; }
+.tts, .translate { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+.tts__title { font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted-foreground); }
+.tts__actions { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.tts__note { font-size: var(--text-xs); line-height: 1.45; margin: 0; }

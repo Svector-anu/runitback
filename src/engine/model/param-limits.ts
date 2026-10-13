@@ -24,6 +24,7 @@ export const ELEMENT_NUMBER_LIMITS: Readonly<Record<string, NumberLimit>> = {
   [PARAM.rotate]: { min: -36_000, max: 36_000 },
   [PARAM.opacity]: { min: 0, max: 1 },
   [PARAM.volume]: { min: VOLUME_DB_MIN, max: VOLUME_DB_MAX },
+  [PARAM.denoise]: { min: 0, max: 1 },
   [PARAM.cropLeft]: { min: 0, max: CROP_MAX_EDGE },
   [PARAM.cropTop]: { min: 0, max: CROP_MAX_EDGE },
   [PARAM.cropRight]: { min: 0, max: CROP_MAX_EDGE },

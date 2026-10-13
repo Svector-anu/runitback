@@ -1111,9 +1111,106 @@ const SPEED_RAMP: EvalCase = {
   ],
 };
 
+// 19. Snap existing cuts to the beat ----------------------------------------------------------------------------------
+
+const SNAP_SPLITS = [2.05, 4.45, 6.85, 8.65];
+const FRAME_PAIR_SLACK = 2 * FRAME_SECONDS + 1e-3;
+
+const SNAP_TO_BEAT: EvalCase = {
+  id: "snap-cuts-to-beat",
+  title: "Snap existing cuts onto the beat",
+  brief: "The cuts in my montage are a little off the beat of track.mp3. Move every cut onto the nearest beat of the music without changing the length of the video or losing any footage.",
+  fixtures: [
+    { id: "footage", name: "footage.mp4", kind: "video", durationSeconds: 10, placeAt: 0, audio: { kind: "none" }, blocks: [{ seconds: 2.5, rgb: RED }, { seconds: 2.5, rgb: GREEN }, { seconds: 2.5, rgb: BLUE }, { seconds: 2.5, rgb: AMBER }] },
+    { id: "track", name: "track.mp3", kind: "audio", durationSeconds: 10, audio: { kind: "beat", bpm: 100, phase: 0.15 }, placeAt: 0 },
+  ],
+  setup: SNAP_SPLITS.map((at) => ({ tool: "split", args: { at } })),
+  budget: BUDGET,
+  checks: [
+    {
+      id: "cuts-on-beat",
+      description: `All ${SNAP_SPLITS.length} cuts (at least ${SNAP_SPLITS.length} of them must still exist) fall within 60 ms of a beat of the music on the timeline.`,
+      run(input) {
+        const music = fixtureByName(input, "track.mp3");
+        const beats = clipsOfFixture(input, music).filter((c) => c.audible).flatMap((c) => sourceTimesOnTimeline(c, music.truth.beats));
+        const videos = videoClips(input);
+        const cuts = videos.slice(1).map((c) => c.start);
+        if (cuts.length < SNAP_SPLITS.length) return fail(`only ${cuts.length} cut(s) left; there were ${SNAP_SPLITS.length}`);
+        const onBeat = cuts.filter((cut) => beats.some((beat) => Math.abs(beat - cut) <= BEAT_TOLERANCE_SECONDS)).length;
+        return graded({ score: onBeat / cuts.length, threshold: 1, detail: `${onBeat}/${cuts.length} cuts within 60 ms of a beat` });
+      },
+    },
+    {
+      id: "footage-continuous",
+      description: "The footage still plays 0-10 s without gaps or lost frames: clips touch, and each continues the source exactly where the previous one stopped.",
+      run(input) {
+        const videos = videoClips(input);
+        const first = videos[0];
+        const last = videos[videos.length - 1];
+        if (!first || !last) return fail("the footage is gone");
+        if (Math.abs(first.start) > FRAME_SLACK || Math.abs(last.end - 10) > FRAME_SLACK) return fail(`footage now plays ${first.start.toFixed(2)}-${last.end.toFixed(2)}s, not 0-10 s`);
+        for (let i = 1; i < videos.length; i++) {
+          const a = videos[i - 1] as ClipView;
+          const b = videos[i] as ClipView;
+          if (Math.abs(b.start - a.end) > FRAME_SLACK) return fail(`gap or overlap of ${(b.start - a.end).toFixed(3)}s before ${b.id}`);
+          if (Math.abs(b.trimStart - (a.trimStart + a.duration * a.rate)) > FRAME_PAIR_SLACK) return fail(`${b.id} does not continue the source where ${a.id} stopped`);
+        }
+        return pass(`${videos.length} clips back to back, source continuous`);
+      },
+    },
+  ],
+};
+
+// 20. Voice-over from text ------------------------------------------------------------------------------------------
+
+const VOICEOVER_TEXT = "Welcome to the show";
+
+const ADD_VOICEOVER: EvalCase = {
+  id: "add-voiceover",
+  title: "Add a text-to-speech voice-over",
+  brief: `Add a voice-over that says "${VOICEOVER_TEXT}" starting at 1 second, on an audio track. Leave the video as it is.`,
+  fixtures: [{ id: "footage", name: "footage.mp4", kind: "video", durationSeconds: 10, placeAt: 0, audio: { kind: "none" }, blocks: [{ seconds: 5, rgb: BLUE }, { seconds: 5, rgb: GREEN }] }],
+  extraTools: ["voiceover"],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "voiceover-on-audio-track",
+      description: "An audio clip made by the voice-over tool sits on an audio track and starts at 1 s.",
+      run(input) {
+        const spoken = voiceoverClips(input);
+        if (spoken.length === 0) return fail("no voice-over clip on an audio track");
+        const clip = spoken[0] as ClipView;
+        return verdict(Math.abs(clip.start - 1) <= FRAME_SLACK && clip.duration > 0.5, `voice-over ${clip.start.toFixed(2)}-${clip.end.toFixed(2)}s`);
+      },
+    },
+    {
+      id: "says-the-text",
+      description: `The voice-over was generated from the exact text "${VOICEOVER_TEXT}" (its file is named after the text).`,
+      run(input) {
+        const names = voiceoverClips(input).map((c) => c.name);
+        return verdict(names.some((n) => n.includes(VOICEOVER_TEXT)), names.length ? `voice-over named "${names[0]}"` : "no voice-over clip");
+      },
+    },
+    {
+      id: "video-untouched",
+      description: "The video clip still plays 0-10 s from the start of its source.",
+      run(input) {
+        const clip = videoClips(input)[0];
+        if (!clip) return fail("the video clip is gone");
+        return verdict(videoClips(input).length === 1 && Math.abs(clip.start) <= FRAME_SLACK && Math.abs(clip.end - 10) <= FRAME_SLACK, `video ${clip.start.toFixed(2)}-${clip.end.toFixed(2)}s`);
+      },
+    },
+  ],
+};
+
+/** Audio clips on audio tracks that generate_voiceover made (the clip is named after its generated file). */
+function voiceoverClips(input: CheckInput): ClipView[] {
+  return clipsOf(input.final).filter((c) => c.lane === "audio" && c.type === "audio" && c.name.startsWith("Voice-over:")).sort(byStart);
+}
+
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
-  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, APPLY_LAUNCH_TEMPLATE, GREEN_SCREEN, SPEED_RAMP,
+  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, APPLY_LAUNCH_TEMPLATE, GREEN_SCREEN, SPEED_RAMP, SNAP_TO_BEAT, ADD_VOICEOVER,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);

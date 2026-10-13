@@ -36,6 +36,19 @@ Licences as reported by `pnpm licenses list --prod` on this repository's lockfil
 | `onnxruntime-web` | MIT | WebAssembly runtime for the models above. |
 | `react`, `react-dom` | MIT | UI. |
 
+## Audio and voice features
+
+Records for the on-device audio features (`docs/AUDIO_VOICE.md`). Weights are downloaded by the user's browser after consent; nothing below is bundled except RNNoise and 14 KB of speaker embeddings.
+
+| Component | Licence | Notes |
+| --- | --- | --- |
+| RNNoise (Xiph.Org, Mozilla, Jean-Marc Valin) | BSD-3-Clause | Noise removal. Shipped as the WebAssembly build of `@jitsi/rnnoise-wasm` 0.2.1 (Apache-2.0, text in `src/platform/denoise/vendor/LICENSE-rnnoise-wasm-Apache-2.0.txt`). |
+| SpeechT5 TTS and HiFi-GAN vocoder (Microsoft) | MIT | Text to speech, via the `Xenova/speecht5_*` ONNX conversions. |
+| CMU ARCTIC X-vectors (`Matthijs/cmu-arctic-xvectors`) | MIT | The seven voices in `public/tts/voices`. |
+| Helsinki-NLP opus-mt (OPUS-MT, University of Helsinki), via `Xenova/opus-mt-*` | Apache-2.0 for en-es, en-fr, es-en (CC-BY-4.0 for en-de, not offered) | Caption translation. |
+
+Considered and not used because of their licence: `kokoro-js` / `phonemizer` (bundles eSpeak NG, GPL-3.0-or-later), Piper (same phonemizer), MMS-TTS and NLLB (CC-BY-NC), Supertonic (OpenRAIL).
+
 Transitive production dependencies (57 packages in all) are MIT, BSD-3-Clause, Apache-2.0, ISC, Unlicense or `(MIT OR CC0-1.0)`, with two exceptions that do not reach the browser bundle: `@img/sharp-libvips-*` (LGPL-3.0-or-later, a native library pulled in by `sharp`, which is a Node-only dependency of transformers.js) and the MPL-2.0 `lightningcss` build tool. No GPL or AGPL packages are in the tree. The `protobufjs` family (BSD-3-Clause) is bundled through ONNX Runtime; BSD-3-Clause and Apache-2.0 attribution applies to it and to the Apache-licensed packages above. Their licence texts ship inside the respective npm packages.
 
 Development-only tooling (Vite, Vitest, Playwright, ESLint, TypeScript, tsx, zod, the MCP SDK and others) is not distributed in the built site.

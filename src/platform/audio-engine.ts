@@ -97,7 +97,7 @@ export class AudioEngine {
         scheduled = createClipGain(ctx, master.input);
         this.clips.set(clip.key, scheduled);
       }
-      const sink = await this.deps.sinks.get(clip.mediaId).catch(() => null);
+      const sink = await this.deps.sinks.forClip(clip, { wait: false }).catch(() => null);
       if (!sink || generation !== this.generation) continue;
       try {
         await scheduleClipWindow({

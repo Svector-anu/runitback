@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CLIP_MODEL } from "#/platform/visual/indexer";
 import { DEFAULT_WHISPER_MODEL } from "#/platform/transcribe/transcriber";
 import { PINNED_MODEL_REVISIONS, revisionFor } from "#/platform/model-revisions";
+import { TRANSLATION_PAIRS } from "#/engine/translate";
 
 const sha256 = (path: string): string => createHash("sha256").update(readFileSync(path)).digest("hex");
 
@@ -21,6 +22,12 @@ describe("pinned model revisions", () => {
     for (const model of [DEFAULT_WHISPER_MODEL, DEFAULT_CLIP_MODEL]) expect(PINNED_MODEL_REVISIONS[model]).toMatch(/^[0-9a-f]{40}$/);
   });
 
+  it("pins every audio-feature model (speech, vocoder and each translation pair) to a full commit hash", () => {
+    for (const model of ["Xenova/speecht5_tts", "Xenova/speecht5_hifigan", ...TRANSLATION_PAIRS.map((p) => p.model)]) {
+      expect(PINNED_MODEL_REVISIONS[model], model).toMatch(/^[0-9a-f]{40}$/);
+    }
+  });
+
   it("unknown model ids track main", () => {
     expect(revisionFor("someone/else")).toBe("main");
   });
@@ -33,6 +40,15 @@ describe("self-hosted assets match the recorded hashes (docs/SUPPLY_CHAIN.md)", 
     "public/mediapipe/selfie_segmenter_landscape.tflite": "490e9ea734313e0de10fa0cd9e3c6133e36ea4db2b7a49bde9ef019f72796b8e",
     "public/mediapipe/wasm/vision_wasm_internal.js": "e170ee67dd4e16c1a6fcd8840a206687e5a59b22c20e4a902bc445b095454d73",
     "public/mediapipe/wasm/vision_wasm_internal.wasm": "8da277a733926eacd0474b8704b36742d6ec3231c57a860c5b889dff8f1df886",
+    "src/platform/denoise/vendor/rnnoise.js": "83a86f528a0f4d5c61a84be40dac9f15e5d114f24971bd5953f7f21879bc9bdf",
+    "src/platform/denoise/vendor/rnnoise.wasm": "677147b9248aedc0a00de79dc090d1ecead37c08c8bb773a790da16109d2c487",
+    "public/tts/voices/slt.bin": "1be85882a04effc2cd1111869ae885f53cf2b05ac6ad3b072d56e079cf3b24ff",
+    "public/tts/voices/clb.bin": "80fd16944f979a6e0f159ed6dd59ae84ed73ef5264f62263106e6fb11a4e59a7",
+    "public/tts/voices/bdl.bin": "274173f5dccebb838f38b47e8af7d3931428e0fbe9bcb9b11134ab296a77ad19",
+    "public/tts/voices/rms.bin": "b400b4d40c96f014a34165d7d70001634008b2071cf917b22e713e083285683f",
+    "public/tts/voices/awb.bin": "9109c94f57937d8f5327e267d65b290d91ceb7dfdc34063b36c9c735e90c5fe9",
+    "public/tts/voices/jmk.bin": "5ad213535eef0815e77eadfff622e821e87206a4a6481d702b9249a76d5d3300",
+    "public/tts/voices/ksp.bin": "89d49de8cde5fd74cc591fbd1105b78ad4d5e051c84e39818fb1d04a7116045b",
     "public/fonts/inter-latin-wght-normal.woff2": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
   };
   for (const [path, hash] of Object.entries(expected)) {

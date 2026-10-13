@@ -9,6 +9,8 @@ import type { ResolvedFixture } from "./types";
  */
 export async function placeInitialTimeline(input: {
   editor: Editor; tools: AgentToolRegistry; fixtures: ReadonlyArray<ResolvedFixture>;
+  /** Further tool calls that shape the starting timeline (for example splits), run after the fixtures are placed. */
+  setup?: ReadonlyArray<{ tool: string; args: Record<string, unknown> }>;
   /** Reload the editor from its own snapshot so setup is not undoable. Skip it when driving a live app. Default true. */
   resetHistory?: boolean;
 }): Promise<void> {
@@ -18,6 +20,10 @@ export async function placeInitialTimeline(input: {
     if (fixture.spec.placeAt === undefined) continue;
     const result = await callTool({ tools, name: "insert_media", args: { assetId: fixture.assetId, start: fixture.spec.placeAt }, ctx });
     if (!result.ok) throw new Error(`Could not place fixture "${fixture.spec.id}": ${result.error}`);
+  }
+  for (const step of input.setup ?? []) {
+    const result = await callTool({ tools, name: step.tool, args: step.args, ctx });
+    if (!result.ok) throw new Error(`Setup step ${step.tool} failed: ${result.error}`);
   }
   if (input.resetHistory === false) return;
   const assets: MediaAssetInfo[] = [...editor.getState().doc.assets];

@@ -8,6 +8,10 @@ What the app loads at runtime, and how each piece is pinned. Everything else is 
 | --- | --- | --- |
 | Whisper tiny.en timestamped | huggingface.co, redirected to `us.aws.cdn.hf.co` | commit hash, below |
 | CLIP ViT-B/32 | same | commit hash, below |
+| SpeechT5 TTS + HiFi-GAN vocoder (text to speech, `q4f16` / `q8`) | same | commit hashes, below |
+| Helsinki-NLP opus-mt en-es, en-fr, es-en (caption translation, `q8`) | same | commit hashes, below |
+| RNNoise wasm + glue (noise removal) | this origin (bundled from `src/platform/denoise/vendor`) | sha256 test, below |
+| TTS speaker embeddings (7 x 2 KB) | this origin (`public/tts/voices`) | sha256 test, below |
 | MediaPipe BlazeFace + wasm | this origin (`public/mediapipe`) | sha256 test, below |
 | ONNX Runtime wasm/mjs | this origin (bundled asset) | `onnxruntime-web` version |
 | Inter font | this origin (`public/fonts`) | sha256 test, below |
@@ -23,6 +27,11 @@ No third-party script, stylesheet or font is loaded. Google Fonts was removed.
 | --- | --- | --- |
 | `onnx-community/whisper-tiny.en_timestamped` | `aeaa13760958b03fac5062f457d317d3319c3168` | 2025-03-05 |
 | `Xenova/clip-vit-base-patch32` | `d15189d7028b43f1d3e65039190477f6af591c2a` | 2025-07-08 |
+| `Xenova/speecht5_tts` | `1723781b8ce2d02f0400c8337be04ae8ee3d6d56` | 2025-08-27 |
+| `Xenova/speecht5_hifigan` | `cf980c3610d7b7f20919960031066ef7905737bd` | 2025-08-18 |
+| `Xenova/opus-mt-en-es` | `4b002a4c7edd54a7ced58877258b87f7efd3f892` | 2025-07-14 |
+| `Xenova/opus-mt-en-fr` | `28726206f80896b90035bd99cccd5cc1e151f916` | 2025-07-14 |
+| `Xenova/opus-mt-es-en` | `eadfd7c658a9d8929ac3b8e996b68a68e2c7d480` | 2025-07-14 |
 
 Observed with real downloads: model weights and CLIP files are requested at the hash (the hub rewrites to `/api/resolve-cache/models/<repo>/<hash>/...`). Limitation of transformers.js 4.3.0: `pipeline()` first probes `config.json`, `tokenizer_config.json` and `preprocessor_config.json` at `main` to plan the file list (Whisper only). Those probes only decide which components load; all bytes are fetched at the pinned commit. Pinning Whisper fully would mean constructing the pipeline from `from_pretrained` pieces; not done to avoid changing the real recogniser path.
 
@@ -42,6 +51,17 @@ Enforced by `tests/supply-chain.test.ts`; change both together.
 | `public/mediapipe/wasm/vision_wasm_internal.js` | `e170ee67dd4e16c1a6fcd8840a206687e5a59b22c20e4a902bc445b095454d73` |
 | `public/mediapipe/wasm/vision_wasm_internal.wasm` | `8da277a733926eacd0474b8704b36742d6ec3231c57a860c5b889dff8f1df886` |
 | `public/fonts/inter-latin-wght-normal.woff2` | `3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62` |
+| `src/platform/denoise/vendor/rnnoise.js` | `83a86f528a0f4d5c61a84be40dac9f15e5d114f24971bd5953f7f21879bc9bdf` |
+| `src/platform/denoise/vendor/rnnoise.wasm` | `677147b9248aedc0a00de79dc090d1ecead37c08c8bb773a790da16109d2c487` |
+| `public/tts/voices/slt.bin` | `1be85882a04effc2cd1111869ae885f53cf2b05ac6ad3b072d56e079cf3b24ff` |
+| `public/tts/voices/clb.bin` | `80fd16944f979a6e0f159ed6dd59ae84ed73ef5264f62263106e6fb11a4e59a7` |
+| `public/tts/voices/bdl.bin` | `274173f5dccebb838f38b47e8af7d3931428e0fbe9bcb9b11134ab296a77ad19` |
+| `public/tts/voices/rms.bin` | `b400b4d40c96f014a34165d7d70001634008b2071cf917b22e713e083285683f` |
+| `public/tts/voices/awb.bin` | `9109c94f57937d8f5327e267d65b290d91ceb7dfdc34063b36c9c735e90c5fe9` |
+| `public/tts/voices/jmk.bin` | `5ad213535eef0815e77eadfff622e821e87206a4a6481d702b9249a76d5d3300` |
+| `public/tts/voices/ksp.bin` | `89d49de8cde5fd74cc591fbd1105b78ad4d5e051c84e39818fb1d04a7116045b` |
+
+RNNoise: `rnnoise.js` and `rnnoise.wasm` are the unmodified `dist/` files of `@jitsi/rnnoise-wasm` 0.2.1 (npm, published 2025-11-06, Apache-2.0; the RNNoise algorithm is BSD-3-Clause, Xiph.Org). The speaker embeddings are the unmodified `cmu_us_<speaker>_arctic-wav-arctic_a0001.bin` files of the dataset `Xenova/cmu-arctic-xvectors-extracted` at revision `b7b0b7fd0c1c77728ded8e1a908e863b490cfef4` (the awb file's hash equals the Hub's LFS object id); derived from `Matthijs/cmu-arctic-xvectors`, MIT. Details and licence decisions for all four audio features: `docs/AUDIO_VOICE.md`.
 
 The tflite model's upstream provenance (Google MediaPipe `blaze_face_short_range`) was not re-verified against Google's storage in this pass; the hash records what is in the repo.
 

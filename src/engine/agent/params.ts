@@ -43,6 +43,7 @@ const CROP_SPECS: ParamSpec[] = [
 const AUDIO_SPECS: ParamSpec[] = [
   num(PARAM.volume, { min: VOLUME_DB_MIN, max: VOLUME_DB_MAX, unit: "dB, 0 = unchanged" }),
   bool(PARAM.muted),
+  num(PARAM.denoise, { min: 0, max: 1, unit: "noise removal strength, 0 = off (see reduce_noise)" }),
 ];
 
 const TEXT_SPECS: ParamSpec[] = [

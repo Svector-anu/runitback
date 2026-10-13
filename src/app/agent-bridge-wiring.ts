@@ -9,6 +9,7 @@ import { createAnalysisProvider, getStyleProfileStore } from "./agent/reference-
 import { createAppTemporalTools } from "./agent/temporal-wiring";
 import { createAppTranscriptTools } from "./agent/transcript-wiring";
 import { createAppUnderstandTools } from "./agent/understand-wiring";
+import { createAppAudioTools } from "./agent/audio-wiring";
 import { createAppFaceTools } from "./agent/face-wiring";
 import { createAppTemplateTools } from "./agent/templates-wiring";
 import { createAppBackgroundTools } from "./agent/background-wiring";
@@ -53,6 +54,7 @@ export function createBridgeRegistry(onExport: (result: PendingExport) => void):
   for (const tool of createAppTemplateTools()) registry.set(tool.name, tool);
   for (const tool of createAppBackgroundTools()) registry.set(tool.name, tool);
   for (const tool of createAppMotionTools()) registry.set(tool.name, tool);
+  for (const tool of createAppAudioTools()) registry.set(tool.name, tool);
   return registry;
 }
 
