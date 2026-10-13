@@ -31,10 +31,10 @@ describe("landing content shape", () => {
     for (const column of LANDING_CONTENT.footer.columns) for (const link of column.links) if (link.target) expect(SECTION_IDS).toContain(link.target);
   });
 
-  it("has unique feature ids, a full 12-column bento and the seven agreed cards", () => {
+  it("has unique feature ids, a full 12-column bento and the nine agreed cards", () => {
     const items = LANDING_CONTENT.features.items;
     expect(new Set(items.map((i) => i.id)).size).toBe(items.length);
-    expect(items.map((i) => i.title)).toEqual(["Edit with words", "Find any moment", "Plan before it edits", "Private by design", "Real timeline", "Start from a template", "Export MP4 or WebM"]);
+    expect(items.map((i) => i.title)).toEqual(["Edit with words", "Find any moment", "Plan before it edits", "Private by design", "Real timeline", "Start from a template", "Effects that used to need another app", "Generate media in the editor", "Export MP4 or WebM"]);
     let row = 0;
     for (const item of items) {
       row += item.span;
