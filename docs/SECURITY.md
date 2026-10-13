@@ -51,6 +51,32 @@ The browser UI builds only the Anthropic client (`docs/PROVIDERS.md`), against `
 
 Not verifiable from Playwright: violations raised inside real (non-blob) workers are not delivered to the page recorder. They are covered indirectly (a blocked request or script makes the stage fail, and the real run ends "Understood"). WebGPU execution was not exercised (headless Chromium).
 
+## Local agent bridge pairing
+
+The optional bridge (`tools/mcp`, `src/platform/agent-bridge*.ts`, `src/platform/agent-pairing.ts`) lets Claude Code drive the editor. The MCP server listens on `127.0.0.1:7777` (up to 7781) only. The editor page probes those ports only while the Claude Code card is open and exchanges a 6-digit code for the long session token. Opt-in: no server runs unless the user runs the command, and nothing connects without a code or an Allow click.
+
+Controls, all enforced by the server (`tools/mcp/bridge-server.ts`, `tools/mcp/pairing.ts`):
+
+- Loopback bind and `Host` check (blocks LAN access and DNS rebinding).
+- Origin allowlist at the WebSocket upgrade: loopback origins plus exact-match `--allow-origin` entries; everything else gets HTTP 403 before any frame is read, so a hostile site cannot even probe or guess.
+- Pairing code: 6 random digits from `crypto.randomInt`, one live code at a time, single use, expires after 2 minutes, dies after 3 wrong tries (a fresh code needs a user action in Claude Code), asking again does not reset tries or the deadline, bound to the origin of its first attempt (another origin fails and burns a try), pairing needs an `Origin` header (non-browser clients cannot pair), one attempt per socket, constant-time compare.
+- Visibility: wrong attempts are logged to the server's stderr and `show_pairing_code` / `editor_status` warn the user in Claude Code when wrong attempts were made.
+- The session token (24 random bytes) is compared in constant time and is never sent to a socket that did not present a valid code or token. The old link path stays as an advanced fallback.
+
+What a malicious web page could try, and the outcome:
+
+| Attack | Outcome |
+| --- | --- |
+| A page on `https://evil.example` probes or connects to `ws://127.0.0.1:7777` | Refused with 403 at the upgrade; the page learns nothing (Chrome's Local Network Access prompt also gates this for public sites). |
+| Same, from a page whose origin the user allowlisted | Allowlisting is full trust in that origin; only allowlist origins you control. |
+| Guessing the 6 digits | 3 tries per code, so a success chance of at most 3 in 1,000,000 per code, and only while a code is live (2 minutes after the user asked for one). Burning a code costs the attacker nothing but the user must ask for a new one; the failed attempts are reported in Claude Code. |
+| Replaying a seen code | Single use and expired after 2 minutes. |
+| A local process without an `Origin` header | Cannot pair (it can already read the user's files, so the token on the stderr line of the same process is no extra power). |
+| Pairing from a different origin than the one that started | The code is bound to the first origin that tries it; a second origin fails and burns a try. |
+| Reading the token from the address bar or storage | The token is never put in the URL by pairing and is never stored; links carrying it are scrubbed on read. |
+
+Residual risk: any other web page served from `localhost` / `127.0.0.1` (another dev server on the same machine, for example `http://localhost:3000`) is a loopback origin and passes the allowlist. Such a page that guesses a live code within 3 tries (and only during the 2-minute window) gets the token and can drive the editor tool set (read the project, edit, export; no filesystem access, no API key). The Allow click is page UI, not a server check, so it does not stop a hostile local page. Mitigations: tiny window, 3 tries, visible warning in Claude Code, and the user closing Claude Code's server ends the session. Typing the code in the card is treated as consent, so pairing connects immediately. A bridge that exists only in a terminal session with Claude Code is the user's own process; a stronger option (not built) is a per-origin pairing prompt in the terminal.
+
 ## Residual risks
 
 - The Anthropic API key is in `localStorage` (`runitback:agent-api-key`). The CSP makes third-party script injection hard but does not protect against a bug in our own code. For a hosted product with other users, move the key behind a thin proxy.

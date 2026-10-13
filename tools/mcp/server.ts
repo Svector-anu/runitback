@@ -5,6 +5,8 @@ import { createMcpServer } from "./mcp-server";
 
 interface Config {
   port: number;
+  /** True when the user chose no port: take 7777 or the next free one in the small range. */
+  scanPorts: boolean;
   editorUrl: string;
   allowedOrigins: string[];
 }
@@ -14,10 +16,11 @@ function parseConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
     const i = argv.indexOf(`--${name}`);
     return i >= 0 ? argv[i + 1] : undefined;
   };
-  const port = Number(flag("port") ?? (env.RUNITBACK_MCP_PORT ?? env.OPENCUT_MCP_PORT) ?? DEFAULT_BRIDGE_PORT);
-  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`Invalid port '${String(flag("port") ?? (env.RUNITBACK_MCP_PORT ?? env.OPENCUT_MCP_PORT))}'`);
+  const requested = flag("port") ?? env.RUNITBACK_MCP_PORT ?? env.OPENCUT_MCP_PORT;
+  const port = Number(requested ?? DEFAULT_BRIDGE_PORT);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`Invalid port '${String(requested)}'`);
   const allowed = (flag("allow-origin") ?? (env.RUNITBACK_MCP_ALLOWED_ORIGINS ?? env.OPENCUT_MCP_ALLOWED_ORIGINS) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return { port, editorUrl: flag("editor-url") ?? (env.RUNITBACK_EDITOR_URL ?? env.OPENCUT_EDITOR_URL) ?? "http://localhost:5173", allowedOrigins: allowed };
+  return { port, scanPorts: requested === undefined, editorUrl: flag("editor-url") ?? (env.RUNITBACK_EDITOR_URL ?? env.OPENCUT_EDITOR_URL) ?? "http://localhost:5173", allowedOrigins: allowed };
 }
 
 const stderr = (line: string): void => {
@@ -26,12 +29,13 @@ const stderr = (line: string): void => {
 
 async function main(): Promise<void> {
   const config = parseConfig(process.argv.slice(2), process.env);
-  const bridge = new BridgeServer({ port: config.port, allowedOrigins: config.allowedOrigins, log: stderr });
+  const bridge = new BridgeServer({ port: config.port, scanPorts: config.scanPorts, allowedOrigins: config.allowedOrigins, log: stderr });
   const port = await bridge.listen();
   const connectUrl = `${config.editorUrl.replace(/\/$/, "")}/#/projects?agent=${port}&token=${bridge.token}`;
   stderr(`listening on ws://127.0.0.1:${port} (loopback only)`);
-  stderr(`open this link in the browser, then click "Allow": ${connectUrl}`);
-  stderr("Already inside a project? Append ?agent=" + port + "&token=<token> to that project's URL hash instead.");
+  const pairing = bridge.issuePairingCode();
+  stderr(`pairing code ${pairing.code} (2 minutes, works once). Open RunItBack, expand "Use your Claude subscription" in the Agent panel and type it. Ask Claude Code for show_pairing_code if it expires.`);
+  stderr(`advanced fallback, open this link and click "Allow": ${connectUrl}`);
 
   const server = createMcpServer({ bridge, connectUrl: () => connectUrl });
   await server.connect(new StdioServerTransport());

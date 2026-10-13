@@ -1,10 +1,10 @@
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { connectBridgeFromLink, getBridgeController, subscribeBridgeController } from "#/app/agent-bridge-wiring";
+import { pairing } from "#/app/agent-pairing";
+import { PAIRING_CODE_LENGTH } from "#/platform/agent-bridge-protocol";
 import { Button } from "../primitives/Button";
 import type { BridgeController, BridgeView } from "./BridgeStatus";
-import {
-  CLAUDE_CODE_TOOLS, MCP_PATH_PLACEHOLDER, RUNITBACK_REPO_URL, buildMcpAddCommand, describeBridge, isLoopbackOrigin,
-} from "./claude-code";
+import { CLAUDE_CODE_TOOLS, buildSetupCommand, describeClaudeCode, isLoopbackOrigin } from "./claude-code";
 
 const COPY_RESET_MS = 2000;
 const noopSubscribe = (): (() => void) => () => undefined;
@@ -23,21 +23,35 @@ async function writeClipboard(text: string): Promise<boolean> {
   }
 }
 
-/** Collapsible onboarding for driving RunItBack from Claude Code over MCP: the compliant way to use a Claude subscription. */
+/** Short onboarding for driving RunItBack from Claude Code over MCP: the compliant way to use a Claude subscription. */
 export function ClaudeCodeCard({ open, onOpenChange, origin = window.location.origin }: { open: boolean; onOpenChange: (open: boolean) => void; origin?: string }): ReactNode {
   const controller = useSyncExternalStore(subscribeBridgeController, getBridgeController);
   const view = useBridgeView(controller);
+  const pairingView = useSyncExternalStore(pairing.subscribe, pairing.getView);
   const [copied, setCopied] = useState<"done" | "failed" | null>(null);
+  const [code, setCode] = useState("");
   const [link, setLink] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
-  const command = buildMcpAddCommand(origin);
+  const command = buildSetupCommand({ origin });
   const hosted = !isLoopbackOrigin(origin);
-  const status = describeBridge(view);
+  const status = describeClaudeCode({ bridge: view, pairing: pairingView });
+  const needsPairing = view === null || view.phase === "stopped";
+  const codeBoxVisible = pairingView.phase === "found" || pairingView.phase === "pairing";
+
+  useEffect(() => {
+    if (!open || !needsPairing) return undefined;
+    pairing.start();
+    return pairing.stop;
+  }, [open, needsPairing]);
 
   const copy = async (): Promise<void> => {
     const ok = await writeClipboard(command);
     setCopied(ok ? "done" : "failed");
     setTimeout(() => setCopied(null), COPY_RESET_MS);
+  };
+  const submitCode = (event: FormEvent): void => {
+    event.preventDefault();
+    void pairing.submit(code).then(() => setCode(""));
   };
   const connect = (): void => {
     const result = connectBridgeFromLink(link);
@@ -56,50 +70,58 @@ export function ClaudeCodeCard({ open, onOpenChange, origin = window.location.or
         {view?.phase === "pending" ? <Button size="sm" onClick={() => controller?.allow()}>Allow Claude Code to edit</Button> : null}
       </summary>
       <div className="cc-card__body">
-        <p className="cc-card__lead">
-          Anthropic does not let other apps sign in with a Claude subscription, so RunItBack cannot do that. Claude Code can: it is Anthropic's own app,
-          and it can drive this editor through RunItBack's MCP server. Nothing about your subscription reaches this page.
-        </p>
+        <p className="cc-card__lead">Let Claude Code edit this project with your Claude subscription. Everything stays on your computer.</p>
         <ol className="cc-steps">
           <li>
-            <strong>Get the code and install it once.</strong>
-            <code className="cc-code">git clone {RUNITBACK_REPO_URL}.git && cd runitback && pnpm install</code>
-          </li>
-          <li>
-            <strong>Add the server to Claude Code.</strong> Replace <code>{MCP_PATH_PLACEHOLDER}</code> with the folder from step 1.
+            <strong>Run this once in your terminal.</strong>
             <code className="cc-code" data-testid="claude-code-command">{command}</code>
             <Button size="sm" variant="outline" onClick={() => void copy()} aria-describedby="cc-copy-state">Copy command</Button>
             <span id="cc-copy-state" className="cc-copied" role="status" aria-live="polite">
               {copied === "done" ? "Copied" : copied === "failed" ? "Copy failed. Select the command and copy it." : ""}
             </span>
           </li>
+          <li><strong>In Claude Code, say &ldquo;show the RunItBack pairing code&rdquo;.</strong></li>
           <li>
-            <strong>Ask Claude Code for the editor link.</strong> In Claude Code say &ldquo;open RunItBack&rdquo; (it calls <code>editor_status</code>). The link carries a
-            one-time token that changes every run. Paste it here, then click Allow. The token is not stored.
-            <div className="cc-link">
-              <label className="agent-sr-only" htmlFor="cc-link-input">Link from Claude Code</label>
-              <input
-                id="cc-link-input" className="input input--sm" type="password" autoComplete="off" spellCheck={false} placeholder="Paste the link from Claude Code"
-                value={link} onChange={(e) => { setLink(e.target.value); setLinkError(null); }} aria-invalid={linkError ? true : undefined}
-                aria-describedby={linkError ? "cc-link-error" : undefined}
-              />
-              <Button size="sm" disabled={link.trim() === ""} onClick={connect}>Connect</Button>
-            </div>
-            {linkError ? <p id="cc-link-error" className="cc-error" role="alert">{linkError}</p> : null}
+            <strong>Type the {PAIRING_CODE_LENGTH}-digit code here.</strong>
+            {codeBoxVisible ? (
+              <form className="cc-link" onSubmit={submitCode}>
+                <label className="agent-sr-only" htmlFor="cc-code-input">6-digit pairing code</label>
+                <input
+                  id="cc-code-input" className="input input--sm cc-code-input" inputMode="numeric" autoComplete="off" spellCheck={false} maxLength={PAIRING_CODE_LENGTH + 1}
+                  placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, PAIRING_CODE_LENGTH))}
+                  aria-invalid={pairingView.error ? true : undefined} aria-describedby={pairingView.error ? "cc-code-error" : undefined}
+                />
+                <Button size="sm" type="submit" disabled={code.length !== PAIRING_CODE_LENGTH || pairingView.phase === "pairing"}>Pair</Button>
+              </form>
+            ) : null}
+            {pairingView.error ? <p id="cc-code-error" className="cc-error" role="alert">{pairingView.error}</p> : null}
           </li>
         </ol>
-        <p className="cc-note">
-          {hosted
-            ? <>This site is not on localhost, so the command above allowlists <code>{origin}</code> on your own machine, and Chrome will ask once to allow this site to connect to devices on your network (local network access). Only Chrome has been tested.</>
-            : <>You are on a local copy, so the bridge accepts this page without extra flags. The bridge listens on 127.0.0.1 only.</>}
-          {" "}Nothing connects until you click Allow, and Disconnect is always in the chip at the bottom right.
-        </p>
-        <div className="cc-tools">
-          <span className="cc-tools__title">Claude Code can</span>
+        {hosted && status.tone === "waiting" ? <p className="cc-note">Chrome may ask to allow local network access: click Allow.</p> : null}
+        <details className="cc-more">
+          <summary>What can Claude Code do?</summary>
           <ul>
             {CLAUDE_CODE_TOOLS.map((tool) => <li key={tool.name}><code>{tool.name}</code> {tool.does}</li>)}
           </ul>
-        </div>
+        </details>
+        <details className="cc-more">
+          <summary>Why not sign in with Claude?</summary>
+          <p>Anthropic does not let other apps use a Claude subscription login, but its own Claude Code can.</p>
+        </details>
+        <details className="cc-more">
+          <summary>Advanced: paste a link instead</summary>
+          <p>Ask Claude Code to call <code>editor_status</code>, paste the link it returns, then click Allow. The token is not stored.</p>
+          <div className="cc-link">
+            <label className="agent-sr-only" htmlFor="cc-link-input">Link from Claude Code</label>
+            <input
+              id="cc-link-input" className="input input--sm" type="password" autoComplete="off" spellCheck={false} placeholder="Paste the link from Claude Code"
+              value={link} onChange={(e) => { setLink(e.target.value); setLinkError(null); }} aria-invalid={linkError ? true : undefined}
+              aria-describedby={linkError ? "cc-link-error" : undefined}
+            />
+            <Button size="sm" disabled={link.trim() === ""} onClick={connect}>Connect</Button>
+          </div>
+          {linkError ? <p id="cc-link-error" className="cc-error" role="alert">{linkError}</p> : null}
+        </details>
       </div>
     </details>
   );

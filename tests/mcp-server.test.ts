@@ -122,6 +122,24 @@ describe("MCP bridge server", () => {
     expect(JSON.parse(text(status))).toMatchObject({ connected: false });
   });
 
+  it("shows a 6-digit pairing code that the bridge will redeem", async () => {
+    await start();
+    const res = await client.callTool({ name: "show_pairing_code", arguments: {} });
+    const code = /\b(\d{6})\b/.exec(text(res))?.[1];
+    expect(code).toBeDefined();
+    expect(text(res)).toContain("works once");
+    expect(bridge.pairing.redeem({ code: code ?? "", origin: "http://localhost:5173" })).toEqual({ ok: true });
+  });
+
+  it("includes the pairing code in the not-connected instructions and warns about wrong attempts", async () => {
+    await start();
+    bridge.issuePairingCode();
+    bridge.pairing.redeem({ code: "x", origin: "http://localhost:5173" });
+    const res = await client.callTool({ name: "get_project", arguments: {} });
+    expect(text(res)).toMatch(/\d{6}/);
+    expect(text(res)).toContain("1 wrong code attempt");
+  });
+
   it("rejects a wrong token and never exposes tools", async () => {
     await start();
     const b = new FakeBrowser(url, { token: "wrong" });
@@ -179,7 +197,7 @@ describe("MCP bridge server", () => {
     await start();
     await connectBrowser();
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(["editor_status", "get_project", "render_frame", "add_clip"]);
+    expect(tools.map((t) => t.name)).toEqual(["editor_status", "show_pairing_code", "get_project", "render_frame", "add_clip"]);
     const render = tools.find((t) => t.name === "render_frame");
     expect(render?.inputSchema).toMatchObject({ type: "object", required: ["time"], properties: { time: { type: "number" } } });
     expect(render?.annotations?.readOnlyHint).toBe(true);
@@ -257,7 +275,7 @@ describe("MCP bridge server", () => {
     const b = await connectBrowser();
     b.close();
     await until(() => bridge.editor === null, "detach");
-    expect((await client.listTools()).tools.length).toBe(4);
+    expect((await client.listTools()).tools.length).toBe(5);
     const res = await client.callTool({ name: "get_project", arguments: {} });
     expect(res.isError).toBe(true);
     expect(text(res)).toContain("No RunItBack editor is connected");
@@ -277,7 +295,7 @@ describe("MCP bridge server", () => {
     await second.ackReceived;
     await until(() => bridge.toolList.some((t) => t.name === "only_tool"), "refreshed list");
     await until(() => notified >= 2, "second notification");
-    expect((await client.listTools()).tools.map((t) => t.name)).toEqual(["editor_status", "only_tool"]);
+    expect((await client.listTools()).tools.map((t) => t.name)).toEqual(["editor_status", "show_pairing_code", "only_tool"]);
   });
 
   it("lets a newer editor connection replace the old one", async () => {

@@ -36,7 +36,8 @@
     "e2e": "playwright test",
     "mcp": "tsx tools/mcp/server.ts",
     "eval": "tsx evals/run.ts",
-    "eval:real": "tsx evals/real.ts --real"
+    "eval:real": "tsx evals/real.ts --real",
+    "build:mcp": "node packages/mcp/build.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

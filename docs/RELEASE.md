@@ -71,11 +71,30 @@ Deployment Protection being on means the smoke check's headless request hits
 Vercel's login page unless a bypass secret is present — see Owner-only below.
 Without it, the job logs a warning and skips the check rather than failing.
 
+## 5. Publishing `runitback-mcp` (owner only)
+
+The MCP server ships as the npm package `runitback-mcp` (`packages/mcp`, built from `tools/mcp`). `npm view runitback-mcp` returned 404 on 2026-10-13, so the unscoped name is free. If it is taken by the time you publish, rename the package to `@runitback/mcp` (create the `runitback` org on npm first), then update `MCP_PACKAGE` in `src/ui/agent/claude-code.ts`, `packages/mcp/package.json`, its README and `docs/AGENT_MCP.md`.
+
+Publishing needs an npm account with two-factor authentication; with 2FA on, `npm publish` prompts for a one-time password (use an authenticator code, or `--otp=<code>`). Do not put an npm token in the repo or in CI logs.
+
+```sh
+pnpm install
+npm login
+cd packages/mcp
+npm pack --dry-run          # check: LICENSE, README.md, dist/server.js, package.json only (prepack builds dist)
+npm publish --access public # asks for the 2FA one-time password
+# verify from a clean directory:
+cd "$(mktemp -d)" && npx -y runitback-mcp@0.1.0 --port 0   # prints a pairing code, Ctrl-C to stop
+```
+
+Then flip `RUNITBACK_MCP_PUBLISHED` to `true` in `src/ui/agent/claude-code.ts` (the Agent card then shows the one-line `npx` command instead of the clone command), run `pnpm test`, merge, and let the deploy go out. To release a new version, bump `version` in `packages/mcp/package.json` and `MCP_PACKAGE_VERSION` together; the card pins the exact version.
+
 ## Owner-only
 
 These steps require the Vercel dashboard or GitHub repo secrets — no skill in
 this repo can do them.
 
+- **Publish `runitback-mcp` to npm** (section 5), then flip `RUNITBACK_MCP_PUBLISHED`.
 - **Gate Production deploys on CI** — see the options in section 3 (Vercel
   Deployment Checks, or the secrets plus `deploy.yml` route). Not doable without
   dashboard or secret access.

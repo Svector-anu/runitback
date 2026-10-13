@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { BridgeServer } from "../tools/mcp/bridge-server";
 
-const SHOTS = "e2e/.artifacts/conn";
+const SHOTS = "e2e/.artifacts/conn2";
 const KEY_PREF = "runitback:agent-api-key";
 const TOKEN = "conn-token";
 
@@ -16,33 +16,42 @@ async function openAgent(page: Page, options: { key?: string; width?: number; he
   await page.getByRole("tab", { name: "Agent" }).click();
 }
 
-test("Claude Code card is open without a key, copies an exact command with a placeholder path, and passes a11y basics", async ({ page, context }) => {
+test("Claude Code card is short: one sentence, three steps, one command, tools and extras collapsed", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await openAgent(page);
+  await openAgent(page, { height: 1400 });
   const card = page.getByTestId("claude-code-card");
   await expect(card).toHaveAttribute("open", "");
   await expect(card.getByText("Use your Claude subscription (Claude Code)")).toBeVisible();
-  await expect(card).toContainText("Anthropic does not let other apps sign in with a Claude subscription");
+  await expect(card.locator(".cc-card__body > p")).toHaveCount(1);
+  await expect(card.locator(".cc-steps > li")).toHaveCount(3);
 
-  const command = "claude mcp add runitback -- pnpm --dir /path/to/runitback exec tsx tools/mcp/server.ts";
-  await expect(card.getByTestId("claude-code-command")).toHaveText(command);
+  const command = await card.getByTestId("claude-code-command").innerText();
+  expect(command).toBe('git clone https://github.com/Svector-anu/runitback.git runitback && cd runitback && pnpm install && claude mcp add runitback -- pnpm --dir "$PWD" exec tsx tools/mcp/server.ts');
+  await expect(card.getByRole("button", { name: "Copy command" })).toHaveCount(1);
   await card.getByRole("button", { name: "Copy command" }).click();
   await expect(card.getByText("Copied")).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(command);
 
-  await expect(card.getByLabel("Link from Claude Code")).toHaveAttribute("type", "password");
   await expect(card.getByTestId("claude-code-status")).toHaveAttribute("role", "status");
-  await expect(card.getByTestId("claude-code-status")).toContainText("not connected");
-  await expect(card.getByText("render_frame")).toBeVisible();
-  await expect(card).toContainText("local copy");
-  await page.screenshot({ path: `${SHOTS}/conn-01-no-key-open.png` });
+  await expect(card.getByText("render_frame")).toBeHidden();
+  await expect(card.getByText("Anthropic does not let other apps use a Claude subscription login")).toBeHidden();
+  await expect(card.getByLabel("Link from Claude Code")).toBeHidden();
+  await expect(card).not.toContainText("Local Network");
+  await expect(card).not.toContainText("local network");
+  await page.screenshot({ path: `${SHOTS}/conn2-01-short-card.png` });
 
-  const summary = card.locator("summary");
+  await card.getByText("What can Claude Code do?").click();
+  await expect(card.getByText("render_frame")).toBeVisible();
+  await card.getByText("Why not sign in with Claude?").click();
+  await expect(card.getByText("Anthropic does not let other apps use a Claude subscription login")).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/conn2-02-extras-open.png` });
+
+  const summary = card.locator("summary").first();
   await summary.focus();
   await page.keyboard.press("Enter");
   await expect(card).not.toHaveAttribute("open", "");
   await expect(card.getByTestId("claude-code-status")).toBeVisible();
-  await page.screenshot({ path: `${SHOTS}/conn-02-collapsed.png` });
+  await page.screenshot({ path: `${SHOTS}/conn2-03-collapsed.png` });
 });
 
 test("with a key already saved the card is collapsed but its status is still visible", async ({ page }) => {
@@ -51,16 +60,17 @@ test("with a key already saved the card is collapsed but its status is still vis
   await expect(card).not.toHaveAttribute("open", "");
   await expect(card.getByTestId("claude-code-status")).toBeVisible();
   await expect(card.getByRole("button", { name: "Copy command" })).toBeHidden();
-  await page.screenshot({ path: `${SHOTS}/conn-03-key-saved-collapsed.png` });
+  await page.screenshot({ path: `${SHOTS}/conn2-04-key-saved-collapsed.png` });
 });
 
-test("the status chip follows the real bridge: pasted link, Allow, connected, disconnect, bad links", async ({ page }) => {
+test("advanced fallback: the status chip follows the real bridge for a pasted link, Allow, connected, disconnect, bad links", async ({ page }) => {
   const bridge = new BridgeServer({ port: 0, token: TOKEN });
   const port = await bridge.listen();
   try {
     await openAgent(page);
     const card = page.getByTestId("claude-code-card");
     const status = card.getByTestId("claude-code-status");
+    await card.getByText("Advanced: paste a link instead").click();
     const input = card.getByLabel("Link from Claude Code");
 
     await input.fill("not a link");
@@ -72,7 +82,6 @@ test("the status chip follows the real bridge: pasted link, Allow, connected, di
     await input.fill(`http://localhost:5173/#/projects?agent=${port}`);
     await card.getByRole("button", { name: "Connect" }).click();
     await expect(card.getByRole("alert")).toContainText("missing its token");
-    await expect(status).toHaveAttribute("data-tone", "idle");
 
     await input.fill(`http://localhost:5173/#/projects?agent=${port}&token=${TOKEN}`);
     await card.getByRole("button", { name: "Connect" }).click();
@@ -80,13 +89,13 @@ test("the status chip follows the real bridge: pasted link, Allow, connected, di
     await expect(status).toContainText("click Allow");
     await page.waitForTimeout(400);
     expect(bridge.editor).toBeNull();
-    await page.screenshot({ path: `${SHOTS}/conn-04-pending.png` });
+    await page.screenshot({ path: `${SHOTS}/conn2-14-pending.png` });
 
     await card.getByRole("button", { name: "Allow Claude Code to edit" }).click();
     await expect(status).toHaveText("Claude Code connected");
     await expect(page.getByTestId("agent-bridge-status")).toHaveAttribute("data-phase", "connected");
     expect(bridge.editor).not.toBeNull();
-    await page.screenshot({ path: `${SHOTS}/conn-05-connected.png` });
+    await page.screenshot({ path: `${SHOTS}/conn2-15-connected.png` });
 
     await page.getByTestId("agent-bridge-status").getByRole("button", { name: "Disconnect" }).click();
     await expect(status).toContainText("disconnected");
@@ -101,6 +110,7 @@ test("a wrong token is shown as rejected, not connected", async ({ page }) => {
   try {
     await openAgent(page);
     const card = page.getByTestId("claude-code-card");
+    await card.getByText("Advanced: paste a link instead").click();
     await card.getByLabel("Link from Claude Code").fill(`http://localhost:5173/#/projects?agent=${port}&token=wrong`);
     await card.getByRole("button", { name: "Connect" }).click();
     await card.getByRole("button", { name: "Allow Claude Code to edit" }).click();
@@ -150,7 +160,7 @@ test("Get an API key opens the console safely; Test key reports success and each
   await panel.getByText("Privacy and cost").click();
   await expect(panel.getByText(/You pay Anthropic directly/)).toBeVisible();
   await expect(panel.getByText(/This is an API key, not a Claude subscription login/)).toBeVisible();
-  await page.screenshot({ path: `${SHOTS}/conn-06-key-area-empty.png` });
+  await page.screenshot({ path: `${SHOTS}/conn2-16-key-area-empty.png` });
 
   await panel.getByLabel("Anthropic API key").fill(SECRET);
   const result = panel.getByTestId("agent-key-result");
@@ -158,12 +168,12 @@ test("Get an API key opens the console safely; Test key reports success and each
   await expect(result).toContainText("Key works");
   expect(seen).toHaveLength(1);
   expect(seen[0]).toContain('"max_tokens":1');
-  await page.screenshot({ path: `${SHOTS}/conn-07-key-ok.png` });
+  await page.screenshot({ path: `${SHOTS}/conn2-17-key-ok.png` });
 
   mode = "401";
   await panel.getByRole("button", { name: "Test key" }).click();
   await expect(result).toContainText("rejected this key (401)");
-  await page.screenshot({ path: `${SHOTS}/conn-08-key-401.png` });
+  await page.screenshot({ path: `${SHOTS}/conn2-18-key-401.png` });
   mode = "429";
   await panel.getByRole("button", { name: "Test key" }).click();
   await expect(result).toContainText("rate limited");
@@ -184,5 +194,5 @@ test("narrow panel: the card does not overflow horizontally", async ({ page }) =
   await openAgent(page, { width: 1100, height: 640 });
   const overflow = await page.getByTestId("agent-panel").evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
-  await page.screenshot({ path: `${SHOTS}/conn-09-short-screen.png` });
+  await page.screenshot({ path: `${SHOTS}/conn2-19-short-screen.png` });
 });
