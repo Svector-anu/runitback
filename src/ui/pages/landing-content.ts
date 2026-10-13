@@ -136,7 +136,7 @@ export const LANDING_CONTENT: LandingContent = {
     sub: "RunItBack is a free video editor with an AI agent built in. Describe the edit in plain words, review the plan, and export. It runs in your browser, and the code is yours to read and change.",
     primaryCta: "Start editing",
     githubCta: "Star on GitHub",
-    trust: ["Open source", "100% local", "No upload", "Works in Chrome"],
+    trust: ["Open source", "Private", "Works in Chrome"],
     strip: [
       { src: "/landing/card-timeline.webp", alt: "A close view of the timeline with three clips", width: 1200, height: 245, position: "0% 50%", ratio: 1.3 },
       { src: "/landing/card-preview.webp", alt: "The RunItBack preview window showing a sunset clip", width: 900, height: 687, position: "50% 100%", ratio: 1.5 },
@@ -196,7 +196,7 @@ export const LANDING_CONTENT: LandingContent = {
       {
         id: "private",
         title: "Private by design",
-        body: "Media stays in your browser. There is no account and no upload.",
+        body: "Your media stays in your browser, and there is no account.",
         visual: "private",
         span: 4,
       },
@@ -220,7 +220,7 @@ export const LANDING_CONTENT: LandingContent = {
   how: {
     eyebrow: "How it works",
     title: "From raw clips to export in five steps.",
-    intro: "No account, no upload queue, nothing to install.",
+    intro: "No account and nothing to install.",
     steps: [
       { title: "Import", body: "Drop in videos, photos and audio. They stay in your browser." },
       { title: "Understand", body: "It finds silences, speech, scenes and faces, on your device." },
@@ -314,7 +314,7 @@ export const LANDING_CONTENT: LandingContent = {
     ],
     aside: {
       title: "Ready to try it?",
-      body: "Open the editor and import a clip. No account, no upload.",
+      body: "Open the editor and import a clip. No account needed.",
       cta: "Start editing",
     },
   },

@@ -58,7 +58,7 @@ test.describe("landing brand assets (opt-in)", () => {
       .top{display:flex;justify-content:space-between;align-items:center}.lock{font-size:34px}
       .mono{font-family:"Geist Mono",monospace;font-size:20px;letter-spacing:.06em;text-transform:uppercase;color:#4f4f4f}
       </style><div class="frame"><div class="top"><div class="lock" style="display:flex;align-items:center;gap:12px;font-weight:600;letter-spacing:-.04em"><div style="width:44px">${chosen}</div>RunItBack</div><div class="pill"><i class="dot"></i>Free in your browser</div></div>
-      <h1>Tell your video editor <span>what to do.</span></h1><div class="mono">100% local · no upload · works in Chrome</div></div>`);
+      <h1>Tell your video editor <span>what to do.</span></h1><div class="mono">private · open source · works in Chrome</div></div>`);
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: "public/og-image.png" });
   });
