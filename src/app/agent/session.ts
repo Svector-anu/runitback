@@ -11,6 +11,7 @@ import { createAnalysisProvider, getStyleProfileStore } from "./reference-wiring
 import { createAppTemporalTools } from "./temporal-wiring";
 import { createAppTranscriptTools } from "./transcript-wiring";
 import { createAppUnderstandTools } from "./understand-wiring";
+import { createAppGenerateTools } from "./generate-wiring";
 import { createAppFaceTools } from "./face-wiring";
 import { createAppTemplateTools } from "./templates-wiring";
 import { createAppBackgroundTools } from "./background-wiring";
@@ -250,6 +251,7 @@ export class AgentSession {
     for (const tool of createAppBackgroundTools(() => controller.signal)) tools.set(tool.name, tool);
     for (const tool of createAppMotionTools(() => controller.signal)) tools.set(tool.name, tool);
     for (const tool of createAppAudioTools()) tools.set(tool.name, tool);
+    if (this.state.askBeforeEditing) for (const tool of await createAppGenerateTools(() => controller.signal)) tools.set(tool.name, tool);
 
     const toolItems = new Map<string, number>();
     const onEvent = (event: AgentEvent): void => {

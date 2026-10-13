@@ -72,8 +72,8 @@ describe("vercel.json content security policy", () => {
     expect(document.get("form-action")).toEqual(["'self'"]);
   });
 
-  it("limits connect-src to the hub, its CDN, the Anthropic API and the local agent bridge", () => {
-    expect(document.get("connect-src")).toEqual(["'self'", "blob:", "https://huggingface.co", "https://*.hf.co", "https://api.anthropic.com", "ws://127.0.0.1:*", "ws://localhost:*"]);
+  it("limits connect-src to the hub, its CDN, the Anthropic API, the Surplus gateway and the local agent bridge", () => {
+    expect(document.get("connect-src")).toEqual(["'self'", "blob:", "https://huggingface.co", "https://*.hf.co", "https://api.anthropic.com", "https://api.surplusintelligence.ai", "ws://127.0.0.1:*", "ws://localhost:*"]);
   });
 
   it("grants unsafe-eval to exactly two scripts: the MediaPipe face and segmenter workers", () => {

@@ -1,0 +1,19 @@
+.generate { display: flex; flex-direction: column; gap: 0.75rem; font-size: var(--text-sm); }
+.generate-section { display: flex; flex-direction: column; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+.generate-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.generate-field .select, .generate-field .input, .generate-field .textarea { width: 100%; min-width: 0; }
+.generate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
+.generate-note { margin: 0; font-size: var(--text-xs); line-height: 1.4; color: var(--muted-foreground); }
+.generate-result-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; font-size: var(--text-xs); min-height: 0; overflow-wrap: anywhere; }
+.generate-result-line:empty { display: none; }
+.generate-ok { color: var(--constructive); }
+.generate-error { color: var(--destructive); font-size: var(--text-xs); overflow-wrap: anywhere; line-height: 1.4; }
+.generate-progress { display: flex; flex-direction: column; gap: 0.25rem; font-size: var(--text-xs); }
+.generate-hosted { border-bottom: 0; align-items: flex-start; }
+.generate a.btn { text-decoration: none; color: var(--foreground); }
+.generated-tag { margin-left: 0; padding: 0 0.3125rem; border: 1px solid var(--border); border-radius: 999px; font-size: 0.625rem; color: var(--muted-foreground); vertical-align: middle; white-space: nowrap; }
+@media (max-width: 899px) {
+  .generate .btn--sm, .generate .select, .generate .input { min-height: 2.5rem; }
+  .generate .textarea { font-size: 1rem; }
+}
+.media-row .generated-tag { margin-left: 0.375rem; }

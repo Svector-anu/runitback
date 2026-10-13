@@ -5,6 +5,7 @@ import { Button } from "../primitives/Button";
 import { Tooltip } from "../primitives/Tooltip";
 import { MediaView } from "./MediaView";
 import { CaptionsView, EffectsView, GraphicsView, TextView } from "./OtherViews";
+import { GenerateView } from "../generate/GenerateView";
 import { SettingsView } from "./SettingsView";
 
 const TABS: Array<{ id: AssetTab; label: string; icon: IconName }> = [
@@ -13,13 +14,14 @@ const TABS: Array<{ id: AssetTab; label: string; icon: IconName }> = [
   { id: "graphics", label: "Graphics", icon: "shapes" },
   { id: "effects", label: "Effects", icon: "wand" },
   { id: "captions", label: "Captions", icon: "captions" },
+  { id: "generate", label: "Generate", icon: "star" },
   { id: "settings", label: "Settings", icon: "sliders" },
 ];
 
 export function AssetsPanel(): ReactNode {
   const active = uiStore.use((s) => s.assetTab);
   const view = active === "media" ? <MediaView /> : active === "text" ? <TextView /> : active === "graphics" ? <GraphicsView />
-    : active === "effects" ? <EffectsView /> : active === "captions" ? <CaptionsView /> : <SettingsView />;
+    : active === "effects" ? <EffectsView /> : active === "captions" ? <CaptionsView /> : active === "generate" ? <GenerateView /> : <SettingsView />;
   return (
     <div className="panel panel-box assets" style={{ width: "100%" }}>
       <div className="assets__rail scrollbar-hidden" role="tablist" aria-label="Asset tabs" aria-orientation="vertical">

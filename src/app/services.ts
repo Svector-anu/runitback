@@ -2,7 +2,7 @@ import { collectAudioClips } from "#/engine/audio";
 import { Editor, type ExecuteResult } from "#/engine/editor";
 import { currentScene } from "#/engine/commands";
 import { removeAssetsCommand } from "#/engine/commands";
-import { PROJECT_SCHEMA_VERSION, randomId, stringParam, type MediaAssetInfo, type Project } from "#/engine/model";
+import { PROJECT_SCHEMA_VERSION, randomId, stringParam, type GeneratedProvenance, type MediaAssetInfo, type Project } from "#/engine/model";
 import { buildFramePlan } from "#/engine/render";
 import {
   ProjectLockedError, ProjectsService, SaveManager, StorageQuotaError, canStoreFile, isQuotaExceededError,
@@ -332,7 +332,7 @@ export class AppServices {
    * reported per file; successes are kept. If that project closes mid-import, remaining files are abandoned and
    * any bytes already stored for the closed project are removed again.
    */
-  async importFiles(files: ReadonlyArray<File>, onProgress?: (done: number, total: number) => void): Promise<ImportOutcome> {
+  async importFiles(files: ReadonlyArray<File>, onProgress?: (done: number, total: number) => void, options: { generated?: GeneratedProvenance } = {}): Promise<ImportOutcome> {
     const session = this.session;
     if (!session?.accepting) throw new Error("No project is open");
     const { projectId, runtime } = session;
@@ -341,7 +341,8 @@ export class AppServices {
     let done = 0;
     for (const file of files) {
       try {
-        const info = await this.deps.probe(file, randomId());
+        const probed = await this.deps.probe(file, randomId());
+        const info = options.generated ? { ...probed, generated: options.generated } : probed;
         const estimate = await globalThis.navigator?.storage?.estimate?.().catch(() => undefined);
         const decision = canStoreFile({ size: file.size, usage: estimate?.usage, quota: estimate?.quota });
         if (!decision.canStore) throw new StorageQuotaError();

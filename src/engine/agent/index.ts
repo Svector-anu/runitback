@@ -10,6 +10,7 @@ export { createTemporalTools, type TemporalDeps } from "./tools-temporal";
 export { createVisualTools, type VisualDeps } from "./tools-visual";
 export { createFaceTools, type FaceDeps } from "./tools-face";
 export { createTemplateTools, type TemplateDeps } from "./tools-templates";
+export { createGenerateTools, GENERATE_MEDIA_KINDS, MAX_GENERATIONS_PER_RUN, type GenerateDeps, type GenerateMediaKind, type GeneratePlan, type GeneratedAssetInfo } from "./tools-generate";
 export { createUnderstandTools, type UnderstandDeps, type UnderstandStatusProvider } from "./tools-understand";
 export { runAgentTurn, runToolTurn, type ToolCall, type ToolTurnResult } from "./turn";
 export { validateInput, didYouMean, type Validation } from "./validate";

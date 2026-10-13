@@ -230,6 +230,17 @@ export interface MediaAssetInfo {
   hasAudio?: boolean;
   /** Small JPEG data URL. */
   thumbnail?: string;
+  /** Set when the file was produced by a generation model instead of imported from disk. */
+  generated?: GeneratedProvenance;
+}
+
+/** Where a generated asset came from, kept with the asset so the "Generated" label and prompt survive reloads. */
+export interface GeneratedProvenance {
+  prompt: string;
+  model: string;
+  provider: string;
+  /** ISO 8601. */
+  createdAt: string;
 }
 
 export interface ElementRef { trackId: string; elementId: string }
