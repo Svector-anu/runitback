@@ -155,6 +155,10 @@ export interface GraphicLayer {
   params?: ParamOverrides;
   /** Cursor shapes only: where the pointer goes, and when it clicks. The box centre is where it starts. */
   cursor?: { path: CursorStop[] };
+  /** Drop shadow under the shape; an empty object uses the defaults. */
+  shadow?: MediaShadow;
+  /** Eased push-ins (seconds after the layer starts). Give a frame and the clip inside it the same stops and they zoom as one picture. */
+  autoZoom?: MediaZoomStop[];
 }
 
 export type BeatLayer = TextLayer | GraphicLayer;

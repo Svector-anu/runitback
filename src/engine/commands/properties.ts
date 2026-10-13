@@ -326,7 +326,7 @@ export function setCursorPathCommand(input: { ref: ElementRef; waypoints: Readon
 // ---- Auto zoom -----------------------------------------------------------------------------------------------
 
 /**
- * Pushes a video or image clip in on points of its picture, easing in, holding and easing back (see `autoZoomAnimations`).
+ * Pushes a video, image or graphic clip in on points of its picture, easing in, holding and easing back (see `autoZoomAnimations`).
  * Replaces the clip's keyframes on scale and position. One undo step.
  */
 export function autoZoomCommand(input: { ref: ElementRef; zooms: ReadonlyArray<AutoZoom> }): Command {
@@ -334,7 +334,7 @@ export function autoZoomCommand(input: { ref: ElementRef; zooms: ReadonlyArray<A
     label: "Auto zoom",
     run(doc, ctx) {
       return { doc: editElement(doc, ctx, input.ref, (el) => {
-        if (el.type !== "video" && el.type !== "image") throw new InvalidInputError("Auto zoom applies to video and image clips");
+        if (el.type !== "video" && el.type !== "image" && el.type !== "graphic") throw new InvalidInputError("Auto zoom applies to video, image and graphic clips");
         const problem = autoZoomProblem({ zooms: input.zooms, clipDuration: el.duration });
         if (problem) throw new InvalidInputError(`Cannot apply auto zoom: ${problem}`);
         return { ...el, animations: autoZoomAnimations({ animations: el.animations, params: el.params, zooms: input.zooms, newId: ctx.newId }) };

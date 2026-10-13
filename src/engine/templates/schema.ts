@@ -517,15 +517,17 @@ function readLayer(reader: Reader, value: unknown, path: string, texts: Readonly
     return { kind: "text", text, ...timing(raw), ...(position ? { position } : {}), ...(animation ? { animation } : {}) };
   }
   if (kind === "graphic") {
-    const raw = reader.object(value, path, ["kind", "shape", "at", "duration", "box", "params", "cursor"]);
+    const raw = reader.object(value, path, ["kind", "shape", "at", "duration", "box", "params", "cursor", "shadow", "autoZoom"]);
     if (!raw) return undefined;
     const shape = reader.oneOf<GraphicShape>(raw["shape"], `${path}.shape`, GRAPHIC_SHAPES);
     const cursor = raw["cursor"] === undefined ? undefined : readCursor(reader, raw["cursor"], `${path}.cursor`);
     if (cursor && shape !== "cursor") reader.add("kind-mismatch", `${path}.cursor`, "only a cursor shape can follow a path");
+    const shadow = raw["shadow"] === undefined ? undefined : readShadow(reader, raw["shadow"], `${path}.shadow`);
+    const autoZoom = raw["autoZoom"] === undefined ? undefined : readZoomStops(reader, raw["autoZoom"], `${path}.autoZoom`);
     const box = readBox(reader, raw["box"], `${path}.box`);
     const params = shape && raw["params"] !== undefined ? readGraphicParams(reader, raw["params"], `${path}.params`, shape) : undefined;
     if (!shape || !box) return undefined;
-    return { kind: "graphic", shape, box, ...timing(raw), ...(params ? { params } : {}), ...(cursor ? { cursor } : {}) };
+    return { kind: "graphic", shape, box, ...timing(raw), ...(params ? { params } : {}), ...(cursor ? { cursor } : {}), ...(shadow ? { shadow } : {}), ...(autoZoom ? { autoZoom } : {}) };
   }
   reader.add(kind === undefined ? "missing" : "bad-value", `${path}.kind`, "expected \"text\" or \"graphic\"");
   return undefined;

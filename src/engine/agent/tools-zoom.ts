@@ -28,18 +28,18 @@ const ZOOM_SCHEMA: JsonSchema = {
 const autoZoom = defineTool<{ elementId: string; zooms: ZoomInput[] }>({
   name: "auto_zoom",
   description:
-    `Push a video or image clip in on points of its picture, like a screen recording that zooms to what matters. Each zoom eases in to \`scale\` with the chosen point at the centre of the frame, holds, then eases back (or stays, with out 0). Up to ${MAX_AUTO_ZOOMS} zooms, in order and not overlapping, all inside the clip. Written as keyframes on scale and position, replacing any keyframes already on those parameters. Times are in SECONDS on the timeline; x and y are canvas pixels from the centre (0, 0 is the middle of the frame). One undo step.`,
+    `Push a video, image or graphic clip in on points of its picture, like a screen recording that zooms to what matters. Each zoom eases in to \`scale\` with the chosen point at the centre of the frame, holds, then eases back (or stays, with out 0). Up to ${MAX_AUTO_ZOOMS} zooms, in order and not overlapping, all inside the clip. Written as keyframes on scale and position, replacing any keyframes already on those parameters. Times are in SECONDS on the timeline; x and y are canvas pixels from the centre (0, 0 is the middle of the frame). One undo step.`,
   inputSchema: {
     type: "object",
-    properties: { elementId: { type: "string", description: "A video or image clip id from get_timeline." }, zooms: { type: "array", items: ZOOM_SCHEMA, description: "Push-ins in time order." } },
+    properties: { elementId: { type: "string", description: "A video, image or graphic clip id from get_timeline." }, zooms: { type: "array", items: ZOOM_SCHEMA, description: "Push-ins in time order." } },
     required: ["elementId", "zooms"],
   },
   readOnly: false,
   run(input, env) {
     env.requireProject();
     const target = env.require(input.elementId);
-    if (target.element.type !== "video" && target.element.type !== "image") {
-      throw new ToolError(`"${input.elementId}" is a ${target.element.type} clip.`, "Auto zoom works on video and image clips.");
+    if (target.element.type !== "video" && target.element.type !== "image" && target.element.type !== "graphic") {
+      throw new ToolError(`"${input.elementId}" is a ${target.element.type} clip.`, "Auto zoom works on video, image and graphic clips.");
     }
     const startTicks = target.element.startTime;
     const zooms: AutoZoom[] = input.zooms.map((z) => ({

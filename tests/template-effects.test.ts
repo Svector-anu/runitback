@@ -161,3 +161,23 @@ describe("count-up in a template text", () => {
     expect(typed.warnings.some((w) => w.code === "count-skipped")).toBe(true);
   });
 });
+
+describe("graphic layers with shadow and zoom", () => {
+  it("a frame and the clip inside it zoom together and the frame casts a shadow", () => {
+    const stops = [{ at: 1, x: 300, y: -100, scale: 2, in: 0.5, hold: 1, out: 0.5 }];
+    const t = raw() as { beats: Array<{ layers?: unknown[]; media?: Record<string, unknown> }> };
+    t.beats[0]!.media = { slot: "clip-a", box: { x: 0, y: 30, width: 1400, height: 760 }, track: "overlay", fit: "cover", autoZoom: stops };
+    t.beats[0]!.layers = [{ kind: "graphic", shape: "app-frame", at: 0, box: { x: 0, y: 0, width: 1500, height: 840 }, params: { style: "browser" }, shadow: { blur: 90 }, autoZoom: stops }];
+    const editor = editorWith(SPECS);
+    const result = applyTemplateToEditor(editor, parseTemplate(t), inputs);
+    expect(result.warnings.filter((w) => w.code === "zoom-skipped")).toEqual([]);
+    const elements = allElements(currentScene(editor.getState().doc).tracks).map((l) => l.element);
+    const frame = elements.find((e) => e.type === "graphic")!;
+    const clip = elements.find((e) => e.type === "video" && e.startTime === 0)!;
+    expect(frame.type === "graphic" && frame.effects?.[0]).toMatchObject({ type: "shadow", params: { blur: 90 } });
+    const ratio = (el: typeof frame, s: number) => (resolveElementParams(el, secTicks(s))[PARAM.scaleX] as number) / (resolveElementParams(el, secTicks(0))[PARAM.scaleX] as number);
+    expect(ratio(frame, 2)).toBeCloseTo(2, 2);
+    expect(ratio(clip, 2)).toBeCloseTo(2, 2);
+    expect(resolveElementParams(frame, secTicks(1.75))[PARAM.positionX]).toBeCloseTo(resolveElementParams(clip, secTicks(1.75))[PARAM.positionX] as number, 0);
+  });
+});

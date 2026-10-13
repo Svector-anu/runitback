@@ -133,7 +133,14 @@ function finishClip(editor: Editor, clip: PlannedClip, elementId: string, warnin
     return;
   }
   if (clip.type === "graphic") {
-    if (clip.cursorPath) editor.execute(setCursorPathCommand({ ref, waypoints: clip.cursorPath }));
+    const effects: Command[] = [];
+    if (clip.shadow) {
+      const effectId = editor.newId();
+      effects.push(addClipEffect({ ref, effectType: "shadow", effectId }), updateClipEffectParams(ref, effectId, clip.shadow));
+    }
+    if (clip.cursorPath) effects.push(setCursorPathCommand({ ref, waypoints: clip.cursorPath }));
+    if (clip.autoZooms) effects.push(autoZoomCommand({ ref, zooms: clip.autoZooms }));
+    if (effects.length > 0) editor.execute(batch("Template graphic", effects));
     return;
   }
   const commands: Command[] = [];

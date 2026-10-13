@@ -8,7 +8,7 @@ import {
 } from "#/engine/time";
 import { ASPECT_SIZES, CAPTION_STYLE_PRESETS, TEXT_STYLE_PRESETS } from "./presets";
 import {
-  TEMPLATE_LIMITS, type BeatLayer, type MediaPlacement, type PixelBox, type ProjectTemplate, type RepeatGroup, type ShortMediaPolicy,
+  TEMPLATE_LIMITS, type BeatLayer, type MediaPlacement, type MediaZoomStop, type PixelBox, type ProjectTemplate, type RepeatGroup, type ShortMediaPolicy,
   type TemplateBeat, type TemplateSlot, type TemplateText, type TextAnimationChoice,
 } from "./types";
 
@@ -83,6 +83,8 @@ export interface PlannedGraphic extends PlannedBase {
   params: ParamValues;
   /** A cursor's route, in ticks from the start of the graphic. */
   cursorPath?: CursorWaypoint[];
+  shadow?: ParamValues;
+  autoZooms?: AutoZoom[];
 }
 
 export type PlannedClip = PlannedMedia | PlannedText | PlannedGraphic;
@@ -322,19 +324,7 @@ class Planner {
     };
     const transitionSeconds = media.transitionIn?.seconds ?? DEFAULT_TRANSITION_SECONDS;
     const transition = media.transitionIn ? { type: media.transitionIn.type, duration: this.tick(transitionSeconds) } : undefined;
-    const zoomsFor = (d: MediaTime): { autoZooms?: AutoZoom[] } => {
-      if (!media.autoZoom) return {};
-      const zooms: AutoZoom[] = [];
-      for (const stop of media.autoZoom) {
-        const zoom: AutoZoom = {
-          at: this.tick(stop.at), x: stop.x, y: stop.y, scale: stop.scale ?? DEFAULT_ZOOM_SCALE,
-          inTicks: Math.max(1, this.tick(stop.in ?? DEFAULT_ZOOM_IN_SECONDS)), holdTicks: this.tick(stop.hold ?? DEFAULT_ZOOM_HOLD_SECONDS), outTicks: this.tick(stop.out ?? DEFAULT_ZOOM_OUT_SECONDS),
-        };
-        if (autoZoomProblem({ zooms: [...zooms, zoom], clipDuration: d }) === null) zooms.push(zoom);
-        else this.warn("zoom-skipped", `A zoom at ${stop.at}s on ${label} was skipped: it does not fit the clip or overlaps the previous one.`);
-      }
-      return zooms.length > 0 ? { autoZooms: zooms } : {};
-    };
+    const zoomsFor = (d: MediaTime): { autoZooms?: AutoZoom[] } => this.zoomsFor(media.autoZoom, d, label);
     const keyframesFor = (d: MediaTime): PlannedKeyframe[] => {
       if (!media.pushIn) return [];
       const sx = Number(framing.params[PARAM.scaleX] ?? 1);
@@ -416,6 +406,21 @@ class Planner {
       type: "image", name: `${asset.name} (hold)`, assetId: asset.id, start: mediaTime(start + playable), duration: mediaTime(duration - playable),
       trimStart: mediaTime(0), trimEnd: mediaTime(0), freezeAt: mediaTime(Math.max(0, sourceDuration - FREEZE_END_GUARD_TICKS)), keyframes: [], ...common,
     });
+  }
+
+  /** The zooms that fit a clip of `duration`, in ticks from its start; the rest are dropped with a warning. */
+  zoomsFor(stops: ReadonlyArray<MediaZoomStop> | undefined, duration: MediaTime, label: string): { autoZooms?: AutoZoom[] } {
+    if (!stops) return {};
+    const zooms: AutoZoom[] = [];
+    for (const stop of stops) {
+      const zoom: AutoZoom = {
+        at: this.tick(stop.at), x: stop.x, y: stop.y, scale: stop.scale ?? DEFAULT_ZOOM_SCALE,
+        inTicks: Math.max(1, this.tick(stop.in ?? DEFAULT_ZOOM_IN_SECONDS)), holdTicks: this.tick(stop.hold ?? DEFAULT_ZOOM_HOLD_SECONDS), outTicks: this.tick(stop.out ?? DEFAULT_ZOOM_OUT_SECONDS),
+      };
+      if (autoZoomProblem({ zooms: [...zooms, zoom], clipDuration: duration }) === null) zooms.push(zoom);
+      else this.warn("zoom-skipped", `A zoom at ${stop.at}s on ${label} was skipped: it does not fit the clip or overlaps the previous one.`);
+    }
+    return zooms.length > 0 ? { autoZooms: zooms } : {};
   }
 
   private planAudio(input: { asset: MediaAssetInfo; start: MediaTime; duration: MediaTime; media: MediaPlacement; label: string }): void {
@@ -526,7 +531,8 @@ class Planner {
       [PARAM.positionX]: Math.round(layer.box.x),
       [PARAM.positionY]: Math.round(layer.box.y),
     };
-    this.push({ type: "graphic", name: layer.shape, shape: layer.shape, start, duration, z: Z.graphic, params, ...this.cursorPathFor(layer, duration) });
+    this.push({ type: "graphic", name: layer.shape, shape: layer.shape, start, duration, z: Z.graphic, params, ...this.cursorPathFor(layer, duration),
+      ...(layer.shadow ? { shadow: { ...layer.shadow } as ParamValues } : {}), ...this.zoomsFor(layer.autoZoom, duration, `the ${layer.shape} layer`) });
   }
 
   planBeat(beat: TemplateBeat, startSeconds: number, scope: Scope): void {

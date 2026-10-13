@@ -113,7 +113,7 @@ describe("autoZoomCommand", () => {
     expect(get(editor, "v").animations).toBeUndefined();
     const t = text("t", 0, 5);
     editor.execute(insertElement({ element: t, placement: { mode: "newTrack", index: 0, trackId: "txt" } }));
-    expect(() => editor.execute(autoZoomCommand({ ref: { trackId: "txt", elementId: "t" }, zooms: [zoom()] }))).toThrow(/video and image/);
+    expect(() => editor.execute(autoZoomCommand({ ref: { trackId: "txt", elementId: "t" }, zooms: [zoom()] }))).toThrow(/video, image and graphic/);
   });
 });
 
