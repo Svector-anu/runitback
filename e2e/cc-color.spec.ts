@@ -65,8 +65,11 @@ test("sharpen exaggerates a hard edge", async ({ page }) => {
   const [darkSide, lightSide] = (await sample(page, edge)) as [Rgb, Rgb];
   await adjust(page, { sharpen: 100 });
   const [darkAfter, lightAfter] = (await sample(page, edge)) as [Rgb, Rgb];
-  expect(darkAfter[0]).toBeLessThan(darkSide[0] - 4);
-  expect(lightAfter[0]).toBeGreaterThan(lightSide[0] + 4);
+  // The blur kernel differs between GPU and software rasterizers, so assert the direction on each side and the
+  // gain in edge contrast relative to this run's own unsharpened baseline, not absolute pixel values.
+  expect(darkAfter[0]).toBeLessThan(darkSide[0]);
+  expect(lightAfter[0]).toBeGreaterThan(lightSide[0]);
+  expect(lightAfter[0] - darkAfter[0]).toBeGreaterThanOrEqual(lightSide[0] - darkSide[0] + 8);
   const [far] = (await sample(page, [[40, 90]])) as [Rgb];
   expect(near(far, [64, 64, 64], 10)).toBe(true);
 });

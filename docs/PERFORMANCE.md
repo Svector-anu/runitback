@@ -1,6 +1,6 @@
 # Performance and long-media hardening (N1)
 
-Measured 2026-10-10 on an Apple-silicon Mac while other builds and test runs shared the machine, so frame-gap maxima are noisy and p50/p95 are the numbers to trust. Timeline numbers come from the Vite dev server (React development build, slower than production). Reproduce with `pnpm exec playwright test perf-` and `pnpm vitest run tests/perf-`; raw JSON lands in `e2e/.artifacts/` (gitignored). Test media is generated with ffmpeg into `e2e/.artifacts/perf-media/` and never committed. The media specs run in the installed Chrome (`channel: "chrome"`) because Playwright's bundled Chromium has no H.264 decoder.
+Measured 2026-10-10 on an Apple-silicon Mac while other builds and test runs shared the machine, so frame-gap maxima are noisy and p50/p95 are the numbers to trust. Timeline numbers come from the Vite dev server (React development build, slower than production). Reproduce with `pnpm exec playwright test perf-` and `pnpm vitest run tests/perf-`; raw JSON lands in `e2e/.artifacts/` (gitignored). Test media is generated with ffmpeg into `e2e/.artifacts/perf-media/` and never committed. ffmpeg is resolved from `FFMPEG_PATH` or `PATH` (needs libx264); without it the media specs skip with a reason. CI installs ffmpeg with apt. The media specs run in the installed Chrome (`channel: "chrome"`) because Playwright's bundled Chromium has no H.264 decoder.
 
 ## (a) Large timeline: 96 clips on 8 tracks (`e2e/perf-timeline.spec.ts`)
 

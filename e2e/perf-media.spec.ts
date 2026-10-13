@@ -1,10 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import { mediabunnyModuleUrl } from "./media";
-import { ensureH264, recordMeasurement, sampleHeap } from "./perf-support";
+import { ensureH264, FFMPEG_SKIP_REASON, findFfmpeg, recordMeasurement, sampleHeap } from "./perf-support";
 
 // Playwright's bundled Chromium has no H.264 decoder; the installed Chrome does.
 test.use({ channel: "chrome" });
+test.skip(findFfmpeg() === null, FFMPEG_SKIP_REASON);
 
 async function openProject(page: Page): Promise<void> {
   await page.goto("/#/projects");

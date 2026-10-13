@@ -22,7 +22,17 @@ jobs:
       - run: pnpm eval
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
+      - name: Install ffmpeg (H.264 test media for e2e/perf-media.spec.ts)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm e2e
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-gates
+          path: e2e/.artifacts
+          retention-days: 7
+          if-no-files-found: ignore
 
   e2e-production:
     runs-on: ubuntu-latest
@@ -40,3 +50,11 @@ jobs:
       - run: pnpm exec playwright test
         env:
           PLAYWRIGHT_TARGET: production
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-production
+          path: e2e/.artifacts
+          retention-days: 7
+          if-no-files-found: ignore
