@@ -24,7 +24,7 @@ Built and covered by tests (see [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.m
 
 - Multi-track timeline: split, trim, move, ripple, snapping, bookmarks, keyframes, multiple scenes, undo/redo, autosave.
 - Preview that renders the real composition, shared with export (one frame plan, one compositor).
-- Text (stroke, shadow, background, animation presets), shapes, masks, blur, colour adjust and eight filters, crop, freeze frame, speed with optional pitch preservation, seven transitions.
+- Text (stroke, shadow, background, animation presets including blur-in, word by word, typing caret and count-up), shapes, a cursor with a click ripple, app frames, masks (rounded corners too), blur, drop shadow, perspective tilt, colour adjust and eight filters, crop, freeze frame, auto zoom, gradient and mesh backgrounds, speed with optional pitch preservation, ten transitions (blur, flash and glitch among them).
 - Captions import (SRT/ASS) and local speech transcription (Whisper) with transcript search and delete-by-sentence.
 - Video effects: chroma key with an eyedropper, speed ramps with a curve editor and presets, on-device background removal, point tracking and stabilization.
 - Audio and voice: snap cuts to the beat, on-device noise removal, local text to speech and caption translation (models download only after consent).
