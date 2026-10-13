@@ -1,5 +1,6 @@
 import { mediaTime } from "#/engine/time";
 import { createScene, InvalidInputError, type Bookmark, type MediaAssetInfo, type ProjectSettings, type Scene } from "#/engine/model";
+import { gradientProblem } from "#/engine/render";
 import { allElements, requireTick } from "#/engine/timeline";
 import { isSaneCanvas, isSaneFrameRate } from "./limits";
 import { currentScene, sceneById, type Command, type EditorDocument } from "./types";
@@ -12,6 +13,10 @@ export function updateSettings(patch: Partial<ProjectSettings>): Command {
         throw new InvalidInputError(`Canvas size ${patch.canvasSize.width}x${patch.canvasSize.height} is outside the supported range`);
       }
       if (patch.fps && !isSaneFrameRate(patch.fps)) throw new InvalidInputError("Frame rate must be between 1 and 240 fps");
+      if (patch.background?.type === "gradient") {
+        const problem = gradientProblem(patch.background);
+        if (problem) throw new InvalidInputError(`Invalid gradient background: ${problem}`);
+      }
       return { doc: { ...doc, settings: { ...doc.settings, ...patch } } };
     },
   };

@@ -1,6 +1,7 @@
-import { numberParam, type BlendMode } from "#/engine/model";
+import { numberParam, type BlendMode, type GradientBackground } from "#/engine/model";
+import { TICKS_PER_SECOND } from "#/engine/time";
 import type { DrawItem, FramePlan, LayerSource, MediaLayer, ResolvedEffect, TextLayer } from "#/engine/render";
-import { adjustPlan, applyChromaKey, blurSigma, chromaKeyIsNoop, chromaKeyPlan, transitionLook, type AdjustPlan, type ChromaKeyPlan } from "#/engine/render";
+import { adjustPlan, applyChromaKey, blurSigma, chromaKeyIsNoop, chromaKeyPlan, gradientAngleAt, gradientBlobs, linearGradientLine, radialCenter, rgba, transitionLook, type AdjustPlan, type ChromaKeyPlan } from "#/engine/render";
 import type { MaskFrame } from "#/engine/segmentation";
 import { ChromaKeyGpu } from "./chroma-gpu";
 import { MaskRasterizer } from "./segmentation";
@@ -98,7 +99,43 @@ export class Compositor {
       ctx.fillStyle = plan.backgroundColor;
       ctx.fillRect(0, 0, plan.width, plan.height);
     }
+    if (plan.backgroundGradient) this.drawBackgroundGradient(plan.backgroundGradient, plan);
     for (const item of plan.items) this.drawItem(item, plan, sources);
+    ctx.restore();
+  }
+
+  private drawBackgroundGradient(gradient: GradientBackground, plan: FramePlan): void {
+    const { ctx } = this;
+    const { width, height } = plan;
+    const seconds = plan.time / TICKS_PER_SECOND;
+    const { colors } = gradient;
+    const stops = (target: CanvasGradient): CanvasGradient => {
+      colors.forEach((color, i) => target.addColorStop(i / (colors.length - 1), color));
+      return target;
+    };
+    ctx.save();
+    if (gradient.style === "linear") {
+      const line = linearGradientLine({ width, height, angle: gradientAngleAt(gradient, seconds) });
+      ctx.fillStyle = stops(ctx.createLinearGradient(line.x0, line.y0, line.x1, line.y1));
+      ctx.fillRect(0, 0, width, height);
+    } else if (gradient.style === "radial") {
+      const center = radialCenter({ motion: gradient.motion, seconds });
+      const cx = center.x * width;
+      const cy = center.y * height;
+      ctx.fillStyle = stops(ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.hypot(width, height) * 0.6));
+      ctx.fillRect(0, 0, width, height);
+    } else {
+      ctx.fillStyle = colors[0] as string;
+      ctx.fillRect(0, 0, width, height);
+      for (const blob of gradientBlobs({ colors, motion: gradient.motion, seconds })) {
+        const radius = blob.radius * Math.max(width, height);
+        const fade = ctx.createRadialGradient(blob.x * width, blob.y * height, 0, blob.x * width, blob.y * height, radius);
+        fade.addColorStop(0, rgba(blob.color, 1));
+        fade.addColorStop(1, rgba(blob.color, 0));
+        ctx.fillStyle = fade;
+        ctx.fillRect(0, 0, width, height);
+      }
+    }
     ctx.restore();
   }
 

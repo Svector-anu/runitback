@@ -3,8 +3,9 @@ import {
 } from "#/engine/commands";
 import { parseAss, parseSrt } from "#/engine/captions";
 import {
-  CANVAS_PRESETS, EMPTY_SELECTION, canTrackBeHidden, canTrackHaveAudio, type ProjectSettings,
+  CANVAS_PRESETS, EMPTY_SELECTION, canTrackBeHidden, canTrackHaveAudio, type GradientBackground, type GradientStyle, type ProjectSettings,
 } from "#/engine/model";
+import { DEFAULT_GRADIENT, gradientProblem } from "#/engine/render";
 import { allElements } from "#/engine/timeline";
 import { frameIndexAt, frameRateFromFloat, frameRateToFloat, mediaTime, mediaTimeFromSeconds } from "#/engine/time";
 import { captionElement } from "./captions";
@@ -12,6 +13,9 @@ import { defineTool, ok, toSec, ToolError } from "./env";
 import type { AgentTool } from "./types";
 
 const HEX_COLOR = /^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+/** The entries of `value` that are not undefined, so a partial input never overwrites a default with undefined. */
+const definedOnly = <T extends object>(value: T): Partial<T> => Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as Partial<T>;
 
 const setTrack = defineTool<{ trackId: string; muted?: boolean; hidden?: boolean }>({
   name: "set_track",
@@ -62,10 +66,11 @@ const PRESET_LABELS = ["16:9", "9:16", "1:1", "4:3"] as const;
 const setProject = defineTool<{
   canvasPreset?: (typeof PRESET_LABELS)[number]; width?: number; height?: number; fps?: number;
   backgroundColor?: string; backgroundBlur?: number;
+  backgroundGradient?: { style?: GradientStyle; colors?: string[]; angle?: number; motion?: number };
 }>({
   name: "set_project",
   description:
-    "Change project settings. Canvas: `canvasPreset` 16:9 (1920x1080), 9:16 (1080x1920), 1:1 (1080x1080), 4:3 (1440x1080), or custom `width` AND `height` in pixels (even integers). `fps` is frames per second (e.g. 24, 25, 29.97, 30, 60); changing it changes the frame grid all times snap to. Background: `backgroundColor` (#rrggbb) or `backgroundBlur` (blur intensity 0-100 of the footage). Clip positions are not rescaled.",
+    "Change project settings. Canvas: `canvasPreset` 16:9 (1920x1080), 9:16 (1080x1920), 1:1 (1080x1080), 4:3 (1440x1080), or custom `width` AND `height` in pixels (even integers). `fps` is frames per second (e.g. 24, 25, 29.97, 30, 60); changing it changes the frame grid all times snap to. Background (pick one): `backgroundColor` (#rrggbb), `backgroundBlur` (blur intensity 0-100 of the footage) or `backgroundGradient` { style linear|radial|mesh, colors (2-6 of #rrggbb), angle (degrees, linear only; 0 = towards the top, 90 = towards the right), motion (0-100, drifts the gradient over time; 0 = still) }. Clip positions are not rescaled.",
   inputSchema: {
     type: "object",
     properties: {
@@ -75,6 +80,7 @@ const setProject = defineTool<{
       fps: { type: "number", minimum: 1, maximum: 120 },
       backgroundColor: { type: "string" },
       backgroundBlur: { type: "number", minimum: 0, maximum: 100 },
+      backgroundGradient: { type: "object", description: "{ style, colors, angle, motion }" },
     },
   },
   readOnly: false,
@@ -95,15 +101,21 @@ const setProject = defineTool<{
       Object.assign(patch, { canvasSize: { width: input.width, height: input.height }, canvasSizeMode: matching ? "preset" : "custom" });
     }
     if (input.fps !== undefined) patch.fps = frameRateFromFloat(input.fps);
-    if (input.backgroundColor !== undefined && input.backgroundBlur !== undefined) {
-      throw new ToolError("Pass either backgroundColor or backgroundBlur, not both.", "A background is a solid colour or a blurred copy of the footage.");
+    if ([input.backgroundColor, input.backgroundBlur, input.backgroundGradient].filter((v) => v !== undefined).length > 1) {
+      throw new ToolError("Pass only one of backgroundColor, backgroundBlur and backgroundGradient.", "A background is a solid colour, a blurred copy of the footage, or a gradient.");
+    }
+    if (input.backgroundGradient !== undefined) {
+      const gradient: GradientBackground = { ...DEFAULT_GRADIENT, ...definedOnly(input.backgroundGradient) };
+      const problem = gradientProblem(gradient);
+      if (problem) throw new ToolError(`Invalid backgroundGradient: ${problem}.`, "Example: { style: \"mesh\", colors: [\"#0f172a\", \"#7c3aed\", \"#06b6d4\"], motion: 40 }.");
+      patch.background = gradient;
     }
     if (input.backgroundColor !== undefined) {
       if (!HEX_COLOR.test(input.backgroundColor)) throw new ToolError(`Invalid backgroundColor "${input.backgroundColor}".`, "Use #rrggbb, e.g. #101820.");
       patch.background = { type: "color", color: input.backgroundColor };
     }
     if (input.backgroundBlur !== undefined) patch.background = { type: "blur", blurIntensity: input.backgroundBlur };
-    if (Object.keys(patch).length === 0) throw new ToolError("Nothing to change.", "Pass canvasPreset, width+height, fps, backgroundColor or backgroundBlur.");
+    if (Object.keys(patch).length === 0) throw new ToolError("Nothing to change.", "Pass canvasPreset, width+height, fps, backgroundColor, backgroundBlur or backgroundGradient.");
     env.editor.execute(updateSettings(patch));
     const settings = env.doc.settings;
     const data = {

@@ -1,17 +1,32 @@
 import { useState, type ReactNode } from "react";
 import { updateSettings } from "#/engine/commands";
-import { CANVAS_PRESETS, type Background } from "#/engine/model";
+import { CANVAS_PRESETS, GRADIENT_STYLES, type Background, type GradientBackground, type GradientStyle } from "#/engine/model";
+import { DEFAULT_GRADIENT } from "#/engine/render";
 import { frameRateFromFloat, frameRateToFloat, isSameFrameRate, type FrameRate } from "#/engine/time";
 import { getServices } from "#/app/services";
 import { useEditorState, useSettings } from "#/app/hooks";
 import { Icon } from "../icons";
 import { NumberField, Section, SelectField, Tabs, ColorField } from "../primitives/fields";
+import { SliderField } from "../primitives/SliderField";
 import { toast } from "../primitives/toast";
 import { runEdit } from "../lib/edit";
 
 const FPS_PRESETS = [24, 25, 30, 60, 120];
 const BLUR_PRESETS = [{ label: "Light", value: 100 }, { label: "Medium", value: 200 }, { label: "Heavy", value: 500 }];
 const SWATCHES = ["#ffffff", "#000000", "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#14b8a6", "#06b6d4", "#3b82f6", "#6366f1", "#8b5cf6", "#d946ef", "#ec4899", "#64748b", "#1e293b"];
+
+const GRADIENT_PRESETS: ReadonlyArray<{ label: string; colors: string[] }> = [
+  { label: "Midnight violet", colors: ["#0f0c29", "#302b63", "#7c3aed"] },
+  { label: "Sunset", colors: ["#ef007e", "#f77400", "#4a30f3"] },
+  { label: "Ocean", colors: ["#0f172a", "#0e7490", "#22d3ee"] },
+  { label: "Mint", colors: ["#d1fae5", "#6ee7b7", "#34d399"] },
+  { label: "Paper", colors: ["#fafaf9", "#e7e5e4"] },
+  { label: "Ink", colors: ["#09090b", "#27272a", "#3f3f46"] },
+];
+const GRADIENT_STYLE_LABELS: Record<GradientStyle, string> = { linear: "Linear", radial: "Radial", mesh: "Mesh" };
+
+export const gradientCss = (g: Pick<GradientBackground, "style" | "colors" | "angle">): string =>
+  g.style === "radial" ? `radial-gradient(circle at 50% 50%, ${g.colors.join(", ")})` : `linear-gradient(${g.style === "mesh" ? 135 : g.angle}deg, ${g.colors.join(", ")})`;
 
 function gcd(a: number, b: number): number {
   return b === 0 ? a : gcd(b, a % b);
@@ -99,6 +114,31 @@ function BackgroundSettings(): ReactNode {
             </button>
           ))}
         </div>
+      </Section>
+      <Section sectionKey="settings:gradient" title="Gradient" defaultOpen={bg.type === "gradient"}>
+        <div className="swatches">
+          {GRADIENT_PRESETS.map((p) => (
+            <button key={p.label} type="button" className="swatch" aria-label={`${p.label} gradient background`}
+              aria-pressed={bg.type === "gradient" && bg.colors.join() === p.colors.join()}
+              style={{ background: gradientCss({ style: "linear", colors: p.colors, angle: 135 }) }}
+              onClick={() => set({ ...(bg.type === "gradient" ? bg : DEFAULT_GRADIENT), colors: p.colors }, "commit")} />
+          ))}
+        </div>
+        {bg.type === "gradient" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+            <div className="chip-group" role="group" aria-label="Gradient style">
+              {GRADIENT_STYLES.map((style) => (
+                <button key={style} type="button" className="chip" aria-pressed={bg.style === style} onClick={() => set({ ...bg, style }, "commit")}>{GRADIENT_STYLE_LABELS[style]}</button>
+              ))}
+            </div>
+            {bg.style === "linear" ? (
+              <SliderField label="Gradient angle" value={bg.angle} min={0} max={360} step={1} defaultValue={135} suffix="°"
+                onPreview={(angle) => set({ ...bg, angle }, "preview")} onCommit={(angle) => set({ ...bg, angle }, "commit")} />
+            ) : null}
+            <SliderField label="Gradient motion" value={bg.motion} min={0} max={100} step={1} defaultValue={0}
+              onPreview={(motion) => set({ ...bg, motion }, "preview")} onCommit={(motion) => set({ ...bg, motion }, "commit")} />
+          </div>
+        ) : null}
       </Section>
       <Section sectionKey="settings:colors" title="Colors" defaultOpen={false}>
         <div className="swatches">
