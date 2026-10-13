@@ -53,6 +53,14 @@ export const PARAM = {
   highlightColor: "highlightColor",
   /** Keeps every word up to `highlightWord` highlighted (karaoke sweep) instead of only that word. */
   highlightSweep: "highlightSweep",
+  /** Shows a formatted number instead of `content` (count-up); `countValue` is the number and can be keyframed. */
+  countEnabled: "countEnabled",
+  countValue: "countValue",
+  /** One of COUNT_FORMATS. */
+  countFormat: "countFormat",
+  countDecimals: "countDecimals",
+  countPrefix: "countPrefix",
+  countSuffix: "countSuffix",
 } as const;
 
 export const BLEND_MODES = [
@@ -110,6 +118,7 @@ export const TEXT_DEFAULTS: ParamValues = {
   [PARAM.blur]: 0,
   [PARAM.wordReveal]: 1,
   [PARAM.highlightWord]: -1,
+  [PARAM.countValue]: 0,
 };
 
 /** Crop edges are fractions (0-1) of the source removed from each side before the transform; the rest stays in place. */

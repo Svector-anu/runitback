@@ -5,7 +5,7 @@ import {
 import { removePathAnimation, upsertKeyframe } from "./mutate";
 
 /** Parameters whose keyframes belong to the text animation presets; setting a preset rewrites exactly these. */
-export const TEXT_ANIMATION_PATHS = [PARAM.opacity, PARAM.positionY, PARAM.scaleX, PARAM.scaleY, PARAM.reveal, PARAM.blur, PARAM.wordReveal] as const;
+export const TEXT_ANIMATION_PATHS = [PARAM.opacity, PARAM.positionY, PARAM.scaleX, PARAM.scaleY, PARAM.reveal, PARAM.blur, PARAM.wordReveal, PARAM.countValue] as const;
 
 /** How far a slide travels, as a fraction of the canvas height. */
 export const SLIDE_DISTANCE_FRACTION = 0.08;
@@ -15,11 +15,13 @@ const POP_OVERSHOOT = 1.1;
 export const BLUR_PRESET_INTENSITY = 40;
 /** The blur-in rise is a hint of motion, not a full slide. */
 const BLUR_SLIDE_SHARE = 0.4;
+/** Count-up keys follow an ease-out curve sampled at these fractions of the phase (keyframes are linear between them). */
+const COUNT_EASE_SAMPLES = [0, 0.2, 0.4, 0.6, 0.8, 1] as const;
 
 export interface PresetKey { time: number; value: number }
 export type PresetKeys = Partial<Record<(typeof TEXT_ANIMATION_PATHS)[number], PresetKey[]>>;
 
-interface Base { opacity: number; positionY: number; scaleX: number; scaleY: number; slide: number; blur: number }
+interface Base { opacity: number; positionY: number; scaleX: number; scaleY: number; slide: number; blur: number; count: number }
 
 /** Keys for the phase that ends at `D` after `origin` (in) or starts at `origin` and ends at `origin + D` (out). */
 function phaseKeys(input: { spec: TextAnimationSpec; phase: "in" | "out"; origin: number; base: Base }): PresetKeys {
@@ -63,6 +65,14 @@ function phaseKeys(input: { spec: TextAnimationSpec; phase: "in" | "out"; origin
         };
     case "stagger-words":
       return { [PARAM.wordReveal]: isIn ? [{ time: at(0), value: 0 }, { time: at(1), value: 1 }] : [{ time: at(0), value: 1 }, { time: at(1), value: 0 }] };
+    case "count-up": {
+      const samples = COUNT_EASE_SAMPLES.map((fraction) => ({ fraction, share: 1 - (1 - fraction) ** 3 }));
+      return {
+        [PARAM.countValue]: isIn
+          ? samples.map(({ fraction, share }) => ({ time: at(fraction), value: base.count * share }))
+          : samples.map(({ fraction, share }) => ({ time: at(fraction), value: base.count * (1 - share) })),
+      };
+    }
     case "typewriter":
     case "type-caret":
       return { [PARAM.reveal]: isIn ? [{ time: at(0), value: 0 }, { time: at(1), value: 1 }] : [{ time: at(0), value: 1 }, { time: at(1), value: 0 }] };
@@ -81,6 +91,7 @@ export function textAnimationKeys(input: { state: TextAnimationState; clipDurati
     scaleY: numberParam(input.params, PARAM.scaleY, 1),
     slide: input.canvasHeight * SLIDE_DISTANCE_FRACTION,
     blur: numberParam(input.params, PARAM.blur, 0),
+    count: numberParam(input.params, PARAM.countValue, 0),
   };
   const limit = maxTextAnimationDuration(input.clipDuration);
   const merged: PresetKeys = {};

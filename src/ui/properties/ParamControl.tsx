@@ -83,7 +83,11 @@ export function ParamControl({ element, refValue, def, playhead }: { element: Ti
       control = <SelectField label={label} value={String(value)} options={def.options} onChange={(v) => apply(v, "commit")} />;
       break;
     case "text":
-      control = def.widget === "textarea" ? (
+      control = def.widget === "line" ? (
+        <input className="input" aria-label={label} defaultValue={String(committedValue)} key={String(committedValue)}
+          onChange={(e) => apply(e.target.value, "preview")} onBlur={(e) => { if (e.target.value !== String(committedValue)) apply(e.target.value, "commit"); else editor.discardPreview(); }}
+          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
+      ) : def.widget === "textarea" ? (
         <textarea className="textarea" aria-label={label} defaultValue={String(committedValue)} key={String(committedValue)} rows={3}
           onChange={(e) => apply(e.target.value, "preview")} onBlur={(e) => { if (e.target.value !== String(committedValue)) apply(e.target.value, "commit"); else editor.discardPreview(); }} />
       ) : (

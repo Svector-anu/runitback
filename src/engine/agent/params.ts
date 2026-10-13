@@ -3,6 +3,7 @@ import {
   BLEND_MODES, CROP_MAX_EDGE, EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, MASK_DEFINITIONS, PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN,
   type ElementRef, type MaskType, type ParamDef, type ParamValue, type ParamValues, type TimelineElement,
 } from "#/engine/model";
+import { COUNT_FORMATS } from "#/engine/render";
 import { ToolError } from "./env";
 import { didYouMean } from "./validate";
 
@@ -78,6 +79,12 @@ const TEXT_SPECS: ParamSpec[] = [
   num(PARAM.highlightWord, { min: -1, max: 100000, unit: "index of the word drawn in highlightColor, counted from 0 across lines; -1 = none" }),
   color(PARAM.highlightColor),
   bool(PARAM.highlightSweep),
+  bool(PARAM.countEnabled),
+  num(PARAM.countValue, { min: -1e12, max: 1e12, unit: "the number shown when countEnabled; animate it to count up" }),
+  choice(PARAM.countFormat, COUNT_FORMATS),
+  num(PARAM.countDecimals, { min: 0, max: 6 }),
+  str(PARAM.countPrefix),
+  str(PARAM.countSuffix),
 ];
 
 export function specFromDef(def: ParamDef): ParamSpec {

@@ -10,7 +10,7 @@ export type AnimationChoice = TextAnimationPreset | "none";
 export const ANIMATION_CHOICES: ReadonlyArray<{ id: AnimationChoice; label: string }> = [
   { id: "none", label: "None" }, { id: "fade", label: "Fade" }, { id: "slide-up", label: "Slide up" },
   { id: "pop", label: "Pop" }, { id: "typewriter", label: "Typewriter" },
-  { id: "blur-in", label: "Blur" }, { id: "stagger-words", label: "Word by word" }, { id: "type-caret", label: "Typing caret" },
+  { id: "blur-in", label: "Blur" }, { id: "stagger-words", label: "Word by word" }, { id: "type-caret", label: "Typing caret" }, { id: "count-up", label: "Count up" },
 ];
 
 export const DEFAULT_ANIMATION_TICKS = TICKS_PER_SECOND / 2;

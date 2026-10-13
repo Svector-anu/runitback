@@ -11,6 +11,7 @@ import {
   canHaveTransition, getBaseValue, getElement, isTransitionType, maxTransitionDuration, replaceElement, requireFiniteParams,
   requireTick, resolvePathValue, setBaseValue, transitionPartner, withoutTransition,
 } from "#/engine/timeline";
+import { inferCount } from "#/engine/render";
 import { mapCurrentTracks, type Command, type CommandContext, type EditorDocument } from "./types";
 import { updateElements } from "./timeline";
 
@@ -240,6 +241,27 @@ export function setTransitionCommand(input: { ref: ElementRef; transition: { typ
 // ---- Text animation presets ----------------------------------------------------------------------------------
 
 /**
+ * The params a text animation needs to find in place: defaults for every parameter a preset keys (so there is a base value
+ * to animate to), the caret for `type-caret`, and the number read out of the text for `count-up`.
+ */
+function textAnimationParams(el: Extract<TimelineElement, { type: "text" }>, state: TextAnimationState): ParamValues {
+  let params = el.params;
+  const missing = Object.entries(TEXT_DEFAULTS).filter(([key]) => (TEXT_ANIMATION_PATHS as readonly string[]).includes(key) && params[key] === undefined);
+  if (missing.length > 0) params = { ...params, ...Object.fromEntries(missing) };
+  const presets = [state.in?.preset, state.out?.preset];
+  if (presets.includes("type-caret")) params = { ...params, [PARAM.caret]: true };
+  if (presets.includes("count-up") && params[PARAM.countEnabled] !== true) {
+    const inferred = inferCount(String(params[PARAM.content] ?? ""));
+    if (!inferred) throw new InvalidInputError("Count up needs a number in the text, like 1,200 or $5");
+    params = {
+      ...params, [PARAM.countEnabled]: true, [PARAM.countValue]: inferred.value, [PARAM.countFormat]: inferred.format,
+      [PARAM.countDecimals]: inferred.decimals, [PARAM.countPrefix]: inferred.prefix, [PARAM.countSuffix]: inferred.suffix,
+    };
+  }
+  return params;
+}
+
+/**
  * Sets the in and/or out animation preset of a text clip (`undefined` keeps that side, `null` removes it). The presets
  * are written as ordinary keyframes on opacity, position Y, scale and `reveal`, replacing whatever keyframes those
  * parameters had; lengths clamp to half of the clip. One undo step.
@@ -263,14 +285,12 @@ export function setTextAnimationCommand(input: { ref: ElementRef; in?: TextAnima
         const outgoing = input.out === undefined ? el.textAnimation?.out : input.out;
         if (incoming) next.in = clamp(incoming);
         if (outgoing) next.out = clamp(outgoing);
+        const params = textAnimationParams(el, next);
         const animations = applyTextAnimation({
-          animations: el.animations, state: next, clipDuration: el.duration, params: el.params, canvasHeight: doc.settings.canvasSize.height, newId: ctx.newId,
+          animations: el.animations, state: next, clipDuration: el.duration, params, canvasHeight: doc.settings.canvasSize.height, newId: ctx.newId,
         });
-        const out: TimelineElement = { ...el };
+        const out: TimelineElement = { ...el, params };
         if (animations) out.animations = animations; else delete out.animations;
-        const missing = Object.entries(TEXT_DEFAULTS).filter(([key]) => (TEXT_ANIMATION_PATHS as readonly string[]).includes(key) && el.params[key] === undefined);
-        const typesCaret = next.in?.preset === "type-caret" || next.out?.preset === "type-caret";
-        if (missing.length > 0 || typesCaret) out.params = { ...el.params, ...Object.fromEntries(missing), ...(typesCaret ? { [PARAM.caret]: true } : {}) };
         if (next.in || next.out) (out as { textAnimation?: TextAnimationState }).textAnimation = next;
         else delete (out as { textAnimation?: TextAnimationState }).textAnimation;
         return out;

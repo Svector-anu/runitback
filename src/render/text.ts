@@ -1,5 +1,5 @@
 import { TEXT_SIZE_REFERENCE_HEIGHT, boolParam, numberParam, stringParam, PARAM, type ParamValues } from "#/engine/model";
-import { caretVisible, isWordHighlighted, staggerWordProgress, wordCounts, wordSpans } from "#/engine/render";
+import { COUNT_FORMATS, caretVisible, formatCount, isWordHighlighted, staggerWordProgress, wordCounts, wordSpans, type CountFormat } from "#/engine/render";
 import type { AnyContext } from "./canvas";
 
 export interface Rect { left: number; top: number; width: number; height: number }
@@ -51,6 +51,17 @@ export function scaledFontSize(fontSize: number, canvasHeight: number): number {
   return fontSize * (canvasHeight / TEXT_SIZE_REFERENCE_HEIGHT);
 }
 
+/** What the text says: its content, or the formatted number when it counts. */
+export function displayedContent(params: ParamValues): string {
+  if (!boolParam(params, PARAM.countEnabled, false)) return stringParam(params, PARAM.content, "");
+  const named = stringParam(params, PARAM.countFormat, "plain");
+  const format: CountFormat = (COUNT_FORMATS as readonly string[]).includes(named) ? (named as CountFormat) : "plain";
+  return formatCount({
+    value: numberParam(params, PARAM.countValue, 0), format, decimals: numberParam(params, PARAM.countDecimals, 0),
+    prefix: stringParam(params, PARAM.countPrefix, ""), suffix: stringParam(params, PARAM.countSuffix, ""),
+  });
+}
+
 export function layoutText(input: { params: ParamValues; canvasHeight: number; measure: LineMeasurer }): TextLayout {
   const { params } = input;
   const fontSize = numberParam(params, PARAM.fontSize, 15);
@@ -62,7 +73,7 @@ export function layoutText(input: { params: ParamValues; canvasHeight: number; m
   const letterSpacing = numberParam(params, PARAM.letterSpacing, 0);
   const lineHeightPx = px * numberParam(params, PARAM.lineHeight, 1.2);
   const align = stringParam(params, PARAM.textAlign, "center") as TextLayout["align"];
-  const lines = stringParam(params, PARAM.content, "").split("\n");
+  const lines = displayedContent(params).split("\n");
 
   const lineWidths = lines.map((l) => input.measure(l, font, letterSpacing));
   const maxWidth = Math.max(0, ...lineWidths);

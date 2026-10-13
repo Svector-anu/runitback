@@ -48,6 +48,8 @@ export const TEXT_NUMBER_LIMITS: Readonly<Record<string, NumberLimit>> = {
   [PARAM.blur]: { min: 0, max: 100 },
   [PARAM.wordReveal]: { min: 0, max: 1 },
   [PARAM.highlightWord]: { min: -1, max: 100_000 },
+  [PARAM.countValue]: { min: -1e12, max: 1e12 },
+  [PARAM.countDecimals]: { min: 0, max: 6 },
 };
 
 export function limitsOfDefinitions(defs: ReadonlyArray<ParamDef>): Record<string, NumberLimit> {

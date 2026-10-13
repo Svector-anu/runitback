@@ -15,7 +15,7 @@ interface FieldExtras {
   sliderMax?: number;
 }
 
-export type TextFieldDef = { type: "text"; key: string; label: string; default: string; widget: "textarea" | "font" };
+export type TextFieldDef = { type: "text"; key: string; label: string; default: string; widget: "textarea" | "font" | "line" };
 export type FieldDef = (ParamDef | TextFieldDef) & FieldExtras;
 
 /** Number fields get the same hard bounds the engine enforces, so the inspector never offers a value the engine would clamp. */
@@ -96,6 +96,7 @@ export const SHADOW_FIELDS: FieldDef[] = bounded([
   { type: "number", key: PARAM.shadowOffsetY, label: "Shadow offset Y", default: 4, step: 1, keyframable: true, control: "slider", sliderMin: -50, sliderMax: 50, showWhen: shadowOn },
 ], TEXT_NUMBER_LIMITS);
 
+const countOn = (p: ParamValues): boolean => p[PARAM.countEnabled] === true;
 const highlightOn = (p: ParamValues): boolean => numberParam(p, PARAM.highlightWord, -1) >= 0;
 
 /** Blur-in, per-word stagger, typing caret and word highlight: each is a plain parameter, so all of them can be keyframed. */
@@ -103,6 +104,13 @@ export const TEXT_EFFECT_FIELDS: FieldDef[] = bounded([
   { type: "number", key: PARAM.blur, label: "Blur", default: 0, min: 0, max: 100, step: 1, keyframable: true, control: "slider" },
   { type: "number", key: PARAM.wordReveal, label: "Word reveal", default: 1, min: 0, max: 1, step: 0.01, keyframable: true, control: "slider", displayMultiplier: 100, suffix: "%" },
   { type: "boolean", key: PARAM.caret, label: "Typing caret", default: false },
+  { type: "boolean", key: PARAM.countEnabled, label: "Count-up number", default: false },
+  { type: "number", key: PARAM.countValue, label: "Number", default: 0, step: 1, keyframable: true, showWhen: countOn },
+  { type: "select", key: PARAM.countFormat, label: "Number format", default: "plain", showWhen: countOn,
+    options: [{ value: "plain", label: "1234" }, { value: "thousands", label: "1,234" }, { value: "compact", label: "1.2K" }, { value: "percent", label: "12%" }] },
+  { type: "number", key: PARAM.countDecimals, label: "Decimals", default: 0, min: 0, max: 6, step: 1, showWhen: countOn },
+  { type: "text", key: PARAM.countPrefix, label: "Before the number", default: "", widget: "line", showWhen: countOn },
+  { type: "text", key: PARAM.countSuffix, label: "After the number", default: "", widget: "line", showWhen: countOn },
   { type: "number", key: PARAM.highlightWord, label: "Highlight word (0 = first, -1 = none)", default: -1, min: -1, step: 1, keyframable: true },
   { type: "color", key: PARAM.highlightColor, label: "Highlight color", default: "#ffd400", keyframable: true, showWhen: highlightOn },
   { type: "boolean", key: PARAM.highlightSweep, label: "Keep earlier words lit", default: false, showWhen: highlightOn },
