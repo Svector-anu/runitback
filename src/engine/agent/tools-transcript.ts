@@ -76,6 +76,8 @@ function visibleWords(words: ReadonlyArray<TranscriptWord>, from: number, to: nu
   return first < 0 ? null : { first, last };
 }
 
+const DEFAULT_CAPTION_HIGHLIGHT = "#ffd400";
+
 export function createTranscriptTools(deps: TranscriptDeps): AgentTool[] {
   async function requireTranscript(assetId: string): Promise<Transcript> {
     const transcript = await deps.store.get(assetId);
@@ -353,10 +355,10 @@ export function createTranscriptTools(deps: TranscriptDeps): AgentTool[] {
     },
   });
 
-  const captions = defineTool<{ elementId: string; startWord?: number; endWord?: number; maxChars?: number; maxSeconds?: number }>({
+  const captions = defineTool<{ elementId: string; startWord?: number; endWord?: number; maxChars?: number; maxSeconds?: number; highlight?: { color?: string; sweep?: boolean } }>({
     name: "add_captions_from_transcript",
     description:
-      "Create caption text clips from the words a clip plays, timed to the speech on the TIMELINE (trim and speed honoured), on new text track(s) at the top (extra tracks only if captions would overlap). Phrasing breaks at sentence ends, pauses, maxChars and maxSeconds. Optionally limit to startWord..endWord. One undo step. Returns track ids and the caption element ids.",
+      "Create caption text clips from the words a clip plays, timed to the speech on the TIMELINE (trim and speed honoured), on new text track(s) at the top (extra tracks only if captions would overlap). Phrasing breaks at sentence ends, pauses, maxChars and maxSeconds. Optionally limit to startWord..endWord. `highlight` {color, sweep} lights each word in that colour as it is spoken (sweep keeps spoken words lit), as stepped keyframes on highlightWord. One undo step. Returns track ids and the caption element ids.",
     inputSchema: {
       type: "object",
       properties: {
@@ -365,6 +367,7 @@ export function createTranscriptTools(deps: TranscriptDeps): AgentTool[] {
         endWord: { type: "integer", minimum: 0, description: "Only captions up to this word index (inclusive)." },
         maxChars: { type: "integer", minimum: 8, maximum: 120, description: "Longest caption line in characters (default 32)." },
         maxSeconds: { type: "number", minimum: 0.5, maximum: 10, description: "Longest caption in SECONDS (default 3)." },
+        highlight: { type: "object", description: "{ color (#rrggbb, default #ffd400), sweep (default false) }: highlight each word while it is spoken." },
       },
       required: ["elementId"],
     },
@@ -395,9 +398,17 @@ export function createTranscriptTools(deps: TranscriptDeps): AgentTool[] {
       if (kept.length === 0) throw new ToolError("Every caption would be shorter than one frame.", "Choose a longer word range.");
       const canvas = env.doc.settings.canvasSize;
       const ids = kept.map(() => env.editor.newId());
-      const elements = kept.map((k, i) => captionElement({
-        cue: { text: k.chunk.text, startTime: k.start, duration: k.duration, words: captionCueWords(clipWords, k.chunk) }, index: i, id: ids[i] as string, canvas, startTime: k.start, duration: k.duration,
-      }));
+      const highlightColor = input.highlight?.color ?? DEFAULT_CAPTION_HIGHLIGHT;
+      if (input.highlight && !/^#[0-9a-f]{6}$/i.test(highlightColor)) throw new ToolError(`Invalid highlight color "${highlightColor}".`, "Use #rrggbb, like #ffd400.");
+      const elements = kept.map((k, i) => {
+        const words = captionCueWords(clipWords, k.chunk);
+        return captionElement({
+          cue: { text: k.chunk.text, startTime: k.start, duration: k.duration, words }, index: i, id: ids[i] as string, canvas, startTime: k.start, duration: k.duration,
+          ...(input.highlight
+            ? { highlight: { color: highlightColor, sweep: input.highlight.sweep === true, newId: () => env.editor.newId(), wordStarts: words.map((w) => toTimelineTicks(placed, w.startSeconds) - k.start) } }
+            : {}),
+        });
+      });
       env.editor.execute(batch("Add captions from transcript", [insertElementsOnLanes({ elements, index: 0, label: "Add captions from transcript" })]));
       const trackIds = [...new Set(ids.map((id) => env.require(id).track.id))];
       const last = kept[kept.length - 1] as { start: number; duration: number };
