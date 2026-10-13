@@ -46,6 +46,7 @@ Development-only tooling (Vite, Vitest, Playwright, ESLint, TypeScript, tsx, zod
 | --- | --- | --- |
 | Inter (variable, latin subset, via `@fontsource-variable/inter` 5.3.0) | `public/fonts/` | SIL Open Font License 1.1, copyright 2016 The Inter Project Authors. Licence text: `public/fonts/Inter-OFL.txt`. Inter is the only bundled font. |
 | MediaPipe Tasks Vision WebAssembly runtime (`vision_wasm_internal.js`, `.wasm`) | `public/mediapipe/wasm/` | Apache-2.0 (Google, MediaPipe). |
+| MediaPipe Selfie Segmenter (`selfie_segmenter.tflite`, `selfie_segmenter_landscape.tflite`) | `public/mediapipe/` | Published by Google MediaPipe; believed Apache-2.0 (the model card links to the Apache licence; its text could not be read here). **Not confirmed**: see `docs/VIDEO_FX.md`. |
 | BlazeFace short-range face detector (`blaze_face_short_range.tflite`) | `public/mediapipe/` | Published by Google MediaPipe; believed Apache-2.0. **Not confirmed here**: confirm against the MediaPipe model card before relying on it. |
 
 ## Models downloaded at runtime
