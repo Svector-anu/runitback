@@ -72,7 +72,7 @@ export async function openFxHarness(page: Page, images: FxImage[] = []): Promise
 
     const blobs = new Map<string, Blob>();
     for (const image of images) {
-      const width = image.width ?? 960, height = image.height ?? 540;
+      const width = image.width ?? 1920, height = image.height ?? 1080;
       const canvas = new OffscreenCanvas(width, height);
       const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
       ctx.fillStyle = image.color;

@@ -1,7 +1,7 @@
 import { numberParam, type BlendMode, type GradientBackground } from "#/engine/model";
 import { TICKS_PER_SECOND } from "#/engine/time";
-import type { DrawItem, FramePlan, LayerSource, MediaLayer, ResolvedEffect, TextLayer } from "#/engine/render";
-import { adjustPlan, applyChromaKey, blurSigma, chromaKeyIsNoop, chromaKeyPlan, gradientAngleAt, gradientBlobs, linearGradientLine, radialCenter, rgba, transitionLook, type AdjustPlan, type ChromaKeyPlan } from "#/engine/render";
+import type { DrawItem, FramePlan, GlitchLook, LayerSource, MediaLayer, ResolvedEffect, TextLayer } from "#/engine/render";
+import { adjustPlan, applyChromaKey, blurSigma, chromaKeyIsNoop, chromaKeyPlan, gradientAngleAt, gradientBlobs, linearGradientLine, radialCenter, rgba, TRANSITION_BLUR_INTENSITY, transitionLook, type AdjustPlan, type ChromaKeyPlan } from "#/engine/render";
 import type { MaskFrame } from "#/engine/segmentation";
 import { ChromaKeyGpu } from "./chroma-gpu";
 import { MaskRasterizer } from "./segmentation";
@@ -281,6 +281,44 @@ export class Compositor {
     this.layerCtx.globalAlpha = 1;
   }
 
+  /** Slides horizontal slices of the layer sideways (wrapping round the edge), then pulls its red and blue channels apart. */
+  private applyGlitch(glitch: GlitchLook): void {
+    const { width, height } = this.layer;
+    const lc = this.layerCtx;
+    this.copyLayerTo(this.scratchCtx);
+    lc.globalCompositeOperation = "copy";
+    lc.clearRect(0, 0, width, height);
+    lc.globalCompositeOperation = "source-over";
+    for (const band of glitch.bands) {
+      const y = Math.floor(band.from * height);
+      const h = Math.max(1, Math.ceil((band.to - band.from) * height));
+      const dx = band.shiftX * width;
+      lc.drawImage(this.scratch as CanvasImageSource, 0, y, width, h, dx, y, width, h);
+      if (dx !== 0) lc.drawImage(this.scratch as CanvasImageSource, 0, y, width, h, dx > 0 ? dx - width : dx + width, y, width, h);
+    }
+    if (glitch.split <= 0) return;
+    this.copyLayerTo(this.scratchCtx);
+    lc.clearRect(0, 0, width, height);
+    const channels: ReadonlyArray<readonly [string, number]> = [["#ff0000", -glitch.split], ["#00ff00", 0], ["#0000ff", glitch.split]];
+    const tint = this.scratch2Ctx;
+    for (const [color, shift] of channels) {
+      tint.setTransform(1, 0, 0, 1, 0, 0);
+      tint.globalAlpha = 1;
+      tint.filter = "none";
+      tint.globalCompositeOperation = "copy";
+      tint.drawImage(this.scratch as CanvasImageSource, 0, 0);
+      tint.globalCompositeOperation = "multiply";
+      tint.fillStyle = color;
+      tint.fillRect(0, 0, width, height);
+      tint.globalCompositeOperation = "destination-in";
+      tint.drawImage(this.scratch as CanvasImageSource, 0, 0);
+      tint.globalCompositeOperation = "source-over";
+      lc.globalCompositeOperation = "lighter";
+      lc.drawImage(this.scratch2 as CanvasImageSource, shift * width, 0);
+    }
+    lc.globalCompositeOperation = "source-over";
+  }
+
   private composite(blend: BlendMode): void {
     this.ctx.save();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -375,12 +413,16 @@ export class Compositor {
     });
 
     this.applyEffects(item.effects, { width: drawnWidth, height: drawnHeight, centerX, centerY: t.centerY });
-    if (look && look.darkness > 0) {
+    if (look && look.blur > 0) {
+      this.applyBlur({ type: "blur", params: { intensity: look.blur * TRANSITION_BLUR_INTENSITY } }, { width: drawnWidth, height: drawnHeight });
+    }
+    if (look && (look.darkness > 0 || look.lightness > 0)) {
       lc.globalCompositeOperation = "source-atop";
-      lc.fillStyle = `rgba(0,0,0,${look.darkness})`;
+      lc.fillStyle = look.darkness > 0 ? `rgba(0,0,0,${look.darkness})` : `rgba(255,255,255,${look.lightness})`;
       lc.fillRect(0, 0, plan.width, plan.height);
       lc.globalCompositeOperation = "source-over";
     }
+    if (look?.glitch) this.applyGlitch(look.glitch);
 
     let stroke: AnyCanvas | null = null;
     if (item.mask) {

@@ -47,7 +47,7 @@ export interface Mask {
 }
 
 export const TRANSITION_TYPES = [
-  "dissolve", "fade-black", "slide-left", "slide-right", "wipe-left", "wipe-right", "zoom",
+  "dissolve", "fade-black", "slide-left", "slide-right", "wipe-left", "wipe-right", "zoom", "blur", "flash", "glitch",
 ] as const;
 export type TransitionType = (typeof TRANSITION_TYPES)[number];
 
