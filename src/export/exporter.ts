@@ -1,6 +1,6 @@
 import {
-  AudioBufferSource, CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH, QUALITY_LOW, QUALITY_MEDIUM,
-  QUALITY_VERY_HIGH, WebMOutputFormat, canEncodeAudio, getFirstEncodableVideoCodec, type AudioCodec, type Quality,
+  AudioBufferSource, Mp4OutputFormat, Output, QUALITY_HIGH, QUALITY_LOW, QUALITY_MEDIUM,
+  QUALITY_VERY_HIGH, VideoSample, VideoSampleSource, WebMOutputFormat, canEncodeAudio, getFirstEncodableVideoCodec, type AudioCodec, type Quality,
   type VideoCodec,
 } from "mediabunny";
 import { collectAudioClips } from "#/engine/audio";
@@ -12,9 +12,11 @@ import { TICKS_PER_SECOND, frameRateToFloat, frameStartTime } from "#/engine/tim
 import { Compositor } from "#/render/compositor";
 import { createCanvas } from "#/render/canvas";
 import { AudioSinkCache } from "#/platform/audio-scheduler";
+import { detectCapabilities, capabilityIssues, probeEncoders } from "#/platform/capabilities";
 import { CachedFrameSources, ImageCache } from "#/platform/frame-sources";
 import { VideoFrameCache } from "#/platform/video-frames";
 import { openAudioMix, type AudioMix } from "./audio-mix";
+import { DecodeScales } from "./decode-scale";
 import { createExportTarget } from "./export-target";
 import { planExport, type ExportOptions } from "./plan";
 
@@ -24,6 +26,24 @@ export interface ExportProgress {
   phase: ExportPhase;
   /** 0..1 across the whole export. */
   progress: number;
+}
+
+/** Opt-in per-stage wall time of the frame loop, in milliseconds. Pass an object to `exportProject` to fill it. */
+export interface ExportTimings {
+  planMs: number;
+  decodeMs: number;
+  composeMs: number;
+  audioMs: number;
+  captureMs: number;
+  encodeMs: number;
+  totalMs: number;
+  frames: number;
+  /** Forces a GPU sync after compositing so `composeMs` is real work, not queued work. Slows the export. */
+  syncGpu?: boolean;
+}
+
+export function emptyExportTimings(): ExportTimings {
+  return { planMs: 0, decodeMs: 0, composeMs: 0, audioMs: 0, captureMs: 0, encodeMs: 0, totalMs: 0, frames: 0 };
 }
 
 export class ExportCanceledError extends Error {
@@ -57,6 +77,9 @@ const AUDIO_LEAD_SECONDS = 1;
 /** Sources are decoded up to this multiple of the output size, so zoomed-in clips stay sharp. */
 const DECODE_HEADROOM = 2;
 
+/** Decoded canvases reused per source while a media is read at one position per frame; avoids a 4K allocation per frame. */
+const EXPORT_CANVAS_POOL = 4;
+
 const QUALITIES: Record<ExportOptions["quality"], Quality> = {
   low: QUALITY_LOW, medium: QUALITY_MEDIUM, high: QUALITY_HIGH, very_high: QUALITY_VERY_HIGH,
 };
@@ -72,6 +95,18 @@ export interface ExportResult {
   hasAudio: boolean;
   videoCodec: VideoCodec;
   audioCodec: AudioCodec | null;
+}
+
+/** Says which container or size the browser can encode instead, so the message is actionable. */
+async function describeNoEncoder(input: { format: ExportOptions["format"]; width: number; height: number }): Promise<string> {
+  const label = input.format === "mp4" ? "MP4" : "WebM";
+  const size = `${input.width}x${input.height}`;
+  const other = input.format === "mp4" ? "webm" : "mp4";
+  const supportAtSize = await probeEncoders({ width: input.width, height: input.height });
+  if (supportAtSize[other]) return `Your browser can't encode ${label} video at ${size}. Choose ${other === "mp4" ? "MP4" : "WebM"} in the export settings.`;
+  const supportAtHd = await probeEncoders({ width: 1280, height: 720 });
+  if (supportAtHd.mp4 || supportAtHd.webm) return `Your browser can't encode video at ${size}. Lower the project resolution, or open RunItBack in desktop Chrome or Edge.`;
+  return `Your browser can't encode ${label} video. Open RunItBack in a current Chrome, Edge, Safari or Firefox.`;
 }
 
 async function pickAudioCodec(format: ExportOptions["format"]): Promise<AudioCodec | null> {
@@ -92,8 +127,10 @@ export async function exportProject(input: {
   options: ExportOptions;
   onProgress?: (progress: ExportProgress) => void;
   signal?: AbortSignal;
+  timings?: ExportTimings;
 }): Promise<ExportResult> {
-  const { doc, options, signal } = input;
+  const { doc, options, signal, timings } = input;
+  const now = (): number => performance.now();
   const report = (phase: ExportPhase, progress: number): void => input.onProgress?.({ phase, progress });
   const throwIfCanceled = (): void => {
     if (signal?.aborted) throw new ExportCanceledError();
@@ -106,12 +143,22 @@ export async function exportProject(input: {
   const missingMedia = findMissingMedia(doc, input.getBlob);
   if (missingMedia.length > 0) throw new MissingMediaError(missingMedia);
 
+  const tracks = currentScene(doc).tracks;
+  const decodeScales = new DecodeScales();
+  // One cheap pass over every frame plan finds how large each source is ever drawn, so it is decoded no larger.
+  const planFrame = (i: number): ReturnType<typeof buildFramePlan> => buildFramePlan({
+    tracks, canvas: { width: plan.width, height: plan.height }, background: doc.settings.background,
+    assets: doc.assets, time: frameStartTime(i, doc.settings.fps),
+  });
+  for (let i = 0; i < plan.frameCount; i++) decodeScales.observe(planFrame(i));
   report("preparing", 0);
+  const unsupported = capabilityIssues(detectCapabilities()).find((issue) => issue.id === "videoEncoding");
+  if (unsupported) throw new Error(unsupported.message);
   const videoCodec = await getFirstEncodableVideoCodec(
     options.format === "mp4" ? ["avc", "vp9", "av1"] : ["vp9", "vp8", "av1"],
     { width: plan.width, height: plan.height, quality: QUALITIES[options.quality] },
   );
-  if (!videoCodec) throw new Error("This browser cannot encode video at this size");
+  if (!videoCodec) throw new Error(await describeNoEncoder({ format: options.format, width: plan.width, height: plan.height }));
   const audioCodec = options.includeAudio ? await pickAudioCodec(options.format) : null;
 
   const mimeType = options.format === "mp4" ? "video/mp4" : "video/webm";
@@ -121,17 +168,17 @@ export async function exportProject(input: {
     target: exportTarget.target,
   });
   const canvas = createCanvas(plan.width, plan.height);
-  const videoSource = new CanvasSource(canvas, { codec: videoCodec, bitrate: QUALITIES[options.quality] });
+  const videoSource = new VideoSampleSource({ codec: videoCodec, bitrate: QUALITIES[options.quality] });
   output.addVideoTrack(videoSource, { frameRate: frameRateToFloat(doc.settings.fps) });
 
   const sinks = new AudioSinkCache(input.getBlob);
-  const videoFrames = new VideoFrameCache(input.getBlob, { maxEdge: DECODE_HEADROOM * Math.max(plan.width, plan.height) });
+  const videoFrames = new VideoFrameCache(input.getBlob, {
+    decodeScale: (mediaId) => decodeScales.scaleFor(mediaId), maxEdge: DECODE_HEADROOM * Math.max(plan.width, plan.height), canvasPoolSize: EXPORT_CANVAS_POOL });
   const images = new ImageCache(input.getBlob);
   let hasAudio = false;
   let audioMix: AudioMix | null = null;
 
   try {
-    const tracks = currentScene(doc).tracks;
     let audioSource: AudioBufferSource | null = null;
     if (audioCodec) {
       report("audio", 0.02);
@@ -165,15 +212,33 @@ export async function exportProject(input: {
 
     const compositor = new Compositor(canvas);
     const sources = new CachedFrameSources(videoFrames, images);
-    const canvasSize = { width: plan.width, height: plan.height };
+    const loopStart = now();
     for (let i = 0; i < plan.frameCount; i++) {
       throwIfCanceled();
       const time = frameStartTime(i, doc.settings.fps);
-      const framePlan = buildFramePlan({ tracks, canvas: canvasSize, background: doc.settings.background, assets: doc.assets, time });
+      const t0 = now();
+      const framePlan = planFrame(i);
       if (framePlan.missingMedia.length > 0) throw new MissingMediaError(framePlan.missingMedia);
-      await compositor.render(framePlan, sources);
+      const t1 = now();
+      await sources.prepare(framePlan);
+      const t2 = now();
+      compositor.drawPlan(framePlan, sources);
+      if (timings?.syncGpu) canvas.getContext("2d")?.getImageData(0, 0, 1, 1);
+      const t3 = now();
       await pumpAudio(time / TICKS_PER_SECOND + AUDIO_LEAD_SECONDS);
-      await videoSource.add(time / TICKS_PER_SECOND, plan.frameDurationSeconds);
+      const t4 = now();
+      const sample = new VideoSample(canvas, { timestamp: time / TICKS_PER_SECOND, duration: plan.frameDurationSeconds });
+      const t5 = now();
+      try {
+        await videoSource.add(sample);
+      } finally {
+        sample.close();
+      }
+      if (timings) {
+        timings.captureMs += t5 - t4;
+        timings.planMs += t1 - t0; timings.decodeMs += t2 - t1; timings.composeMs += t3 - t2;
+        timings.audioMs += t4 - t3; timings.encodeMs += now() - t5; timings.frames++; timings.totalMs = now() - loopStart;
+      }
       report("video", 0.05 + 0.93 * ((i + 1) / plan.frameCount));
     }
 

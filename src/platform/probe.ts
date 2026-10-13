@@ -1,6 +1,7 @@
 import { ALL_FORMATS, BlobSource, CanvasSink, Input } from "mediabunny";
 import { frameRateFromFloat, mediaTimeFromSeconds } from "#/engine/time";
 import type { MediaAssetInfo, MediaType } from "#/engine/model";
+import { capabilityIssues, detectCapabilities } from "./capabilities";
 
 export const THUMBNAIL_MAX_WIDTH = 480;
 export const THUMBNAIL_MAX_HEIGHT = 270;
@@ -59,7 +60,14 @@ async function probeImage(file: File, id: string): Promise<MediaAssetInfo> {
   }
 }
 
+/** Fails with a precise message when the browser has no WebCodecs decoder at all, before mediabunny reports a vague error. */
+function requireVideoDecoding(): void {
+  const missing = capabilityIssues(detectCapabilities()).find((issue) => issue.id === "videoDecoding");
+  if (missing) throw new UnsupportedMediaError(missing.message);
+}
+
 async function probeVideo(file: File, id: string): Promise<MediaAssetInfo> {
+  requireVideoDecoding();
   const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
   try {
     const track = await input.getPrimaryVideoTrack();

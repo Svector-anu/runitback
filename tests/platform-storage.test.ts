@@ -36,6 +36,46 @@ describe("IdbProjectRepository", () => {
 
 const variants: Array<[string, () => FileStore | null]> = [["file store", () => new MemoryFileStore()], ["idb blobs", () => null]];
 
+describe("IdbAssetRepository with a file store that cannot write", () => {
+  class UnwritableFileStore extends MemoryFileStore {
+    override async put(): Promise<void> { throw new DOMException("The operation failed for an unknown transient reason", "UnknownError"); }
+  }
+  class QuotaFileStore extends MemoryFileStore {
+    override async put(): Promise<void> { throw new DOMException("full", "QuotaExceededError"); }
+  }
+
+  it("keeps the bytes in IndexedDB and reads and removes them from there", async () => {
+    const files = new UnwritableFileStore();
+    const repo = new IdbAssetRepository(fresh(), files);
+    await repo.save("p", { info: videoAsset("v1"), file: new Blob(["hello"]) });
+    expect(files.files.size).toBe(0);
+    expect(await (await repo.getFile("p", "v1"))?.text()).toBe("hello");
+    await repo.remove("p", "v1");
+    expect(await repo.getFile("p", "v1")).toBeNull();
+    await repo.save("p", { info: videoAsset("v2"), file: new Blob(["x"]) });
+    await repo.removeAll("p");
+    expect(await repo.getFile("p", "v2")).toBeNull();
+  });
+  it("stores a buffer when IndexedDB itself refuses Blob values", async () => {
+    const db = fresh();
+    const put = db.blobs.put.bind(db.blobs);
+    db.blobs.put = async (value, key) => {
+      if (value instanceof Blob) throw new DOMException("IndexedDB transaction failed", "UnknownError");
+      return put(value, key);
+    };
+    const repo = new IdbAssetRepository(db, new UnwritableFileStore());
+    await repo.save("p", { info: videoAsset("v1"), file: new Blob(["hello"], { type: "video/webm" }) });
+    const loaded = await repo.getFile("p", "v1");
+    expect(await loaded?.text()).toBe("hello");
+    expect(loaded?.type).toBe("video/webm");
+  });
+  it("still reports a full disk instead of silently falling back", async () => {
+    const repo = new IdbAssetRepository(fresh(), new QuotaFileStore());
+    await expect(repo.save("p", { info: videoAsset("v1"), file: new Blob(["x"]) })).rejects.toThrow();
+    expect(await repo.list("p")).toEqual([]);
+  });
+});
+
 describe.each(variants)("IdbAssetRepository (%s)", (_name, makeFiles) => {
   it("keeps projects' media separate and round-trips bytes and metadata", async () => {
     const repo = new IdbAssetRepository(fresh(), makeFiles());
