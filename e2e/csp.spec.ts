@@ -68,14 +68,14 @@ test("the document is served with a strict CSP and the security headers", async 
   expect(response.headers()["referrer-policy"]).toBe("no-referrer");
 });
 
-test("only the face-detector worker may evaluate code, because MediaPipe's loader needs an indirect eval", async ({ request }) => {
+test("only the two MediaPipe workers (face detector, segmenter) may evaluate code, because MediaPipe's loader needs an indirect eval", async ({ request }) => {
   const scripts = readdirSync("dist/assets").filter((name) => name.endsWith(".js"));
-  const faceWorker = scripts.find((name) => name.startsWith("face-worker-"));
-  expect(faceWorker, "vite emits assets/face-worker-<hash>.js; vercel.json matches that prefix").toBeDefined();
+  const mediapipeWorkers = scripts.filter((name) => name.startsWith("face-worker-") || name.startsWith("segmenter-worker-"));
+  expect(mediapipeWorkers, "vite emits assets/face-worker-<hash>.js and segmenter-worker-<hash>.js; vercel.json matches those prefixes").toHaveLength(2);
   for (const name of scripts) {
     const policy = directives((await request.get(`/assets/${name}`)).headers()["content-security-policy"] ?? "");
     const evalAllowed = policy.get("script-src")?.includes("'unsafe-eval'") ?? false;
-    expect(evalAllowed, name).toBe(name === faceWorker);
+    expect(evalAllowed, name).toBe(mediapipeWorkers.includes(name));
   }
   expect(readFileSync("dist/index.html", "utf8")).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/);
 });
