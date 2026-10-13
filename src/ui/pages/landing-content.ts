@@ -318,6 +318,10 @@ export const LANDING_CONTENT: LandingContent = {
         answer: "RunItBack is free. The agent uses your own Anthropic API key, so you pay Anthropic directly for what it uses. Editing and exporting without the agent needs no key. Hosted credits from us: coming soon.",
       },
       {
+        question: "Can it generate images, video or music?",
+        answer: "Yes, with your own Surplus Intelligence key. Paste it in the Generate tab and pick a model for images, video, music or speech; results land in your media library, labelled Generated. Your prompt goes to Surplus and the model provider behind it, and you pay Surplus directly at its listed prices. Hosted credits, sponsored by us: coming soon. Want free generations? Bring your own Surplus key for now.",
+      },
+      {
         question: "Can I use my Claude subscription?",
         answer: "Yes, through Claude Code. Claude Code is Anthropic's own app, and it can drive RunItBack through the MCP server in this repository, so your Pro or Max plan does the work. There is no \"sign in with Claude\" inside the web app, because Anthropic does not allow other apps to use subscription logins. For the built-in agent, use an Anthropic API key.",
       },

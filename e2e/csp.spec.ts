@@ -65,7 +65,7 @@ test("the document is served with a strict CSP and the security headers", async 
   expect(policy.get("base-uri")).toEqual(["'self'"]);
   expect(policy.get("form-action")).toEqual(["'self'"]);
   expect(policy.get("frame-ancestors")).toEqual(["'none'"]);
-  expect(policy.get("connect-src")).toEqual(expect.arrayContaining(["'self'", "https://huggingface.co", "https://*.hf.co", "https://api.anthropic.com"]));
+  expect(policy.get("connect-src")).toEqual(expect.arrayContaining(["'self'", "https://huggingface.co", "https://*.hf.co", "https://api.anthropic.com", "https://api.surplusintelligence.ai"]));
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
   expect(response.headers()["referrer-policy"]).toBe("no-referrer");
 });
@@ -108,6 +108,7 @@ const PROBE_URLS = {
   hub: "https://huggingface.co/probe",
   cdn: "https://us.aws.cdn.hf.co/probe",
   anthropic: "https://api.anthropic.com/v1/probe",
+  surplus: "https://api.surplusintelligence.ai/v1/probe",
   thirdParty: "https://example.com/probe",
 };
 
@@ -132,14 +133,14 @@ async function stubProbeHosts(page: Page): Promise<void> {
 
 interface ProbeResult { reached: Record<keyof typeof PROBE_URLS, boolean>; violations: string[] }
 
-test("connect-src lets the page reach Hugging Face, its CDN and the Anthropic API, and nothing else", async ({ page }) => {
+test("connect-src lets the page reach Hugging Face, its CDN and the Anthropic API, the Surplus gateway, and nothing else", async ({ page }) => {
   await stubProbeHosts(page);
   await page.goto("/");
   const result = await page.evaluate(async (source) => {
     const run = new (Object.getPrototypeOf(async () => undefined).constructor as new (code: string) => () => Promise<ProbeResult>)(source);
     return run();
   }, PROBE_SOURCE.replace("self.addEventListener", "document.addEventListener"));
-  expect(result.reached).toEqual({ hub: true, cdn: true, anthropic: true, thirdParty: false });
+  expect(result.reached).toEqual({ hub: true, cdn: true, anthropic: true, surplus: true, thirdParty: false });
   expect(result.violations.map((violation) => violation.split(" ")[1])).toEqual([PROBE_URLS.thirdParty]);
 });
 
@@ -151,7 +152,7 @@ test("a blob worker inherits the same connect-src, and the control proves worker
     const worker = new Worker(URL.createObjectURL(new Blob([script], { type: "text/javascript" })));
     return new Promise<ProbeResult>((resolve) => { worker.onmessage = (event) => resolve(event.data as ProbeResult); });
   }, PROBE_SOURCE);
-  expect(result.reached).toEqual({ hub: true, cdn: true, anthropic: true, thirdParty: false });
+  expect(result.reached).toEqual({ hub: true, cdn: true, anthropic: true, surplus: true, thirdParty: false });
   expect(result.violations.map((violation) => violation.split(" ")[1])).toEqual([PROBE_URLS.thirdParty]);
 });
 

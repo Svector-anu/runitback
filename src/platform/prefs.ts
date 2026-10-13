@@ -56,6 +56,12 @@ export const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && 
 /** Anthropic API key for the in-app agent. Kept in this browser's localStorage only; sent only to api.anthropic.com. */
 export const AGENT_API_KEY_PREF = "agent-api-key";
 export const AGENT_MODEL_PREF = "agent-model";
+/** Surplus Intelligence buyer key (`inf_...`) for the Generate panel and the agent's generate_media tool. Same rules as the Anthropic key: this browser only, sent only to api.surplusintelligence.ai. */
+export const SURPLUS_API_KEY_PREF = "surplus-api-key";
+/** Last Generate panel kind (image, video, music, speech). */
+export const GENERATE_KIND_PREF = "generate-kind";
+/** Chosen Surplus model id per generation kind. */
+export const GENERATE_MODELS_PREF = "generate-models";
 /** "Ask before editing": the agent shows a plan for approval before it edits. Default on. */
 export const AGENT_ASK_BEFORE_EDITING_PREF = "agent-ask-before-editing";
 export const ONBOARDING_DISMISSED_PREF = "onboarding-dismissed";

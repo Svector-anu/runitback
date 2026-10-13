@@ -38,13 +38,19 @@ transformers.js by default re-wraps the ORT loader in a `blob:` URL and imports 
 
 The browser UI builds only the Anthropic client (`docs/PROVIDERS.md`), against `api.anthropic.com`; there is no in-app base-URL setting. A self-hoster who points a build at a gateway must add that origin to `connect-src` in `vercel.json`. The OpenAI-compatible client is used by evals and tools only, not in the browser.
 
+### Surplus Intelligence (media generation)
+
+`connect-src` also lists `https://api.surplusintelligence.ai`, used only by the Generate tab and the agent's `generate_media` tool (`docs/GENERATE.md`). What goes there: the model catalog request (public, no key), and, when the user presses Generate, the prompt, the chosen model and options with the user's own `inf_` key in the `Authorization` header. The prompt is therefore sent to a third party (Surplus and the model provider it routes to); the UI says so next to the key field and the Generate button. Nothing from the project (media, timeline, transcripts) is sent, and nothing is sent before a key is saved. The key is stored like the Anthropic key (`runitback:surplus-api-key`, `platform/prefs.ts` only) with the same residual risk below.
+
+Not covered by the allow-list, and honest about it: a finished video or audio job is downloaded from the artifact URL the gateway returns. For Surplus-hosted artifacts that is `api.surplusintelligence.ai` itself, but the gateway may answer with a 302 to short-lived storage or a provider-hosted URL on another host, and a redirect target is also checked against `connect-src`. Those hosts were not verified (no real generation was run), so a redirect to an unlisted host (or to a host that does not answer CORS for the `Authorization` and `X-Job-Token` headers) fails with "Could not download the finished file" instead of silently widening the policy. Images and speech return their bytes in the response and need no extra host. If a real run shows the storage host, add that one origin to `vercel.json` as a reviewed change.
+
 ## Verification and its limits
 
 `e2e/csp.spec.ts` (run with `PLAYWRIGHT_TARGET=production`, part of the `e2e-production` CI job):
 
 - header assertions on the document and on each built script;
 - controls proving the recorder works: a blocked inline script, third-party stylesheet and third-party fetch each produce a `securitypolicyviolation`;
-- `connect-src` probes from the page and from a blob worker (hub, CDN host, Anthropic reachable; `example.com` blocked, violation seen in the worker scope);
+- `connect-src` probes from the page and from a blob worker (hub, CDN host, Anthropic and the Surplus gateway reachable; `example.com` blocked, violation seen in the worker scope);
 - create, import, edit, play, reload with no violations and no third-party response;
 - Understand with the real workers and the hub stubbed: the face detector runs under the CSP;
 - opt-in `REAL_CSP=1`: real Whisper and CLIP download and run (ONNX Runtime WASM) under the CSP, ending "Understood", with zero violations, hosts `huggingface.co` and `us.aws.cdn.hf.co` only.
@@ -79,6 +85,6 @@ Residual risk: any other web page served from `localhost` / `127.0.0.1` (another
 
 ## Residual risks
 
-- The Anthropic API key is in `localStorage` (`runitback:agent-api-key`). The CSP makes third-party script injection hard but does not protect against a bug in our own code. For a hosted product with other users, move the key behind a thin proxy.
+- The Anthropic API key is in `localStorage` (`runitback:agent-api-key`), and so is the optional Surplus key (`runitback:surplus-api-key`), which can spend the user's prepaid credit. The CSP makes third-party script injection hard but does not protect against a bug in our own code. For a hosted product with other users, move the key behind a thin proxy.
 - `connect-src` allows `https://api.anthropic.com` for anyone, so injected own-origin code could still send data there. Acceptable only because no third-party code runs.
 - `ws://127.0.0.1:*` lets the page talk to any local websocket server; the bridge itself requires an explicit user grant (`docs/AGENT_MCP.md`).

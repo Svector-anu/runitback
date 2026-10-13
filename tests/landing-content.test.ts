@@ -47,7 +47,7 @@ describe("landing content shape", () => {
   it("answers every FAQ question and covers the required topics", () => {
     const faq = LANDING_CONTENT.faq.items;
     expect(faq.map((f) => f.question)).toEqual([
-      "What is RunItBack?", "What can it do today?", "Is my video uploaded?", "What does it cost?", "Can I use my Claude subscription?", "Which browsers work?",
+      "What is RunItBack?", "What can it do today?", "Is my video uploaded?", "What does it cost?", "Can it generate images, video or music?", "Can I use my Claude subscription?", "Which browsers work?",
       "What does Understand download?", "Can the agent mess up my project?", "Are templates free? Can I make my own?", "Why not just use CapCut?", "How do I contribute?",
     ]);
     for (const item of faq) {

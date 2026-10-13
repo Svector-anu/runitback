@@ -7,7 +7,7 @@ export type RightPanelTab = "properties" | "agent";
 /** Panels reachable from the compact (below 900 px) bottom-sheet tab bar. */
 export type SheetTab = "assets" | "properties" | "agent";
 
-export type AssetTab = "media" | "text" | "graphics" | "effects" | "captions" | "settings";
+export type AssetTab = "media" | "text" | "graphics" | "effects" | "captions" | "generate" | "settings";
 
 export interface LayoutSizes {
   horizontal: number[];
