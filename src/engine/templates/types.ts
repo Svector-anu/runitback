@@ -155,6 +155,8 @@ export interface GraphicLayer {
   params?: ParamOverrides;
   /** Cursor shapes only: where the pointer goes, and when it clicks. The box centre is where it starts. */
   cursor?: { path: CursorStop[] };
+  /** Draws the shape behind the beat's media instead of in front of it (a window frame the clip sits in). */
+  behind?: boolean;
   /** Drop shadow under the shape; an empty object uses the defaults. */
   shadow?: MediaShadow;
   /** Eased push-ins (seconds after the layer starts). Give a frame and the clip inside it the same stops and they zoom as one picture. */

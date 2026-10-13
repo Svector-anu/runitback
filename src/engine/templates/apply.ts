@@ -103,7 +103,7 @@ export interface TemplatePlan {
   endTime: MediaTime;
 }
 
-const Z = { media: 20, graphic: 30, text: 40, caption: 50, audio: 10 } as const;
+const Z = { audio: 10, graphicBehind: 15, media: 20, graphic: 30, text: 40, caption: 50 } as const;
 const GLYPH_WIDTH_RATIO = 0.6;
 const MAX_TEXT_WIDTH_RATIO = 0.9;
 const MIN_TEXT_SHRINK = 0.45;
@@ -294,18 +294,19 @@ class Planner {
 
   // ---- Media -------------------------------------------------------------------------------------------------
 
-  planMedia(beat: TemplateBeat, startSeconds: number, scope: Scope): void {
+  /** Plans the beat's media; false when the source is shorter than the beat, so its picture cannot follow zooms planned for the whole beat. */
+  planMedia(beat: TemplateBeat, startSeconds: number, scope: Scope): boolean {
     const media = beat.media;
-    if (!media) return;
+    if (!media) return true;
     const slot = scope.slots.get(media.slot);
-    if (!slot) return;
+    if (!slot) return true;
     const asset = this.resolveAsset(slot, scope);
-    if (!asset) return;
+    if (!asset) return true;
     const { start, duration } = this.span(startSeconds, beat.duration);
     const label = `${scope.label}${slot.label}`;
     if (asset.type === "audio") {
       this.planAudio({ asset, start, duration, media, label });
-      return;
+      return true;
     }
     const framing = frameVisual({ asset, canvas: this.canvas, media });
     const placement = media.track === "overlay" || media.box ? "overlay" : "main";
@@ -347,7 +348,7 @@ class Planner {
         type: "image", name: asset.name, assetId: asset.id, start, duration, trimStart: mediaTime(0), trimEnd: mediaTime(0),
         keyframes: keyframesFor(duration), ...zoomsFor(duration), ...common, ...(transition ? { transition } : {}),
       });
-      return;
+      return true;
     }
 
     const sourceDuration = asset.duration ?? duration;
@@ -361,9 +362,10 @@ class Planner {
         ...base, start, duration, trimStart, trimEnd: mediaTime(sourceDuration - trimStart - duration),
         keyframes: keyframesFor(duration), ...zoomsFor(duration), ...(transition ? { transition } : {}),
       });
-      return;
+      return true;
     }
 
+    if (media.autoZoom) this.warn("zoom-skipped", `The zooms on ${label} were skipped: "${asset.name}" is shorter than the beat.`);
     const policy: ShortMediaPolicy = media.onShort ?? "hold";
     const playable = floorToFrame(sourceDuration, this.fps);
     if (playable < frame) {
@@ -372,14 +374,14 @@ class Planner {
         type: "image", name: asset.name, assetId: asset.id, start, duration, trimStart: mediaTime(0), trimEnd: mediaTime(0),
         freezeAt: mediaTime(0), keyframes: keyframesFor(duration), ...common, ...(transition ? { transition } : {}),
       });
-      return;
+      return false;
     }
     const seconds = round3(sourceDuration / TICKS_PER_SECOND);
     const beatSeconds = round3(beat.duration);
     if (policy === "shrink") {
       this.warn("short-media", `${label} ("${asset.name}") is ${seconds}s but the template wants ${beatSeconds}s; the beat ends early.`);
       this.push({ ...base, start, duration: playable, trimStart: mediaTime(0), trimEnd: mediaTime(sourceDuration - playable), keyframes: keyframesFor(playable), ...(transition ? { transition } : {}) });
-      return;
+      return false;
     }
     if (policy === "loop" && Math.ceil(duration / playable) <= MAX_LOOP_COPIES) {
       this.warn("short-media", `${label} ("${asset.name}") is ${seconds}s but the template wants ${beatSeconds}s; it loops to fill the beat.`);
@@ -395,7 +397,7 @@ class Planner {
         first = false;
         at = mediaTime(at + length);
       }
-      return;
+      return false;
     }
     this.warn("short-media", `${label} ("${asset.name}") is ${seconds}s but the template wants ${beatSeconds}s; its last frame is held to fill the beat.`);
     this.push({
@@ -406,6 +408,7 @@ class Planner {
       type: "image", name: `${asset.name} (hold)`, assetId: asset.id, start: mediaTime(start + playable), duration: mediaTime(duration - playable),
       trimStart: mediaTime(0), trimEnd: mediaTime(0), freezeAt: mediaTime(Math.max(0, sourceDuration - FREEZE_END_GUARD_TICKS)), keyframes: [], ...common,
     });
+    return false;
   }
 
   /** The zooms that fit a clip of `duration`, in ticks from its start; the rest are dropped with a warning. */
@@ -519,11 +522,12 @@ class Planner {
     return { cursorPath: path };
   }
 
-  planGraphic(layer: Extract<BeatLayer, { kind: "graphic" }>, beat: TemplateBeat, startSeconds: number): void {
+  planGraphic(layer: Extract<BeatLayer, { kind: "graphic" }>, beat: TemplateBeat, startSeconds: number, zoomable: boolean): void {
     const at = layer.at ?? 0;
     const length = Math.max(0.05, layer.duration ?? beat.duration - at);
     const { start, duration } = this.span(startSeconds + at, length);
     const side = Math.min(this.canvas.width, this.canvas.height);
+    if (layer.autoZoom && !zoomable) this.warn("zoom-skipped", `The zooms on the ${layer.shape} layer were skipped to match its media, which is shorter than the beat.`);
     const params: ParamValues = {
       ...(layer.params ?? {}),
       [PARAM.scaleX]: Math.max(0.01, round3(layer.box.width / side)),
@@ -531,15 +535,15 @@ class Planner {
       [PARAM.positionX]: Math.round(layer.box.x),
       [PARAM.positionY]: Math.round(layer.box.y),
     };
-    this.push({ type: "graphic", name: layer.shape, shape: layer.shape, start, duration, z: Z.graphic, params, ...this.cursorPathFor(layer, duration),
-      ...(layer.shadow ? { shadow: { ...layer.shadow } as ParamValues } : {}), ...this.zoomsFor(layer.autoZoom, duration, `the ${layer.shape} layer`) });
+    this.push({ type: "graphic", name: layer.shape, shape: layer.shape, start, duration, z: layer.behind ? Z.graphicBehind : Z.graphic, params, ...this.cursorPathFor(layer, duration),
+      ...(layer.shadow ? { shadow: { ...layer.shadow } as ParamValues } : {}), ...this.zoomsFor(zoomable ? layer.autoZoom : undefined, duration, `the ${layer.shape} layer`) });
   }
 
   planBeat(beat: TemplateBeat, startSeconds: number, scope: Scope): void {
-    this.planMedia(beat, startSeconds, scope);
+    const zoomable = this.planMedia(beat, startSeconds, scope);
     for (const layer of beat.layers ?? []) {
       if (layer.kind === "text") this.planText(layer, beat, startSeconds, scope);
-      else this.planGraphic(layer, beat, startSeconds);
+      else this.planGraphic(layer, beat, startSeconds, zoomable);
     }
   }
 

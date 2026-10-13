@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { currentScene } from "#/engine/commands";
 import { PARAM, type ImageElement, type VideoElement } from "#/engine/model";
 import { resolveElementParams, allElements } from "#/engine/timeline";
+import { drawOrder } from "#/engine/render";
 import { sec as secTicks } from "./helpers";
 import { applyTemplateToEditor, parseTemplate, planTemplate, safeParseTemplate, type TemplateInputs } from "#/engine/templates";
 import { assetOf, checkInvariants, editorWith, sampleTemplate, type AssetSpec } from "./template-support";
@@ -175,9 +176,32 @@ describe("graphic layers with shadow and zoom", () => {
     const frame = elements.find((e) => e.type === "graphic")!;
     const clip = elements.find((e) => e.type === "video" && e.startTime === 0)!;
     expect(frame.type === "graphic" && frame.effects?.[0]).toMatchObject({ type: "shadow", params: { blur: 90 } });
-    const ratio = (el: typeof frame, s: number) => (resolveElementParams(el, secTicks(s))[PARAM.scaleX] as number) / (resolveElementParams(el, secTicks(0))[PARAM.scaleX] as number);
+    const ratio = (el: { params: Record<string, unknown>; animations?: unknown } & Parameters<typeof resolveElementParams>[0], s: number) => (resolveElementParams(el, secTicks(s))[PARAM.scaleX] as number) / (resolveElementParams(el, secTicks(0))[PARAM.scaleX] as number);
     expect(ratio(frame, 2)).toBeCloseTo(2, 2);
     expect(ratio(clip, 2)).toBeCloseTo(2, 2);
     expect(resolveElementParams(frame, secTicks(1.75))[PARAM.positionX]).toBeCloseTo(resolveElementParams(clip, secTicks(1.75))[PARAM.positionX] as number, 0);
+  });
+});
+
+describe("graphic layers behind the media", () => {
+  it("a frame marked behind is drawn under the clip it holds, and an ordinary graphic above it", () => {
+    const t = raw() as { beats: Array<{ layers?: unknown[]; media?: Record<string, unknown> }> };
+    t.beats[0]!.media = { slot: "clip-a", box: { x: 0, y: 0, width: 800, height: 400 }, track: "overlay" };
+    t.beats[0]!.layers = [
+      { kind: "graphic", shape: "app-frame", box: { x: 0, y: 0, width: 900, height: 500 }, behind: true },
+      { kind: "graphic", shape: "star", box: { x: 0, y: 0, width: 100, height: 100 } },
+    ];
+    const editor = editorWith(SPECS);
+    applyTemplateToEditor(editor, parseTemplate(t), inputs);
+    const tracks = currentScene(editor.getState().doc).tracks;
+    const order = drawOrder(tracks);
+    const indexOf = (match: (e: { type: string; definitionId?: string }) => boolean): number =>
+      order.findIndex((track) => (track.elements as Array<{ type: string; definitionId?: string; startTime: number }>).some((e) => match(e) && e.startTime === 0));
+    const frame = indexOf((e) => e.definitionId === "app-frame");
+    const clip = order.findIndex((track) => track.type === "video" && track.id !== tracks.main.id && track.elements.some((e) => e.startTime === 0));
+    const star = indexOf((e) => e.definitionId === "star");
+    expect(frame).toBeGreaterThanOrEqual(0);
+    expect(frame).toBeLessThan(clip);
+    expect(clip).toBeLessThan(star);
   });
 });
