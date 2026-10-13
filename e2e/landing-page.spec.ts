@@ -47,7 +47,7 @@ test("the nav call to action is a link to /app", async ({ page }) => {
 test("FAQ accordion works from the keyboard", async ({ page }) => {
   await openLanding(page);
   const questions = page.locator("#faq h3 button");
-  await expect(questions).toHaveCount(8);
+  await expect(questions).toHaveCount(9);
   await expect(questions.nth(0)).toHaveAttribute("aria-expanded", "true");
   await questions.nth(0).focus();
   await page.keyboard.press("Enter");
@@ -60,9 +60,9 @@ test("FAQ accordion works from the keyboard", async ({ page }) => {
   await expect(answer).toBeVisible();
   await expect(answer).toContainText("Anthropic");
   await page.keyboard.press("End");
-  await expect(questions.nth(7)).toBeFocused();
+  await expect(questions.nth(8)).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.locator("#faq-a-7")).toContainText(/CONTRIBUTING/);
+  await expect(page.locator("#faq-a-8")).toContainText(/CONTRIBUTING/);
   await expect(page.locator("#faq-a-1")).toBeHidden();
   await page.keyboard.press("Home");
   await expect(questions.nth(0)).toBeFocused();

@@ -45,13 +45,22 @@ describe("landing content shape", () => {
 
   it("answers every FAQ question and covers the required topics", () => {
     const faq = LANDING_CONTENT.faq.items;
-    expect(faq.length).toBeGreaterThanOrEqual(8);
+    expect(faq.length).toBeGreaterThanOrEqual(9);
     for (const item of faq) {
       expect(item.question.trim().endsWith("?")).toBe(true);
       expect(item.answer.trim().length).toBeGreaterThan(20);
     }
     const questions = faq.map((f) => f.question).join(" | ");
-    for (const topic of ["uploaded", "cost", "browsers", "models", "Understand download", "open source", "CapCut", "contribute"]) expect(questions).toContain(topic);
+    for (const topic of ["uploaded", "cost", "browsers", "models", "Understand download", "open source", "CapCut", "contribute", "Claude subscription"]) expect(questions).toContain(topic);
+  });
+
+  it("answers the subscription question honestly: Claude Code and MCP yes, in-app subscription login no", () => {
+    const answer = LANDING_CONTENT.faq.items.find((f) => /Claude subscription/.test(f.question))?.answer ?? "";
+    expect(answer).toMatch(/Claude Code/);
+    expect(answer).toMatch(/MCP/);
+    expect(answer).toMatch(/does not allow/);
+    expect(answer).toMatch(/API key/);
+    expect(answer).not.toMatch(/sign in with your subscription|coming soon/i);
   });
 
   it("declares the MIT license and GitHub links consistently", () => {

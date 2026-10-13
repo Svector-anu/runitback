@@ -36,3 +36,20 @@ The agent talks to models only through `ModelClient` (`src/app/agent/model-clien
 ## Verification status
 
 Fake-fetch unit tests cover request/response/error/abort/redaction (`tests/model-client-openai.test.ts`, `tests/model-providers.test.ts`). Real runs through the Surplus gateway (`/v1/chat/completions`): see `docs/EVALS.md` "Provider-independence results". The gateway key available during development was not scoped to `gpt-5-mini`, `gpt-5.3-codex` or `mercury-2.5` (HTTP 403 "not scoped to any available provider"), so the OpenAI wire protocol was exercised with `claude-haiku-4.5` served over chat completions. No native OpenAI model has run through this client yet.
+
+## Design note: gateways with a one-click authorize flow (not enabled)
+
+Status: design only. Nothing in the UI, CSP or code offers a gateway today.
+
+Idea: OpenRouter-style gateways let a browser app send the user to the gateway, have them approve, and receive a gateway key back (OAuth PKCE: redirect with a `code_challenge`, return with a `code`, exchange it for a key). That would replace "create a key in the console and paste it" with one click, and could open models from several vendors.
+
+Why it is not enabled:
+
+- **CSP.** `connect-src` is deliberately closed (`docs/SECURITY.md`). A gateway needs its API origin added, plus a redirect target for the authorize step. Every added origin widens where injected own-origin code could send data, so each gateway would be an explicit, reviewed `vercel.json` change, never a user-typed base URL.
+- **CORS.** The Anthropic path works from a browser because Anthropic sends the permissive CORS header for `anthropic-dangerous-direct-browser-access`. A gateway has to allow browser calls for our origin and our headers (`x-api-key` or `authorization`, `anthropic-version`, streaming). That is unverified for any gateway; it must be tested per gateway before claiming support.
+- **Protocol drift.** Gateways usually speak Chat Completions, not the Messages API. The OpenAI-compatible client exists (see above) but caching, image-in-tool-result and tool-call behaviour differ, and the loop's evals were scored against Anthropic.
+- **Key custody.** The returned gateway key would sit in `localStorage` just like the Anthropic key, with the same residual risk, and gateway keys can carry a spend limit we cannot see or enforce. The redirect also adds a `state`/PKCE verifier to store and validate, and a callback route to harden against open redirects.
+- **Trust and cost.** The user would be sending prompts, transcripts and frames to a third party we do not control, billed by that party. That must be an explicit, named choice with its own privacy copy, not a default.
+- **Not a subscription workaround.** A gateway key is a paid API credential. It does not make a Claude Pro or Max login usable here; subscribers should use Claude Code through MCP (`docs/AGENT_MCP.md`).
+
+If it is ever built: a provider registry entry with a fixed origin, a CSP change in the same PR, a CORS probe test against the real gateway, consent copy naming the third party, PKCE with a validated `state`, and eval runs per provider before it is selectable.

@@ -22,9 +22,36 @@ http://localhost:5173/#/projects?agent=7777&token=<random>
 
 Already inside a project? Append `?agent=<port>&token=<token>` to the hash route: `#/editor/<id>?agent=7777&token=...`, then reload. The token is removed from the address bar as soon as it is read.
 
-Options (flags or env): `--port` / `RUNITBACK_MCP_PORT` (default 7777, `0` = any free port), `--editor-url` / `RUNITBACK_EDITOR_URL` (default `http://localhost:5173`, only used in the printed link), `--allow-origin` / `OPENCUT_MCP_ALLOWED_ORIGINS` (comma separated extra browser origins, e.g. a self-hosted editor).
+Options (flags or env): `--port` / `RUNITBACK_MCP_PORT` (default 7777, `0` = any free port), `--editor-url` / `RUNITBACK_EDITOR_URL` (default `http://localhost:5173`, only used in the printed link), `--allow-origin` / `RUNITBACK_MCP_ALLOWED_ORIGINS` (legacy `OPENCUT_MCP_ALLOWED_ORIGINS` still read; comma separated extra browser origins, exact match, none by default, e.g. a self-hosted or the hosted editor).
 
 The editor page must call `initAgentBridge()` from `src/app/agent-bridge-wiring.ts` once at startup (it is a no-op without the `agent` URL parameter).
+
+## Using a Claude subscription
+
+Anthropic does not allow third-party apps to use Pro or Max subscription logins, so RunItBack never asks for, stores or forwards one. A subscriber's compliant routes are:
+
+1. **Claude Code** (Anthropic's own client) drives the editor through this MCP server. The subscription is used by Claude Code only; the editor page and the server never see it.
+2. A normal **Anthropic API key** for the in-app agent (billed by Anthropic per use, kept in the browser; see `docs/SECURITY.md`).
+
+The Agent panel has a collapsible card, "Use your Claude subscription (Claude Code)", that walks through the three steps below, copies the exact `claude mcp add` command (with a `/path/to/runitback` placeholder), shows a live status chip driven by the bridge, and lists what Claude Code can do. It is open when no API key is saved and collapsed once one is. Its link box accepts the link `editor_status` returns, so the user does not have to open another tab; pasting only shows the Allow prompt and nothing connects until the user clicks Allow. The pasted token is held in memory by the bridge session and never written to storage.
+
+### Hosted site vs. local copy (verified)
+
+Checked on 2026-10 in Google Chrome 155 (Playwright `channel: "chrome"`, macOS) with a real `BridgeServer`; an `https://` page was simulated by fulfilling `https://runitback.example/` through request interception, so the origin is a genuine secure `https` origin to Chrome.
+
+| Page origin | Result |
+| --- | --- |
+| `http://localhost:*` / `http://127.0.0.1:*` (`pnpm dev`, `vite preview`) | Works with no flags. Loopback origins are always accepted by the bridge, and the CSP (`connect-src ws://127.0.0.1:*`) allows the socket. Covered by `e2e/agent-bridge.spec.ts` and `e2e/conn-card.spec.ts`. |
+| `https://` hosted origin, bridge started without `--allow-origin` | Refused by the bridge at the upgrade (`rejected connection from origin ...`, HTTP 403) even when Chrome lets the socket out. Default is closed. |
+| `https://` hosted origin, origin allowlisted, Chrome **Local network access** permission granted | Works: handshake and `hello_ack` completed. Not blocked as mixed content: `ws://127.0.0.1` from an `https` page is permitted. |
+| `https://` hosted origin, allowlisted, permission **not** granted | Blocked by Chrome before it reaches the server: `net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS`. In headless Chrome this is an automatic deny. |
+
+Consequences for the hosted site:
+
+- Start the server with the hosted origin allowlisted: `--allow-origin https://<your-host>` or `RUNITBACK_MCP_ALLOWED_ORIGINS=https://<your-host>` (comma separated). Also pass `--editor-url https://<your-host>` so the link the server prints points at it. The card generates this command from `window.location.origin` when the page is not on localhost; the hosted production deployment is `https://runitback-three.vercel.app`. The allowlist is exact-match on the `Origin` header and empty by default.
+- Chrome 142 and later gate requests from a public site to loopback behind a **Local network access** permission. In a normal (headed) window Chrome shows its own prompt the first time; the user must accept it. A headed run with the prompt unanswered timed out, which is consistent with a pending prompt, but the prompt itself was not captured visually, and granting it was only tested through Playwright's `grantPermissions(["local-network-access"])`.
+- Only Chrome was tested. Firefox and Safari are untested and the app supports Chrome only.
+- Running a local copy (`pnpm dev`) avoids the allowlist and the permission prompt, and is the lowest-friction route.
 
 ## Tools
 

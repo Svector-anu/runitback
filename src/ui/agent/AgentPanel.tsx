@@ -7,6 +7,8 @@ import { Button } from "../primitives/Button";
 import { Tooltip } from "../primitives/Tooltip";
 import { Icon } from "../icons";
 import { ANTHROPIC_KEYS_URL } from "../lib/links";
+import { checkApiKey, type KeyCheckResult } from "#/app/agent/key-check";
+import { ClaudeCodeCard } from "./ClaudeCodeCard";
 import { PlanCard, PlanHint } from "./PlanCard";
 
 const EXAMPLE_PROMPTS = [
@@ -19,6 +21,7 @@ const EXAMPLE_PROMPTS = [
 const KEY_IDLE_MS = 900;
 const ASK_BEFORE_EDITING_HELP = "The agent shows a plan first and changes your timeline only after you approve it. Turn this off to let it edit straight away.";
 const WARNING = "Your API key is kept in this browser only and is sent only to Anthropic. Anyone using this browser profile can read it.";
+const NOT_A_SUBSCRIPTION = "Typical edits cost cents. This is an API key, not a Claude subscription login; to use a subscription, connect Claude Code below.";
 const MODEL_NOTE = "Sonnet balances quality and speed. Opus is the strongest and costs the most. Haiku is the fastest and cheapest.";
 
 function ToolChip({ item }: { item: Extract<ChatItem, { kind: "tool" }> }): ReactNode {
@@ -96,7 +99,10 @@ export function AgentPanel(): ReactNode {
   const currentDoc = useEditorState((s) => s.doc);
   const [draft, setDraft] = useState("");
   const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const [claudeCodeOpen, setClaudeCodeOpen] = useState(() => state.apiKey === "");
+  const [keyCheck, setKeyCheck] = useState<{ status: "idle" | "testing" } | { status: "done"; result: KeyCheckResult }>({ status: "idle" });
   const logRef = useRef<HTMLDivElement>(null);
+  const keyResultRef = useRef<HTMLDivElement>(null);
 
   const hasKey = state.apiKey !== "";
   const [settledKey, setSettledKey] = useState(state.apiKey);
@@ -109,7 +115,10 @@ export function AgentPanel(): ReactNode {
   }, [session, projectId]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setSettledKey(state.apiKey), KEY_IDLE_MS);
+    const timer = setTimeout(() => {
+      setSettledKey(state.apiKey);
+      if (state.apiKey !== "") setClaudeCodeOpen(false);
+    }, KEY_IDLE_MS);
     return () => clearTimeout(timer);
   }, [state.apiKey]);
 
@@ -117,6 +126,17 @@ export function AgentPanel(): ReactNode {
     const log = logRef.current;
     if (log && state.items.length > 0) log.scrollTop = log.scrollHeight;
   }, [state.items.length, state.streaming]);
+
+  const testKey = async (): Promise<void> => {
+    setSettingsExpanded(true);
+    setKeyCheck({ status: "testing" });
+    setKeyCheck({ status: "done", result: await checkApiKey({ apiKey: state.apiKey }) });
+    keyResultRef.current?.scrollIntoView({ block: "nearest" });
+  };
+  const forgetKey = (): void => {
+    session.setApiKey("");
+    setKeyCheck({ status: "idle" });
+  };
 
   const canUndo = !state.running && state.undoableDoc !== null && state.undoableDoc === currentDoc;
   const submit = (): void => {
@@ -177,20 +197,41 @@ export function AgentPanel(): ReactNode {
               value={state.apiKey} onChange={(e) => session.setApiKey(e.target.value)} aria-describedby="agent-key-warning"
             />
             {state.apiKey === "" ? (
-              <p className="agent-warning agent-warning--required" role="status" data-testid="agent-key-hint">
-                An Anthropic API key is required. <a href={ANTHROPIC_KEYS_URL} target="_blank" rel="noopener noreferrer">Where do I get a key?</a>
+              <div className="agent-key-actions">
+                <p className="agent-warning agent-warning--required" role="status" data-testid="agent-key-hint">
+                  An Anthropic API key is required.
+                </p>
+                <a className="btn btn--outline btn--sm" href={ANTHROPIC_KEYS_URL} target="_blank" rel="noopener noreferrer">Get an API key</a>
+              </div>
+            ) : null}
+            <div ref={keyResultRef} className="agent-key-result" role="status" aria-live="polite" data-testid="agent-key-result">
+              {keyCheck.status === "done" ? (
+                <span className={keyCheck.result.ok ? "agent-key-result--ok" : "agent-key-result--error"}>
+                  {keyCheck.result.ok ? "Key works. Anthropic accepted a 1-token test request." : keyCheck.result.message}
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="agent-key-tools">
+            <details className="agent-privacy">
+              <summary>Privacy and cost</summary>
+              <p id="agent-key-warning" className="agent-warning">{WARNING}</p>
+              <p className="agent-warning" data-testid="agent-key-help">
+                {hasKey ? <><a href={ANTHROPIC_KEYS_URL} target="_blank" rel="noopener noreferrer">Where do I get a key?</a>{" "}</> : null}
+                You pay Anthropic directly for what the agent uses. RunItBack adds no charge.
               </p>
+              <p className="agent-warning">{NOT_A_SUBSCRIPTION}</p>
+              <p className="agent-warning">{MODEL_NOTE}</p>
+            </details>
+            {hasKey ? (
+              <>
+                <Button size="sm" variant="outline" disabled={keyCheck.status === "testing"} onClick={() => void testKey()}>
+                  {keyCheck.status === "testing" ? "Testing..." : "Test key"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={forgetKey}>Forget key</Button>
+              </>
             ) : null}
           </div>
-          <details className="agent-privacy">
-            <summary>Privacy and cost</summary>
-            <p id="agent-key-warning" className="agent-warning">{WARNING}</p>
-            <p className="agent-warning" data-testid="agent-key-help">
-              {hasKey ? <><a href={ANTHROPIC_KEYS_URL} target="_blank" rel="noopener noreferrer">Where do I get a key?</a>{" "}</> : null}
-              You pay Anthropic directly for what the agent uses. RunItBack adds no charge.
-            </p>
-            <p className="agent-warning">{MODEL_NOTE}</p>
-          </details>
           {showOptions ? <Tooltip content={ASK_BEFORE_EDITING_HELP} side="bottom" delay={250}>
             <label className="agent-toggle">
               <input
@@ -204,7 +245,8 @@ export function AgentPanel(): ReactNode {
         </div>
       ) : null}
 
-      <div ref={logRef} className="agent-log" role="log" aria-label="Agent conversation" aria-relevant="additions text">
+            <div ref={logRef} className="agent-log" role="log" aria-label="Agent conversation" aria-relevant="additions text">
+        <div aria-live="off"><ClaudeCodeCard open={claudeCodeOpen} onOpenChange={setClaudeCodeOpen} /></div>
         {state.items.length === 0 ? (
           <div className="agent-empty" data-testid="agent-empty">
             <p>

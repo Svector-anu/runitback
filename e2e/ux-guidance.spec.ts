@@ -126,7 +126,7 @@ test("agent panel: key help links to the Anthropic console, typing a key keeps t
   await newProject(page);
   await page.getByRole("tab", { name: "Agent" }).click();
   const panel = page.getByTestId("agent-panel");
-  const link = panel.getByRole("link", { name: "Where do I get a key?" });
+  const link = panel.getByRole("link", { name: "Get an API key" });
   await expect(link).toHaveAttribute("href", "https://console.anthropic.com/settings/keys");
   await panel.getByText("Privacy and cost").click();
   await expect(panel.getByText(/kept in this browser only and is sent only to Anthropic/)).toBeVisible();

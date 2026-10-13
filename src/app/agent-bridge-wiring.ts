@@ -125,6 +125,8 @@ class BridgeSession implements BridgeController {
 }
 
 let session: BridgeSession | null = null;
+let mounted: { host: HTMLElement; unmount: () => void } | null = null;
+const sessionListeners = new Set<() => void>();
 
 /** The token is a bearer secret: once read it is removed from the address bar, history entry and future referrers. */
 function scrubToken(): void {
@@ -140,6 +142,52 @@ function scrubToken(): void {
   history.replaceState(null, "", `${pathname}${clean(search)}${hashPath}${clean(hashQuery)}`);
 }
 
+function mountSession(request: BridgeRequest): BridgeSession {
+  mounted?.unmount();
+  const next = new BridgeSession(request);
+  const host = document.createElement("div");
+  host.id = "agent-bridge-root";
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  root.render(createElement(BridgeStatus, { controller: next }));
+  mounted = { host, unmount: () => { root.unmount(); host.remove(); } };
+  session = next;
+  for (const listener of sessionListeners) listener();
+  return next;
+}
+
+/** The live bridge session, or null while the page was opened without an agent link. */
+export function getBridgeController(): BridgeController | null {
+  return session;
+}
+
+export function subscribeBridgeController(listener: () => void): () => void {
+  sessionListeners.add(listener);
+  return () => sessionListeners.delete(listener);
+}
+
+export type BridgeLinkResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Starts a bridge session from a pasted connect link (the one `editor_status` returns). Like the URL path it only
+ * shows the Allow prompt: nothing connects until the user clicks Allow. The token is never stored.
+ */
+export function connectBridgeFromLink(text: string): BridgeLinkResult {
+  let url: URL;
+  try {
+    url = new URL(text.trim());
+  } catch {
+    return { ok: false, error: "That is not a link. Paste the full address Claude Code gave you." };
+  }
+  const request = parseBridgeRequest({ search: url.search, hash: url.hash });
+  if (!request) return { ok: false, error: "That link has no agent parameter. Ask Claude Code to call editor_status and paste the link it returns." };
+  if (!Number.isInteger(request.port)) return { ok: false, error: "That link has an invalid port." };
+  if (!request.token) return { ok: false, error: "That link is missing its token." };
+  session?.disconnect();
+  mountSession(request);
+  return { ok: true };
+}
+
 /**
  * Opt-in entry point. Does nothing unless the URL carries `agent=<port>`; otherwise shows a confirmation chip
  * and opens the socket only after the user clicks Allow. Safe to call more than once.
@@ -149,10 +197,5 @@ export function initAgentBridge(loc: { search: string; hash: string } = window.l
   const request = parseBridgeRequest(loc);
   if (!request) return null;
   if (loc === window.location) scrubToken();
-  session = new BridgeSession(request);
-  const host = document.createElement("div");
-  host.id = "agent-bridge-root";
-  document.body.appendChild(host);
-  createRoot(host).render(createElement(BridgeStatus, { controller: session }));
-  return session;
+  return mountSession(request);
 }

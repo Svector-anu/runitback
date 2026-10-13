@@ -291,6 +291,10 @@ export const LANDING_CONTENT: LandingContent = {
         answer: "RunItBack is free to use and adds no charge. The agent runs on your own Anthropic API key, so you pay Anthropic directly for what it uses. Editing and exporting without the agent needs no key.",
       },
       {
+        question: "Can I use my Claude subscription?",
+        answer: "Yes, through Claude Code. Claude Code is Anthropic's own app, and it can drive RunItBack through the MCP server in this repository, so your Pro or Max plan does the work. There is no \"sign in with Claude\" inside the web app, because Anthropic does not allow other apps to use subscription logins. For the built-in agent, use an Anthropic API key instead; you pay Anthropic directly, usually cents per edit.",
+      },
+      {
         question: "Which browsers does it work in?",
         answer: "Chrome on desktop. Other browsers are not supported yet.",
       },
