@@ -4,6 +4,9 @@ import { isBoolean, isNumberArray, isRecordOfStrings } from "#/platform/prefs";
 
 export type RightPanelTab = "properties" | "agent";
 
+/** Panels reachable from the compact (below 900 px) bottom-sheet tab bar. */
+export type SheetTab = "assets" | "properties" | "agent";
+
 export type AssetTab = "media" | "text" | "graphics" | "effects" | "captions" | "settings";
 
 export interface LayoutSizes {
@@ -30,6 +33,8 @@ export interface UiState {
   layout: LayoutSizes;
   assetTab: AssetTab;
   rightPanel: RightPanelTab;
+  /** Compact layout only: the tab whose bottom sheet is open, or null when the sheet is closed. */
+  sheet: SheetTab | null;
   mediaView: "grid" | "list";
   mediaSort: "name" | "type" | "duration" | "size";
   mediaSortDesc: boolean;
@@ -47,6 +52,7 @@ export const uiStore = new Store<UiState>({
   layout: DEFAULT_LAYOUT,
   assetTab: "media",
   rightPanel: "properties",
+  sheet: null,
   mediaView: "grid",
   mediaSort: "name",
   mediaSortDesc: false,
@@ -89,6 +95,19 @@ export function setLayout(layout: Partial<LayoutSizes>): void {
   const next = { ...uiStore.get().layout, ...layout };
   uiStore.set({ layout: next });
   getServices().prefs.write("panel-sizes", next);
+}
+
+export function openSheet(tab: SheetTab): void {
+  uiStore.set({ sheet: tab });
+}
+
+export function closeSheet(): void {
+  if (uiStore.get().sheet !== null) uiStore.set({ sheet: null });
+}
+
+/** Tapping the active tab dismisses the sheet; tapping another tab switches to it. */
+export function toggleSheet(tab: SheetTab): void {
+  uiStore.set({ sheet: uiStore.get().sheet === tab ? null : tab });
 }
 
 export function toggleExpanded(elementId: string): void {

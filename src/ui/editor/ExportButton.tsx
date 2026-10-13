@@ -106,7 +106,7 @@ export function ExportButton(): ReactNode {
         </Tooltip>
       ) : exportButton}
       <Popover open={open} onClose={close} anchor={anchor} align="end" label="Export project" className="popover--padded">
-        <div style={{ width: 320 }}>
+        <div className="export-popover">
           <div style={{ padding: 12, borderBottom: "1px solid var(--border)", fontWeight: 500 }}>
             {state.kind === "exporting" ? "Exporting project" : "Export project"}
           </div>

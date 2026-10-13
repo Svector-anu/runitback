@@ -17,16 +17,10 @@ import { EditorHeader } from "./Header";
 import { Button } from "../primitives/Button";
 import { OnboardingHint } from "./OnboardingHint";
 import { EditorHints } from "./EditorHints";
-
-function useNarrow(): boolean {
-  const [narrow, setNarrow] = useState(window.innerWidth < 900);
-  useEffect(() => {
-    const onResize = (): void => setNarrow(window.innerWidth < 900);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-  return narrow;
-}
+import { MobileLayout } from "./MobileLayout";
+import { MobileNotice } from "./MobileNotice";
+import { useMobileSheetAutopilot } from "./use-sheet-autopilot";
+import { useViewport } from "./use-viewport";
 
 function RightPanel(): ReactNode {
   const tab = uiStore.use((s) => s.rightPanel);
@@ -47,26 +41,8 @@ function RightPanel(): ReactNode {
 
 function Layout(): ReactNode {
   const layout = uiStore.use((s) => s.layout);
-  const narrow = useNarrow();
-  const [pane, setPane] = useState<"preview" | "assets" | "properties" | "agent">("preview");
-
-  if (narrow) {
-    return (
-      <Split direction="column" label="Editor" sizes={layout.vertical} constraints={PANEL_CONSTRAINTS.vertical} onChange={(vertical) => setLayout({ vertical })}>
-        <div style={{ display: "flex", flexDirection: "column", width: "100%", padding: "0 0.5rem", gap: 4, minHeight: 0 }}>
-          <div role="tablist" aria-label="Panels" style={{ display: "flex", gap: 4 }}>
-            {(["preview", "assets", "properties", "agent"] as const).map((p) => (
-              <Button key={p} role="tab" aria-selected={pane === p} variant={pane === p ? "secondary" : "ghost"} size="sm" onClick={() => setPane(p)}>
-                {p === "preview" ? "Preview" : p === "assets" ? "Assets" : p === "properties" ? "Properties" : "Agent"}
-              </Button>
-            ))}
-          </div>
-          <div style={{ flex: 1, minHeight: 0, display: "flex" }}>{pane === "preview" ? <PreviewPanel /> : pane === "assets" ? <AssetsPanel /> : pane === "properties" ? <PropertiesPanel /> : <AgentPanel />}</div>
-        </div>
-        <div style={{ width: "100%", padding: "0 0.75rem 0.75rem", minHeight: 0, display: "flex" }}><div className="panel-box" style={{ width: "100%" }}><Timeline /></div></div>
-      </Split>
-    );
-  }
+  const { compact } = useViewport();
+  if (compact) return <MobileLayout />;
   return (
     <Split direction="column" label="Editor" sizes={layout.vertical} constraints={PANEL_CONSTRAINTS.vertical} onChange={(vertical) => setLayout({ vertical })}>
       <div style={{ width: "100%", padding: "0 0.75rem", minHeight: 0, display: "flex" }}>
@@ -134,6 +110,7 @@ export function EditorPage({ id }: { id: string }): ReactNode {
     };
   }, [services]);
 
+  useMobileSheetAutopilot(status === "ready" && ready);
   useKeyboardShortcuts({ enabled: status === "ready" && ready, recording });
   const onRecording = useCallback((r: boolean) => setRecording(r), []);
 
@@ -168,6 +145,7 @@ export function EditorPage({ id }: { id: string }): ReactNode {
           <Button variant="text" label="Dismiss" onClick={() => setBannerDismissed(true)}><Icon name="x" size={14} /></Button>
         </div>
       ) : null}
+      <MobileNotice />
       <OnboardingHint />
       <EditorHints />
       <EditorHeader onRecording={onRecording} />

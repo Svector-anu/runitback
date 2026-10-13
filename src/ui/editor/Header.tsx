@@ -10,6 +10,7 @@ import { Dialog } from "../primitives/Dialog";
 import { DropdownMenu } from "../primitives/Menu";
 import { toast } from "../primitives/toast";
 import { ExportButton } from "./ExportButton";
+import { useViewport } from "./use-viewport";
 import { ShortcutsDialog } from "./ShortcutsDialog";
 import { ANTHROPIC_KEYS_URL } from "../lib/links";
 import { getHintStore } from "../lib/hints";
@@ -40,8 +41,9 @@ function SaveIndicator(): ReactNode {
   const save = useSaveState();
   const label = save.status === "saving" ? "Saving…" : save.status === "dirty" ? "Unsaved changes" : save.status === "error" ? "Save failed, retrying" : "All changes saved";
   return (
-    <span className="muted" role="status" aria-live="polite" style={{ fontSize: "var(--text-xs)", color: save.status === "error" ? "var(--destructive)" : undefined }} title={save.error ?? undefined}>
-      {label}
+    <span className="save-indicator muted" data-status={save.status} role="status" aria-live="polite" style={{ fontSize: "var(--text-xs)", color: save.status === "error" ? "var(--destructive)" : undefined }} title={save.error ?? label}>
+      <span className="save-indicator__dot" aria-hidden="true" />
+      <span className="save-indicator__label">{label}</span>
     </span>
   );
 }
@@ -53,6 +55,8 @@ export function EditorHeader({ onRecording }: { onRecording: (recording: boolean
   const [exiting, setExiting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const meta = useEditorState((s) => s.meta);
+  const { phone } = useViewport();
+  const nextTheme = theme === "dark" ? "light" : "dark";
 
   const exit = async (): Promise<void> => {
     setExiting(true);
@@ -98,12 +102,13 @@ export function EditorHeader({ onRecording }: { onRecording: (recording: boolean
           entries={[
             { label: "Take the tour", icon: "film", onSelect: () => getTourStore().start() },
             { label: "Keyboard shortcuts", icon: "command", onSelect: () => setShortcuts(true) },
+            ...(phone ? [{ label: theme === "dark" ? "Switch to light theme" : "Switch to dark theme", icon: theme === "dark" ? "sun" as const : "moon" as const, onSelect: () => setTheme(nextTheme) }] : []),
             { label: "Show tips again", icon: "reset", onSelect: () => { getHintStore().reset(); toast.info("Tips are back", "Each one will show once more when it applies."); } },
             { type: "separator" },
             { label: "Get an Anthropic API key", icon: "link", onSelect: () => { window.open(ANTHROPIC_KEYS_URL, "_blank", "noopener,noreferrer"); } },
           ]}
           trigger={(p) => <Button {...p} variant="ghost" size="icon-lg" label="Help and tips" className="help-button" data-testid="help-button"><span aria-hidden="true">?</span></Button>} />
-        <Button variant="ghost" size="icon-lg" label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+        <Button variant="ghost" size="icon-lg" className="theme-toggle" label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setTheme(nextTheme)}>
           <Icon name={theme === "dark" ? "sun" : "moon"} size={18} />
         </Button>
         <ExportButton />
