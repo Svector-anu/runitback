@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 
 test("the landing has a Templates section with four featured cards, a nav link and a link to /templates", async ({ page }) => {
   await page.goto("/");
+  // Smooth scrolling aims at where the section is when the click lands; let fonts and images settle first so the layout does not move under it.
+  await page.waitForLoadState("load");
+  await page.evaluate(async () => { await document.fonts.ready; await Promise.all([...document.images].filter((img) => img.loading !== "lazy").map((img) => img.decode().catch(() => undefined))); });
   const nav = page.getByRole("navigation", { name: "Page sections" });
   await nav.getByRole("link", { name: "Templates" }).click();
   await expect.poll(() => page.evaluate(() => Math.round(document.getElementById("templates")?.getBoundingClientRect().top ?? 9999))).toBeLessThan(140);
