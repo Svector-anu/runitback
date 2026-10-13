@@ -1,11 +1,11 @@
-import { mediaTime, roundMediaTime } from "#/engine/time";
+import { mediaTime } from "#/engine/time";
 import { clampAnimationsToDuration } from "#/engine/animation";
 import {
   clampElementParams, clampRate, InvalidInputError, type ElementPatch, type ElementRef, type IdGenerator, type SceneTracks, type TimelineElement,
 } from "#/engine/model";
 import { guardElementPatch } from "./input-guards";
 import { enforceMainTrackStart } from "./placement";
-import { effectiveRate, sourceSpanAtClipTime } from "./retime";
+import { effectiveRate, sourceSpanAtClipTime, sourceTimeAt, timelineDurationForSourceSpan, withDerivedRate } from "./retime";
 import { elementEnd, findTrack, getElement, replaceElement } from "./tracks";
 
 function merge(element: TimelineElement, patch: ElementPatch): TimelineElement {
@@ -22,7 +22,7 @@ function merge(element: TimelineElement, patch: ElementPatch): TimelineElement {
 function sourceLengthOf(element: TimelineElement): number {
   if (element.sourceDuration !== undefined) return element.sourceDuration;
   const retime = "retime" in element ? element.retime : undefined;
-  return element.trimStart + sourceSpanAtClipTime(element.duration, retime) + element.trimEnd;
+  return element.trimStart + sourceSpanAtClipTime(element.duration, retime, element.trimStart) + element.trimEnd;
 }
 
 /**
@@ -32,8 +32,9 @@ function sourceLengthOf(element: TimelineElement): number {
 function reconcileTrimWithDuration(element: TimelineElement): TimelineElement {
   if ((element.type !== "video" && element.type !== "audio") || element.sourceDuration === undefined) return element;
   const rate = effectiveRate(element.retime);
-  const tail = element.sourceDuration - element.trimStart - element.duration * rate;
-  if (Math.abs(tail - element.trimEnd) <= 2 + rate) return element;
+  const maxRate = element.retime?.curve ? Math.max(...element.retime.curve.points.map((p) => p.rate)) : rate;
+  const tail = element.sourceDuration - sourceTimeAt({ trimStart: element.trimStart, clipTime: element.duration, retime: element.retime });
+  if (Math.abs(tail - element.trimEnd) <= 2 + maxRate) return element;
   if (tail < -(2 + rate)) {
     throw new InvalidInputError(`duration ${element.duration} needs more media than the source has (${element.sourceDuration} ticks)`);
   }
@@ -68,14 +69,15 @@ export function applyElementUpdate(input: {
   if (patch.params) next = clampElementParams(next);
 
   if ("retime" in patch && (element.type === "video" || element.type === "audio")) {
-    const rate = next.type === "video" || next.type === "audio" ? effectiveRate(next.retime) : 1;
+    const retime = next.type === "video" || next.type === "audio" ? next.retime : undefined;
     const total = sourceLengthOf(element);
     const visible = Math.max(0, total - next.trimStart - next.trimEnd);
-    let duration = roundMediaTime(visible / clampRate(rate));
+    let duration = timelineDurationForSourceSpan(visible, retime ? { ...retime, rate: clampRate(retime.rate) } : undefined, next.trimStart);
     const room = nextNeighbourStart(tracks, ref, element) - next.startTime;
     if (duration > room) {
       duration = mediaTime(Math.max(0, Math.floor(room)));
-      next = { ...next, trimEnd: mediaTime(Math.max(0, Math.round(total - next.trimStart - duration * rate))) };
+      const reached = sourceTimeAt({ trimStart: next.trimStart, clipTime: duration, retime });
+      next = { ...next, trimEnd: mediaTime(Math.max(0, Math.round(total - reached))) };
     }
     next = { ...next, duration };
   }
@@ -96,5 +98,5 @@ export function applyElementUpdate(input: {
     const start = enforceMainTrackStart({ tracks, trackId: ref.trackId, requestedStart: requested, excludeElementId: element.id });
     next = { ...next, startTime: start };
   }
-  return replaceElement(tracks, ref, next);
+  return replaceElement(tracks, ref, withDerivedRate(next as TimelineElement & { trimStart: number }) as TimelineElement);
 }

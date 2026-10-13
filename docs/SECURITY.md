@@ -23,7 +23,10 @@ Scope: the hosted static app (Vercel). Everything runs in the browser; there is 
 
 Other headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
 
-### The one exception: `'unsafe-eval'` on the face worker
+### The one exception: `'unsafe-eval'` on the MediaPipe workers (face and segmenter)
+
+The background-removal worker (`src/platform/segmentation/segmenter-worker.ts`, emitted as `/assets/segmenter-worker-*.js`) uses the same loader and gets the same carve-out in `vercel.json`; nothing else does. The rest of this section describes the face worker and applies to both.
+
 
 MediaPipe's WASM loader is a classic script that defines a global factory. A module worker cannot `importScripts`, so `src/platform/visual/face-worker.ts` runs it with an indirect eval. Without `'unsafe-eval'` the face stage fails with "Evaluating a string as JavaScript violates the following Content Security Policy" (reproduced). A worker's CSP comes from its own script response, so `vercel.json` gives `/assets/face-worker-*.js` (and only it) `'unsafe-eval'`; the document, and every other script, stay strict. A test asserts this split (`tests/supply-chain.test.ts`, `e2e/csp.spec.ts`). The worker has no access to `localStorage` (where the agent key lives). Follow-up that removes the exception: ship a module-wrapped copy of the loader in `public/mediapipe/wasm`.
 

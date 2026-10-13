@@ -499,6 +499,44 @@ function ask(reply: string, extra: Turn[] = []): () => Turn[] {
   return () => [(_seen, use) => orient(use), ...extra, () => [say(reply)]];
 }
 
+/** Puts greenscreen.mp4 over the beach and keys it; the mutations skip the key, key the wrong colour, or leave the clip on the main track. */
+function greenScreen(options: { mode: "key" | "no-key" | "blue-key" | "main-track" }): () => Turn[] {
+  return () => {
+    let clipId = "";
+    return [
+      (_seen, use) => orient(use),
+      (seen, use) => {
+        const screen = assetNamed(seen, "greenscreen.mp4");
+        const beach = elementsOf(seen.data<TimelineData>("get_timeline"))[0];
+        const where = options.mode === "main-track" ? { start: beach?.end ?? 6 } : { start: 0, newTrack: true };
+        return [use("insert_media", { assetId: screen.id, ...where })];
+      },
+      (seen, use) => {
+        clipId = seen.data<{ elementId: string }>("insert_media").elementId;
+        if (options.mode === "no-key") return [use("get_timeline")];
+        return [use("set_chroma_key", { elementIds: [clipId], ...(options.mode === "blue-key" ? { keyColor: "#0000ff" } : { keyColor: "#00ff00", similarity: 40, smoothness: 12 }) })];
+      },
+      (_seen, use) => [use("get_timeline")],
+      () => [say("The green screen is keyed out over the beach.")],
+    ];
+  };
+}
+
+/** Gives action.mp4 a speed ramp: the hero preset, or a wrong one. */
+function speedRamp(options: { mode: "hero" | "constant" | "early" | "montage" }): () => Turn[] {
+  return () => [
+    (_seen, use) => orient(use),
+    (seen, use) => {
+      const clip = onlyElement(seen);
+      if (options.mode === "constant") return [use("set_speed", { elementId: clip.id, speed: 0.5 })];
+      if (options.mode === "early") return [use("set_speed_ramp", { elementId: clip.id, points: [{ position: 0, speed: 1 }, { position: 0.1, speed: 0.25 }, { position: 0.2, speed: 1 }, { position: 1, speed: 1 }] })];
+      return [use("set_speed_ramp", { elementId: clip.id, preset: options.mode })];
+    },
+    (_seen, use) => [use("get_timeline")],
+    () => [say("The clip now ramps into slow motion in the middle.")],
+  ];
+}
+
 const GUESSES: Turn[] = [
   (_seen, use) => [use("get_timeline"), use("insert_text", { text: "Better!", start: 0, duration: 3 })],
   () => [say("Done, I made it better.")],
@@ -627,6 +665,15 @@ const SPECS: PolicySpec[] = [
   { id: "default-words", caseId: "apply-launch-template", kind: "mutation", description: "Applies the template but keeps its placeholder headline and callouts.", mustFail: ["headline-text", "callouts-in-order"], turns: launchTemplate({ mode: "default-words" }) },
   { id: "swapped-recordings", caseId: "apply-launch-template", kind: "mutation", description: "Maps the second and third recordings to each other's slots.", mustFail: ["recordings-in-order"], turns: launchTemplate({ mode: "swapped" }) },
   { id: "wrong-template", caseId: "apply-launch-template", kind: "mutation", description: "Applies the kinetic announcement template instead, with none of the footage.", mustFail: ["launch-format", "recordings-in-order", "headline-text", "launch-length"], turns: launchTemplate({ mode: "wrong-template" }) },
+  { id: "oracle", caseId: "green-screen-overlay", kind: "oracle", description: "insert_media on a new overlay track at 0, set_chroma_key.", turns: greenScreen({ mode: "key" }) },
+  { id: "no-key", caseId: "green-screen-overlay", kind: "mutation", description: "Layers the clip over the beach but never keys it.", mustFail: ["green-is-keyed"], turns: greenScreen({ mode: "no-key" }) },
+  { id: "blue-key", caseId: "green-screen-overlay", kind: "mutation", description: "Keys blue instead of green.", mustFail: ["green-is-keyed"], turns: greenScreen({ mode: "blue-key" }) },
+  { id: "main-track", caseId: "green-screen-overlay", kind: "mutation", description: "Keys the clip but appends it after the beach on the main track instead of layering it.", mustFail: ["on-top-of-beach"], turns: greenScreen({ mode: "main-track" }) },
+
+  { id: "oracle", caseId: "speed-ramp-hero", kind: "oracle", description: "set_speed_ramp with the hero preset.", turns: speedRamp({ mode: "hero" }) },
+  { id: "constant-slow", caseId: "speed-ramp-hero", kind: "mutation", description: "Plays the whole clip at half speed instead of ramping.", mustFail: ["is-a-ramp", "slows-to-quarter", "slow-moment-centred"], turns: speedRamp({ mode: "constant" }) },
+  { id: "slow-too-early", caseId: "speed-ramp-hero", kind: "mutation", description: "Ramps, but the slow moment is at 1 s instead of the middle.", mustFail: ["slow-moment-centred"], turns: speedRamp({ mode: "early" }) },
+  { id: "wrong-preset", caseId: "speed-ramp-hero", kind: "mutation", description: "Applies the montage preset (fast and only half-speed slow) instead of the hero moment.", mustFail: ["slows-to-quarter"], turns: speedRamp({ mode: "montage" }) },
   {
     id: "oracle", caseId: "ambiguous-request", kind: "oracle", description: "Inspect, then ask what 'better' means.",
     turns: ask("What would you like me to improve: the pacing, the audio level, add titles or captions, or something else? Tell me what 'better' means for this video and I'll do it."),
@@ -660,6 +707,8 @@ const LAZY_FAILS: Record<string, string[]> = {
   "add-transition-between-clips": ["dissolve-between"],
   "apply-warm-filter-to-title-clip": ["title-present", "title-is-warm"],
   "apply-launch-template": ["recordings-in-order", "headline-text", "callouts-in-order", "launch-length"],
+  "green-screen-overlay": ["green-is-keyed", "on-top-of-beach"],
+  "speed-ramp-hero": ["is-a-ramp", "slows-to-quarter"],
 };
 
 const OVERREACH_FAILS: Record<string, string[]> = {
@@ -682,6 +731,8 @@ const OVERREACH_FAILS: Record<string, string[]> = {
   "add-transition-between-clips": ["dissolve-between", "clips-untouched"],
   "apply-warm-filter-to-title-clip": ["title-present", "title-is-warm", "video-untouched"],
   "apply-launch-template": ["recordings-in-order", "headline-text", "callouts-in-order", "launch-length"],
+  "green-screen-overlay": ["green-is-keyed", "beach-intact"],
+  "speed-ramp-hero": ["is-a-ramp", "whole-source-kept"],
 };
 
 function generic(): PolicySpec[] {

@@ -24,6 +24,7 @@ import { probeMedia, UnsupportedMediaError } from "#/platform/probe";
 import type { Playback } from "#/engine/editor";
 import type { AudioClip } from "#/engine/audio";
 import type { AudioSinkCache } from "#/platform/audio-scheduler";
+import { IdbMaskStore, MaskProvider, MemoryMaskStore, setSharedMaskProvider, sharedMaskProvider } from "#/platform/segmentation";
 import { IdbAssetRepository, IdbProjectRepository, openAppDatabase } from "#/platform/repositories";
 
 export interface ImportOutcome {
@@ -116,6 +117,7 @@ export class AppServices {
     this.storageMode = deps.storageMode;
     this.derivedData = deps.derivedData;
     this.persistence = new StoragePersistence({ storage: deps.storage, prefs: this.prefs });
+    if (!sharedMaskProvider()) setSharedMaskProvider(new MaskProvider(typeof indexedDB === "undefined" ? new MemoryMaskStore() : new IdbMaskStore()));
     this.runtime = deps.createRuntime();
     this.projectRepository = deps.projectRepository;
     this.assetRepository = deps.assetRepository;

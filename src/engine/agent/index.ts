@@ -13,3 +13,5 @@ export { paramSpecsFor, paramEditCommand, animationPathFor, type ParamSpec } fro
 export { toSec } from "./env";
 export * from "./plan";
 export * from "./plan-scope";
+export { createBackgroundTools, type BackgroundDeps } from "./tools-background";
+export { createMotionTools, MAX_ANALYSED_FRAMES, type MotionDeps } from "./tools-motion";

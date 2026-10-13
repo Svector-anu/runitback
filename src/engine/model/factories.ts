@@ -11,7 +11,7 @@ import type {
  * v1: initial. v2: optional `transition` on video/image clips. v3: the `adjust` effect type. v4: text stroke/shadow/reveal
  * params and `textAnimation`. v5: `crop.*` params and `freezeAt` on image clips. All additive; older projects need no data change.
  */
-export const PROJECT_SCHEMA_VERSION = 5;
+export const PROJECT_SCHEMA_VERSION = 6;
 export const MAIN_TRACK_NAME = "Main Track";
 export const CANVAS_PRESETS = [
   { width: 1920, height: 1080 },

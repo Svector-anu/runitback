@@ -429,7 +429,7 @@ export function freezeFrameCommand(input: { ref: ElementRef; at: number; duratio
       if (input.at + input.duration > MAX_TIMELINE_TICKS) throw new InvalidInputError("The freeze frame would end beyond the 24 hour limit");
 
       const clipTime = input.at - element.startTime;
-      const sourceEnd = element.sourceDuration ?? element.trimStart + sourceSpanAtClipTime(element.duration, element.retime) + element.trimEnd;
+      const sourceEnd = element.sourceDuration ?? element.trimStart + sourceSpanAtClipTime(element.duration, element.retime, element.trimStart) + element.trimEnd;
       const frameAt = Math.round(Math.min(Math.max(0, sourceTimeAt({ trimStart: element.trimStart, clipTime, retime: element.retime })), Math.max(0, sourceEnd - FREEZE_END_GUARD_TICKS)));
       const resolved = resolveElementParams(element, clipTime);
       const params: Record<string, string | number | boolean> = {};

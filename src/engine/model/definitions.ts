@@ -36,6 +36,8 @@ export interface EffectDefinition {
   type: string;
   name: string;
   params: ReadonlyArray<ParamDef>;
+  /** "clip" effects read the clip's own pixels (keying, segmentation) and make no sense as a scene-wide effect layer. */
+  scope?: "clip";
 }
 
 const adjustNumber = (key: string, label: string, min: number, max: number): ParamDef =>
@@ -61,7 +63,30 @@ export const EFFECT_DEFINITIONS: Record<string, EffectDefinition> = {
     name: "Blur",
     params: [{ type: "number", key: "intensity", label: "Intensity", default: 15, min: 0, max: 100, step: 1 }],
   },
+  "chroma-key": {
+    type: "chroma-key",
+    name: "Chroma key",
+    scope: "clip",
+    params: [
+      { type: "color", key: "keyColor", label: "Key colour", default: "#00ff00" },
+      { type: "number", key: "similarity", label: "Similarity", default: 30, min: 0, max: 100, step: 1 },
+      { type: "number", key: "smoothness", label: "Edge smoothness", default: 10, min: 0, max: 100, step: 1 },
+      { type: "number", key: "spill", label: "Spill suppression", default: 50, min: 0, max: 100, step: 1 },
+    ],
+  },
+  "remove-background": {
+    type: "remove-background",
+    name: "Remove background",
+    scope: "clip",
+    params: [
+      { type: "number", key: "softness", label: "Edge softness", default: 40, min: 0, max: 100, step: 1 },
+      { type: "boolean", key: "invert", label: "Keep background instead", default: false },
+    ],
+  },
 };
+
+/** Effects that can be dropped on an empty area as a scene-wide effect layer. */
+export const LAYER_EFFECT_TYPES: ReadonlyArray<string> = Object.values(EFFECT_DEFINITIONS).filter((d) => d.scope !== "clip").map((d) => d.type);
 
 export type AdjustParams = Partial<Record<"brightness" | "contrast" | "saturation" | "exposure" | "temperature" | "tint" | "vignette" | "sharpen", number>>;
 

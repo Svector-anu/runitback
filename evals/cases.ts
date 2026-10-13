@@ -1,6 +1,6 @@
 import type { TranscriptWord } from "#/engine/transcript";
 import { clamp01, documentKey, fail, graded, pass, verdict } from "./checks";
-import { resolvePathValue } from "#/engine/timeline";
+import { curveTime, resolvePathValue } from "#/engine/timeline";
 import { TICKS_PER_SECOND } from "#/engine/time";
 import type { TimelineElement } from "#/engine/model";
 import { FIXTURE_HEIGHT, FIXTURE_WIDTH, mergeRanges } from "./fixtures";
@@ -980,6 +980,127 @@ const APPLY_LAUNCH_TEMPLATE: EvalCase = {
       run(input) {
         const length = timelineEnd(clipsOf(input.final));
         return verdict(length >= LAUNCH_SECONDS.min && length <= LAUNCH_SECONDS.max, `timeline is ${length.toFixed(2)}s`);
+// 19. Green screen over a background -----------------------------------------------------------------------------
+
+const KEY_GREEN: [number, number, number] = [0, 255, 0];
+const isGreenHex = (value: unknown): boolean => {
+  const m = typeof value === "string" ? /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(value) : null;
+  if (!m) return false;
+  const [r, g, b] = [parseInt(m[1] as string, 16), parseInt(m[2] as string, 16), parseInt(m[3] as string, 16)];
+  return g > r + 60 && g > b + 60;
+};
+
+const GREEN_SCREEN: EvalCase = {
+  id: "green-screen-overlay",
+  title: "Key out a green screen over a background",
+  brief: "beach.mp4 is the background on the timeline. greenscreen.mp4 was shot in front of a green screen. Put greenscreen.mp4 on top of the beach for its whole length and key out the green so the beach shows through.",
+  fixtures: [
+    { id: "beach", name: "beach.mp4", kind: "video", durationSeconds: 6, placeAt: 0, audio: { kind: "none" }, blocks: [{ seconds: 6, rgb: AMBER }] },
+    { id: "screen", name: "greenscreen.mp4", kind: "video", durationSeconds: 6, audio: { kind: "none" }, blocks: [{ seconds: 6, rgb: KEY_GREEN }] },
+  ],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "green-is-keyed",
+      description: "greenscreen.mp4 has an enabled chroma-key effect whose key colour is green (similarity 10-90).",
+      run(input) {
+        const clip = clipsOfFixture(input, fixtureByName(input, "greenscreen.mp4"))[0];
+        if (!clip) return fail("greenscreen.mp4 is not on the timeline");
+        const key = clip.effects.find((e) => e.type === "chroma-key");
+        if (!key) return fail("no chroma key on greenscreen.mp4");
+        const similarity = Number(key.params["similarity"]);
+        const parts = { "key colour is green": isGreenHex(key.params["keyColor"]), "similarity is usable": similarity >= 10 && similarity <= 90 };
+        const met = Object.values(parts).filter(Boolean).length;
+        return { pass: met === 2, score: met / 2, detail: `key ${String(key.params["keyColor"])}, similarity ${similarity}` };
+      },
+    },
+    {
+      id: "on-top-of-beach",
+      description: "greenscreen.mp4 is on an overlay track above the beach, from 0 s to 6 s (+/- 0.1 s).",
+      run(input) {
+        const clip = clipsOfFixture(input, fixtureByName(input, "greenscreen.mp4"))[0];
+        if (!clip) return fail("greenscreen.mp4 is not on the timeline");
+        return verdict(clip.lane === "overlay" && clip.start <= TARGET_TOLERANCE_SECONDS && Math.abs(clip.end - 6) <= TARGET_TOLERANCE_SECONDS, `${clip.lane} track, ${clip.start.toFixed(2)}-${clip.end.toFixed(2)}s`);
+      },
+    },
+    {
+      id: "beach-intact",
+      description: "beach.mp4 is still one clip on the main track, 0-6 s at normal speed.",
+      run(input) {
+        const clips = clipsOfFixture(input, fixtureByName(input, "beach.mp4"));
+        const [beach] = clips;
+        if (clips.length !== 1 || !beach) return fail(`${clips.length} beach clip(s)`);
+        return verdict(beach.lane === "main" && beach.start <= FRAME_SLACK && Math.abs(beach.end - 6) <= FRAME_SLACK && beach.rate === 1, `${beach.lane} ${beach.start.toFixed(2)}-${beach.end.toFixed(2)}s`);
+      },
+    },
+  ],
+};
+
+// 20. Speed ramp (hero time) --------------------------------------------------------------------------------------
+
+const rampOf = (input: CheckInput): { points: Array<{ at: number; rate: number }>; duration: number; trimStart: number; trimEnd: number; sourceDuration: number } | null => {
+  const clip = sceneOf(input.final).tracks.main.elements.find((e): e is Extract<TimelineElement, { type: "video" }> => e.type === "video");
+  const curve = clip?.retime?.curve;
+  if (!clip || !curve) return null;
+  return { points: curve.points.map((p) => ({ at: p.at / TICKS_PER_SECOND, rate: p.rate })), duration: clip.duration / TICKS_PER_SECOND, trimStart: clip.trimStart / TICKS_PER_SECOND, trimEnd: clip.trimEnd / TICKS_PER_SECOND, sourceDuration: (clip.sourceDuration ?? 0) / TICKS_PER_SECOND };
+};
+
+const SPEED_RAMP: EvalCase = {
+  id: "speed-ramp-hero",
+  title: "Slow-motion moment in the middle of a clip",
+  brief: "action.mp4 is a 10 second clip. Give it a slow-motion hero moment: normal speed at the start and the end, easing down to about a quarter speed around the 5 second mark and back. Don't cut anything out.",
+  fixtures: [{ id: "action", name: "action.mp4", kind: "video", durationSeconds: 10, placeAt: 0, audio: { kind: "tone" }, blocks: [{ seconds: 5, rgb: BLUE }, { seconds: 5, rgb: RED }] }],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "is-a-ramp",
+      description: "The clip has a speed curve of at least 3 points that starts and ends at about normal speed (0.8-1.25x).",
+      run(input) {
+        const ramp = rampOf(input);
+        if (!ramp) return fail("the clip has no speed curve (constant or no speed change)");
+        const first = ramp.points[0], last = ramp.points[ramp.points.length - 1];
+        const ends = [first, last].every((p) => p !== undefined && p.rate >= 0.8 && p.rate <= 1.25);
+        return verdict(ramp.points.length >= 3 && ends, `${ramp.points.length} points, ends ${first?.rate.toFixed(2)}x and ${last?.rate.toFixed(2)}x`);
+      },
+    },
+    {
+      id: "slows-to-quarter",
+      description: "The slowest point is between 0.15x and 0.35x.",
+      run(input) {
+        const ramp = rampOf(input);
+        if (!ramp) return fail("no speed curve");
+        const slowest = Math.min(...ramp.points.map((p) => p.rate));
+        return verdict(slowest >= 0.15 && slowest <= 0.35, `slowest point ${slowest.toFixed(2)}x`);
+      },
+    },
+    {
+      id: "slow-moment-centred",
+      description: "The slowest point sits at 4-6 s of the source.",
+      run(input) {
+        const ramp = rampOf(input);
+        if (!ramp) return fail("no speed curve");
+        const slowest = ramp.points.reduce((a, b) => (b.rate < a.rate ? b : a));
+        return verdict(slowest.at >= 4 && slowest.at <= 6, `slowest point at ${slowest.at.toFixed(2)}s of the source`);
+      },
+    },
+    {
+      id: "whole-source-kept",
+      description: "All 10 s of source still play (at least 9.8 s).",
+      run(input) {
+        const action = fixtureByName(input, "action.mp4");
+        const kept = retainedSource(clipsOfFixture(input, action), [{ start: 0, end: 10 }]);
+        return graded({ score: kept / 10, threshold: 0.98, detail: `${kept.toFixed(2)}s of 10s source plays` });
+      },
+    },
+    {
+      id: "duration-follows-ramp",
+      description: "The clip is longer than 10 s and its length matches the ramp (the slow part takes longer), within 0.1 s.",
+      run(input) {
+        const ramp = rampOf(input);
+        if (!ramp) return fail("no speed curve");
+        const curve = { points: ramp.points.map((p) => ({ at: p.at * TICKS_PER_SECOND, rate: p.rate })) };
+        const expected = (curveTime(curve, (ramp.sourceDuration - ramp.trimEnd) * TICKS_PER_SECOND) - curveTime(curve, ramp.trimStart * TICKS_PER_SECOND)) / TICKS_PER_SECOND;
+        return verdict(ramp.duration > 10.2 && Math.abs(ramp.duration - expected) <= TARGET_TOLERANCE_SECONDS, `clip is ${ramp.duration.toFixed(2)}s, the ramp integrates to ${expected.toFixed(2)}s`);
       },
     },
   ],
@@ -988,6 +1109,7 @@ const APPLY_LAUNCH_TEMPLATE: EvalCase = {
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
   FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, APPLY_LAUNCH_TEMPLATE,
+  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, GREEN_SCREEN, SPEED_RAMP,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);

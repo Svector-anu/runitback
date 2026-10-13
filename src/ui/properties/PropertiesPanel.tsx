@@ -11,6 +11,7 @@ import { getElement } from "#/engine/timeline";
 import { getServices } from "#/app/services";
 import { useAssets, useEditorState, usePlaybackState, useTracks } from "#/app/hooks";
 import { uiStore } from "#/app/ui-state";
+import { colorPickStore } from "#/app/color-pick";
 import { Icon, type IconName } from "../icons";
 import { Button } from "../primitives/Button";
 import { DropdownMenu } from "../primitives/Menu";
@@ -19,21 +20,25 @@ import { AUDIO_FIELDS, BLEND_FIELDS, CROP_FIELDS, MASK_LABELS, SHADOW_FIELDS, ST
 import { AdjustPanel } from "./AdjustPanel";
 import { TextAnimationControls } from "./TextAnimationControls";
 import { ParamControl } from "./ParamControl";
+import { SpeedCurveEditor } from "./SpeedCurveEditor";
+import { MotionTab } from "./MotionTab";
+import { BackgroundRemovalStatus } from "./BackgroundRemovalStatus";
+import { startBackgroundAnalysis } from "#/app/background-removal";
 import { runEdit } from "../lib/edit";
 
-type TabId = "text" | "style" | "adjust" | "transform" | "blending" | "audio" | "speed" | "masks" | "effects" | "graphic";
+type TabId = "text" | "style" | "adjust" | "transform" | "blending" | "audio" | "speed" | "masks" | "effects" | "graphic" | "motion";
 
 const TAB_META: Record<TabId, { label: string; icon: IconName }> = {
   text: { label: "Text", icon: "type" }, style: { label: "Style", icon: "star" }, adjust: { label: "Adjust", icon: "sliders" }, transform: { label: "Transform", icon: "move" }, blending: { label: "Blending", icon: "droplet" },
   audio: { label: "Audio", icon: "music" }, speed: { label: "Speed", icon: "gauge" }, masks: { label: "Masks", icon: "shapes" },
-  effects: { label: "Effects", icon: "wand" }, graphic: { label: "Graphic", icon: "shapes" },
+  effects: { label: "Effects", icon: "wand" }, graphic: { label: "Graphic", icon: "shapes" }, motion: { label: "Motion", icon: "crosshair" },
 };
 
 const TABS_BY_TYPE: Record<TimelineElement["type"], TabId[]> = {
-  text: ["text", "style", "transform", "blending", "effects"],
-  video: ["transform", "adjust", "audio", "speed", "blending", "masks", "effects"],
-  image: ["transform", "adjust", "blending", "masks", "effects"],
-  graphic: ["graphic", "transform", "blending", "masks", "effects"],
+  text: ["text", "style", "transform", "blending", "effects", "motion"],
+  video: ["transform", "adjust", "audio", "speed", "blending", "masks", "effects", "motion"],
+  image: ["transform", "adjust", "blending", "masks", "effects", "motion"],
+  graphic: ["graphic", "transform", "blending", "masks", "effects", "motion"],
   audio: ["audio", "speed"],
   effect: ["effects"],
 };
@@ -53,8 +58,10 @@ function Fields({ element, refValue, defs, playhead }: { element: TimelineElemen
 }
 
 /** Generic param editor for values stored outside element.params (effects, masks). */
-function ParamFields({ defs, values, onPreview, onCommit }: {
+function ParamFields({ defs, values, onPreview, onCommit, colorPicker }: {
   defs: ReadonlyArray<ParamDef>; values: ParamValues; onPreview?: (v: ParamValues) => void; onCommit: (v: ParamValues) => void;
+  /** Adds an eyedropper button to colour parameters: starts a pick from the preview. */
+  colorPicker?: { active: boolean; onStart: () => void };
 }): ReactNode {
   return (
     <div className="section__fields">
@@ -79,7 +86,16 @@ function ParamFields({ defs, values, onPreview, onCommit }: {
               </div>
             );
           case "color":
-            return <Field key={def.key} label={def.label}><ColorField label={def.label} value={String(value)} onChange={commit} /></Field>;
+            return (
+              <Field key={def.key} label={def.label}>
+                <ColorField label={def.label} value={String(value)} onChange={commit} />
+                {colorPicker ? (
+                  <Button size="sm" variant={colorPicker.active ? "secondary" : "ghost"} aria-pressed={colorPicker.active} onClick={colorPicker.onStart}>
+                    <Icon name="pipette" />{colorPicker.active ? "Click the preview (Esc cancels)" : "Pick from preview"}
+                  </Button>
+                ) : null}
+              </Field>
+            );
           case "select":
             return <Field key={def.key} label={def.label}><SelectField label={def.label} value={String(value)} options={def.options} onChange={commit} /></Field>;
         }
@@ -89,6 +105,15 @@ function ParamFields({ defs, values, onPreview, onCommit }: {
 }
 
 function SpeedTab({ element, refValue }: { element: TimelineElement; refValue: ElementRef }): ReactNode {
+  return (
+    <>
+      <ConstantSpeedSection element={element} refValue={refValue} />
+      {element.type === "video" || element.type === "audio" ? <SpeedCurveEditor element={element} refValue={refValue} /> : null}
+    </>
+  );
+}
+
+function ConstantSpeedSection({ element, refValue }: { element: TimelineElement; refValue: ElementRef }): ReactNode {
   const { editor } = getServices();
   const retime = "retime" in element ? element.retime : undefined;
   const rate = retime?.rate ?? 1;
@@ -105,7 +130,7 @@ function SpeedTab({ element, refValue }: { element: TimelineElement; refValue: E
   return (
     <Section sectionKey={`${element.id}:speed`} title="Speed" collapsible>
       <div className="section__fields">
-        <Field label="Speed">
+        <Field label={retime?.curve ? "Average speed" : "Speed"}>
           <NumberField label="Speed" value={rate} defaultValue={1} min={RETIME_MIN} max={RETIME_MAX} step={0.01} suffix="x" icon="gauge"
             scrub={{ pxPerUnit: 48, ranges: [{ upTo: 1, pxPerUnit: 160 }] }}
             onPreview={(v) => apply(v, "preview")} onCommit={(v) => apply(v, "commit")} onCancel={() => editor.discardPreview()} />
@@ -160,6 +185,7 @@ function EffectsTab({ element, refValue }: { element: TimelineElement; refValue:
   const { editor } = getServices();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const pickTarget = colorPickStore.use((s) => s.target);
 
   if (element.type === "effect") {
     const def = getEffectDefinition(element.effectType);
@@ -177,7 +203,9 @@ function EffectsTab({ element, refValue }: { element: TimelineElement; refValue:
       <div className="row-between">
         <span style={{ fontWeight: 500 }}>Effects</span>
         <DropdownMenu align="end" width={160}
-          entries={Object.values(EFFECT_DEFINITIONS).map((d) => ({ label: d.name, onSelect: () => runEdit(editor, addClipEffect({ ref: refValue, effectType: d.type })) }))}
+          entries={Object.values(EFFECT_DEFINITIONS).map((d) => ({ label: d.name, onSelect: () => {
+            if (runEdit(editor, addClipEffect({ ref: refValue, effectType: d.type })) && d.type === "remove-background" && "mediaId" in element) startBackgroundAnalysis(element.mediaId);
+          } }))}
           trigger={(p) => <Button {...p} variant="ghost" size="icon" label="Add effect"><Icon name="plus" /></Button>} />
       </div>
       {effects.length === 0 ? (
@@ -203,7 +231,9 @@ function EffectsTab({ element, refValue }: { element: TimelineElement; refValue:
                   <Button variant="ghost" size="icon" label="Remove effect" onClick={() => runEdit(editor, removeClipEffect(refValue, effect.id))}><Icon name="trash" /></Button>
                 </span>
               }>
+              {effect.type === "remove-background" ? <BackgroundRemovalStatus element={element} /> : null}
               <ParamFields defs={def.params} values={effect.params}
+                colorPicker={effect.type === "chroma-key" ? { active: pickTarget?.effectId === effect.id, onStart: () => colorPickStore.set({ target: pickTarget?.effectId === effect.id ? null : { ref: refValue, effectId: effect.id } }) } : undefined}
                 onPreview={(v) => editor.preview(updateClipEffectParams(refValue, effect.id, v))}
                 onCommit={(v) => runEdit(editor, updateClipEffectParams(refValue, effect.id, v))} />
             </Section>
@@ -274,6 +304,7 @@ export function PropertiesPanel(): ReactNode {
     case "speed": content = <SpeedTab element={element} refValue={ref} />; break;
     case "masks": content = isMaskable(element) ? <MasksTab element={element} refValue={ref} /> : null; break;
     case "effects": content = <EffectsTab element={element} refValue={ref} />; break;
+    case "motion": content = <MotionTab element={element} refValue={ref} />; break;
     case "graphic": {
       const def = element.type === "graphic" ? GRAPHIC_DEFINITIONS[element.definitionId] : undefined;
       content = def ? <Section sectionKey={key("graphic")} title={def.name} collapsible={false}><Fields element={element} refValue={ref} defs={def.params.map((p) => toFieldDef(p, true))} playhead={playhead} /></Section> : null;
