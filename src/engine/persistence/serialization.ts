@@ -21,6 +21,12 @@ export const PROJECT_MIGRATIONS: ReadonlyArray<ProjectMigration> = [
   { from: 4, to: 5, run: (project) => project },
   /** v6 added the optional `retime.curve` (speed ramp) and the `chroma-key` / `remove-background` effect types: absent on older projects. */
   { from: 5, to: 6, run: (project) => project },
+  /**
+   * v7 added template effects, all absent on older projects: text `blur` / `wordReveal` / `caret` / `highlight*` / `count*` params and the
+   * `blur-in` / `stagger-words` / `type-caret` text animations, the `gradient` canvas background, the `blur` / `flash` / `glitch` transitions,
+   * the `transform.rotateX` / `rotateY` / `perspective` params, the `shadow` effect type and the `cursor` / `window-frame` / `card` graphics.
+   */
+  { from: 6, to: 7, run: (project) => project },
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {

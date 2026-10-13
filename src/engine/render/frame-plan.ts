@@ -64,6 +64,8 @@ export interface MediaLayer extends LayerBase {
 export interface TextLayer extends LayerBase {
   kind: "text";
   params: ParamValues;
+  /** Seconds into the clip; drives the blinking caret. */
+  seconds: number;
 }
 
 export interface SceneEffectItem {
@@ -224,9 +226,15 @@ export function buildFramePlan(input: {
         case "effect":
           items.push({ kind: "sceneEffect", elementId: element.id, effects: [{ type: element.effectType, params }] });
           break;
-        case "text":
-          items.push({ kind: "text", elementId: element.id, params, opacity, blendMode, effects: resolveEffects(element, clipTime) });
+        case "text": {
+          const blur = numberParam(params, PARAM.blur, 0);
+          const effects = resolveEffects(element, clipTime);
+          items.push({
+            kind: "text", elementId: element.id, params, opacity, blendMode, seconds: clipTime / TICKS_PER_SECOND,
+            effects: blur > 0 ? [{ type: "blur", params: { intensity: blur } }, ...effects] : effects,
+          });
           break;
+        }
         case "graphic": {
           const size = DEFAULT_GRAPHIC_SOURCE_SIZE;
           const graphicParams: ParamValues = {};

@@ -16,7 +16,7 @@ import { Icon, type IconName } from "../icons";
 import { Button } from "../primitives/Button";
 import { DropdownMenu } from "../primitives/Menu";
 import { ColorField, Field, NumberField, Section, SelectField, Switch } from "../primitives/fields";
-import { AUDIO_FIELDS, BLEND_FIELDS, CROP_FIELDS, MASK_LABELS, SHADOW_FIELDS, STROKE_FIELDS, TEXT_FIELDS, TRANSFORM_FIELDS, type FieldDef } from "./defs";
+import { AUDIO_FIELDS, BLEND_FIELDS, CROP_FIELDS, MASK_LABELS, SHADOW_FIELDS, TEXT_EFFECT_FIELDS, STROKE_FIELDS, TEXT_FIELDS, TRANSFORM_FIELDS, type FieldDef } from "./defs";
 import { AdjustPanel } from "./AdjustPanel";
 import { DenoiseNote } from "./DenoiseNote";
 import { TextAnimationControls } from "./TextAnimationControls";
@@ -285,6 +285,7 @@ export function PropertiesPanel(): ReactNode {
         <>
           <Section sectionKey={key("stroke")} title="Stroke"><Fields element={element} refValue={ref} defs={STROKE_FIELDS} playhead={playhead} /></Section>
           <Section sectionKey={key("shadow")} title="Shadow"><Fields element={element} refValue={ref} defs={SHADOW_FIELDS} playhead={playhead} /></Section>
+          <Section sectionKey={key("text-effects")} title="Text effects"><Fields element={element} refValue={ref} defs={TEXT_EFFECT_FIELDS} playhead={playhead} /></Section>
           <Section sectionKey={key("animation")} title="Animation"><TextAnimationControls element={element} refValue={ref} /></Section>
         </>
       ) : null;

@@ -5,17 +5,21 @@ import {
 import { removePathAnimation, upsertKeyframe } from "./mutate";
 
 /** Parameters whose keyframes belong to the text animation presets; setting a preset rewrites exactly these. */
-export const TEXT_ANIMATION_PATHS = [PARAM.opacity, PARAM.positionY, PARAM.scaleX, PARAM.scaleY, PARAM.reveal] as const;
+export const TEXT_ANIMATION_PATHS = [PARAM.opacity, PARAM.positionY, PARAM.scaleX, PARAM.scaleY, PARAM.reveal, PARAM.blur, PARAM.wordReveal] as const;
 
 /** How far a slide travels, as a fraction of the canvas height. */
 export const SLIDE_DISTANCE_FRACTION = 0.08;
 const POP_FROM = 0.5;
 const POP_OVERSHOOT = 1.1;
+/** Blur strength (0-100 scale of the blur effect) text starts from when it blurs in and ends at when it blurs out. */
+export const BLUR_PRESET_INTENSITY = 40;
+/** The blur-in rise is a hint of motion, not a full slide. */
+const BLUR_SLIDE_SHARE = 0.4;
 
 export interface PresetKey { time: number; value: number }
 export type PresetKeys = Partial<Record<(typeof TEXT_ANIMATION_PATHS)[number], PresetKey[]>>;
 
-interface Base { opacity: number; positionY: number; scaleX: number; scaleY: number; slide: number }
+interface Base { opacity: number; positionY: number; scaleX: number; scaleY: number; slide: number; blur: number }
 
 /** Keys for the phase that ends at `D` after `origin` (in) or starts at `origin` and ends at `origin + D` (out). */
 function phaseKeys(input: { spec: TextAnimationSpec; phase: "in" | "out"; origin: number; base: Base }): PresetKeys {
@@ -46,7 +50,21 @@ function phaseKeys(input: { spec: TextAnimationSpec; phase: "in" | "out"; origin
         [PARAM.opacity]: isIn ? [{ time: at(0), value: 0 }, { time: at(0.4), value: base.opacity }] : [{ time: at(0.6), value: base.opacity }, { time: at(1), value: 0 }],
       };
     }
+    case "blur-in":
+      return isIn
+        ? {
+          [PARAM.blur]: [{ time: at(0), value: BLUR_PRESET_INTENSITY }, { time: at(1), value: base.blur }],
+          [PARAM.opacity]: [{ time: at(0), value: 0 }, { time: at(0.7), value: base.opacity }],
+          [PARAM.positionY]: [{ time: at(0), value: base.positionY + base.slide * BLUR_SLIDE_SHARE }, { time: at(1), value: base.positionY }],
+        }
+        : {
+          [PARAM.blur]: [{ time: at(0), value: base.blur }, { time: at(1), value: BLUR_PRESET_INTENSITY }],
+          [PARAM.opacity]: [{ time: at(0.3), value: base.opacity }, { time: at(1), value: 0 }],
+        };
+    case "stagger-words":
+      return { [PARAM.wordReveal]: isIn ? [{ time: at(0), value: 0 }, { time: at(1), value: 1 }] : [{ time: at(0), value: 1 }, { time: at(1), value: 0 }] };
     case "typewriter":
+    case "type-caret":
       return { [PARAM.reveal]: isIn ? [{ time: at(0), value: 0 }, { time: at(1), value: 1 }] : [{ time: at(0), value: 1 }, { time: at(1), value: 0 }] };
   }
 }
@@ -62,6 +80,7 @@ export function textAnimationKeys(input: { state: TextAnimationState; clipDurati
     scaleX: numberParam(input.params, PARAM.scaleX, 1),
     scaleY: numberParam(input.params, PARAM.scaleY, 1),
     slide: input.canvasHeight * SLIDE_DISTANCE_FRACTION,
+    blur: numberParam(input.params, PARAM.blur, 0),
   };
   const limit = maxTextAnimationDuration(input.clipDuration);
   const merged: PresetKeys = {};

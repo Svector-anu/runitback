@@ -1,4 +1,5 @@
 import { TEXT_SIZE_REFERENCE_HEIGHT, boolParam, numberParam, stringParam, PARAM, type ParamValues } from "#/engine/model";
+import { caretVisible, isWordHighlighted, staggerWordProgress, wordCounts, wordSpans } from "#/engine/render";
 import type { AnyContext } from "./canvas";
 
 export interface Rect { left: number; top: number; width: number; height: number }
@@ -9,6 +10,13 @@ export interface TextLayout {
   lineWidths: number[];
   /** Fraction of characters shown (1 = all). */
   reveal: number;
+  /** Per-word stagger progress (1 = every word shown). */
+  wordReveal: number;
+  /** Index of the highlighted word, or -1. */
+  highlightWord: number;
+  highlightColor: string;
+  highlightSweep: boolean;
+  caret: boolean;
   /** Stroke and shadow sizes are authored at font size 15 and scale with the font. */
   styleScale: number;
   font: string;
@@ -26,6 +34,8 @@ export interface TextLayout {
   decoration: "none" | "underline" | "line-through";
   decorationThickness: number;
 }
+
+export const DEFAULT_HIGHLIGHT_COLOR = "#ffd400";
 
 /** Measures one line at the font already described by `font`/`letterSpacing`. */
 export type LineMeasurer = (line: string, font: string, letterSpacing: number) => number;
@@ -80,6 +90,11 @@ export function layoutText(input: { params: ParamValues; canvasHeight: number; m
   const decoration = stringParam(params, PARAM.textDecoration, "none") as TextLayout["decoration"];
   return {
     lines, lineWidths, reveal: Math.min(1, Math.max(0, numberParam(params, PARAM.reveal, 1))), styleScale: fontSize / 15,
+    wordReveal: Math.min(1, Math.max(0, numberParam(params, PARAM.wordReveal, 1))),
+    highlightWord: Math.round(numberParam(params, PARAM.highlightWord, -1)),
+    highlightColor: stringParam(params, PARAM.highlightColor, DEFAULT_HIGHLIGHT_COLOR),
+    highlightSweep: boolParam(params, PARAM.highlightSweep, false),
+    caret: boolParam(params, PARAM.caret, false),
     font, scaledFontSize: px, lineHeightPx, letterSpacing, align,
     lineYs: lines.map((_, i) => i * lineHeightPx - centerOffset),
     textRect, backgroundRect, backgroundRadius,
@@ -102,8 +117,16 @@ function roundedRectPath(ctx: AnyContext, r: Rect, radius: number): void {
   else ctx.rect(r.left, r.top, r.width, r.height);
 }
 
+/** Left edge of a finished line, so text that is still appearing grows in place instead of re-centring. */
+function lineLeft(layout: TextLayout, width: number): number {
+  return layout.align === "left" ? 0 : layout.align === "right" ? -width : -width / 2;
+}
+
+/** Fraction of the line height a word travels while it staggers in. */
+const STAGGER_RISE = 0.35;
+
 /** Draws at the current origin, which the caller has translated/scaled/rotated to the element transform. */
-export function drawTextLayout(ctx: AnyContext, layout: TextLayout, params: ParamValues): void {
+export function drawTextLayout(ctx: AnyContext, layout: TextLayout, params: ParamValues, seconds = 0): void {
   if (layout.backgroundRect) {
     ctx.fillStyle = stringParam(params, PARAM.bgColor, "#000000");
     roundedRectPath(ctx, layout.backgroundRect, layout.backgroundRadius);
@@ -118,8 +141,31 @@ export function drawTextLayout(ctx: AnyContext, layout: TextLayout, params: Para
   const strokeColor = stringParam(params, PARAM.strokeColor, "#000000");
   const shadow = boolParam(params, PARAM.shadowEnabled, false) ? shadowOf(ctx, params, layout.styleScale) : null;
   const shown = visibleCounts(layout.lines, layout.reveal);
+  const perLine = wordCounts(layout.lines);
+  const totalWords = perLine.reduce((a, b) => a + b, 0);
+  const wordwise = layout.wordReveal < 1 || layout.highlightWord >= 0;
 
+  const paint = (text: string, x: number, y: number, color: string): void => {
+    if (strokeWidth > 0) {
+      applyShadow(ctx, shadow);
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth * 2;
+      ctx.strokeText(text, x, y);
+      clearShadow(ctx);
+      ctx.fillStyle = color;
+      ctx.fillText(text, x, y);
+    } else {
+      applyShadow(ctx, shadow);
+      ctx.fillStyle = color;
+      ctx.fillText(text, x, y);
+      clearShadow(ctx);
+    }
+  };
+
+  let firstWord = 0;
   layout.lines.forEach((full, i) => {
+    const lineFirstWord = firstWord;
+    firstWord += perLine[i] as number;
     const chars = shown[i] as number;
     if (chars === 0) return;
     const line = chars >= [...full].length ? full : [...full].slice(0, chars).join("");
@@ -127,29 +173,41 @@ export function drawTextLayout(ctx: AnyContext, layout: TextLayout, params: Para
     const width = layout.lineWidths[i] as number;
     const revealing = layout.reveal < 1;
     // While revealing, text is anchored where the finished line will sit so it grows in place instead of re-centring.
-    ctx.textAlign = revealing ? "left" : layout.align;
-    const x = revealing ? (layout.align === "left" ? 0 : layout.align === "right" ? -width : -width / 2) : 0;
-    if (strokeWidth > 0) {
-      applyShadow(ctx, shadow);
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = strokeWidth * 2;
-      ctx.strokeText(line, x, y);
-      clearShadow(ctx);
-      ctx.fillStyle = fill;
-      ctx.fillText(line, x, y);
+    const anchored = revealing || wordwise;
+    ctx.textAlign = anchored ? "left" : layout.align;
+    const x = anchored ? lineLeft(layout, width) : 0;
+    if (wordwise) {
+      const baseAlpha = ctx.globalAlpha;
+      for (const span of wordSpans({ line: full, firstIndex: lineFirstWord })) {
+        if (span.start >= line.length) break;
+        const progress = layout.wordReveal < 1 ? staggerWordProgress({ index: span.index, count: totalWords, progress: layout.wordReveal }) : 1;
+        if (progress <= 0) continue;
+        const lit = isWordHighlighted({ index: span.index, highlightWord: layout.highlightWord, sweep: layout.highlightSweep });
+        const offset = span.start === 0 ? 0 : ctx.measureText(full.slice(0, span.start)).width;
+        ctx.globalAlpha = baseAlpha * progress;
+        paint(line.slice(span.start, span.end), x + offset, y + (1 - progress) * layout.lineHeightPx * STAGGER_RISE, lit ? layout.highlightColor : fill);
+      }
+      ctx.globalAlpha = baseAlpha;
     } else {
-      applyShadow(ctx, shadow);
-      ctx.fillStyle = fill;
-      ctx.fillText(line, x, y);
-      clearShadow(ctx);
+      paint(line, x, y, fill);
     }
     if (layout.decoration === "none" || line.length === 0) return;
     const measured = ctx.measureText(line).width;
-    const left = revealing ? x : layout.align === "left" ? 0 : layout.align === "right" ? -measured : -measured / 2;
+    const left = anchored ? x : layout.align === "left" ? 0 : layout.align === "right" ? -measured : -measured / 2;
     const offset = layout.decoration === "underline" ? layout.scaledFontSize * 0.4 : -layout.scaledFontSize * 0.08;
     ctx.fillStyle = fill;
     ctx.fillRect(left, y + offset, measured, layout.decorationThickness);
   });
+
+  if (layout.caret && caretVisible({ typing: layout.reveal < 1, seconds })) {
+    let lastLine = 0;
+    shown.forEach((count, i) => { if (count > 0) lastLine = i; });
+    const typed = [...(layout.lines[lastLine] as string)].slice(0, shown[lastLine] as number).join("");
+    const left = lineLeft(layout, layout.lineWidths[lastLine] as number);
+    const caretHeight = layout.scaledFontSize * 0.9;
+    ctx.fillStyle = fill;
+    ctx.fillRect(left + (typed.length > 0 ? ctx.measureText(typed).width : 0) + layout.scaledFontSize * 0.04, (layout.lineYs[lastLine] as number) - caretHeight / 2, Math.max(2, layout.scaledFontSize * 0.06), caretHeight);
+  }
 }
 
 /** How many characters of each line are visible when `reveal` of the whole text is shown (characters counted across lines). */
@@ -195,7 +253,7 @@ function clearShadow(ctx: AnyContext): void {
 }
 
 export function drawText(input: {
-  ctx: AnyContext; params: ParamValues; canvasWidth: number; canvasHeight: number;
+  ctx: AnyContext; params: ParamValues; canvasWidth: number; canvasHeight: number; seconds?: number;
 }): TextLayout {
   const { ctx, params } = input;
   const layout = layoutText({ params, canvasHeight: input.canvasHeight, measure: canvasLineMeasurer(ctx) });
@@ -203,7 +261,7 @@ export function drawText(input: {
   ctx.translate(input.canvasWidth / 2 + numberParam(params, PARAM.positionX, 0), input.canvasHeight / 2 + numberParam(params, PARAM.positionY, 0));
   ctx.scale(numberParam(params, PARAM.scaleX, 1), numberParam(params, PARAM.scaleY, 1));
   ctx.rotate((numberParam(params, PARAM.rotate, 0) * Math.PI) / 180);
-  drawTextLayout(ctx, layout, params);
+  drawTextLayout(ctx, layout, params, input.seconds ?? 0);
   ctx.restore();
   return layout;
 }

@@ -45,6 +45,9 @@ export const TEXT_NUMBER_LIMITS: Readonly<Record<string, NumberLimit>> = {
   [PARAM.shadowOffsetX]: { min: -1000, max: 1000 },
   [PARAM.shadowOffsetY]: { min: -1000, max: 1000 },
   [PARAM.reveal]: { min: 0, max: 1 },
+  [PARAM.blur]: { min: 0, max: 100 },
+  [PARAM.wordReveal]: { min: 0, max: 1 },
+  [PARAM.highlightWord]: { min: -1, max: 100_000 },
 };
 
 export function limitsOfDefinitions(defs: ReadonlyArray<ParamDef>): Record<string, NumberLimit> {

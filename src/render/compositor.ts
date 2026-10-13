@@ -267,7 +267,7 @@ export class Compositor {
   private drawTextLayer(item: TextLayer, plan: FramePlan): void {
     this.clearLayer();
     this.layerCtx.globalAlpha = item.opacity;
-    drawText({ ctx: this.layerCtx, params: item.params, canvasWidth: plan.width, canvasHeight: plan.height });
+    drawText({ ctx: this.layerCtx, params: item.params, canvasWidth: plan.width, canvasHeight: plan.height, seconds: item.seconds });
     this.layerCtx.globalAlpha = 1;
     this.applyEffects(item.effects, { width: plan.width, height: plan.height, centerX: plan.width / 2, centerY: plan.height / 2 });
     this.composite(item.blendMode);

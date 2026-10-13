@@ -100,7 +100,7 @@ export interface ImageElement extends BaseElement {
   masks?: Mask[];
   transition?: Transition;
 }
-export const TEXT_ANIMATION_PRESETS = ["fade", "slide-up", "pop", "typewriter"] as const;
+export const TEXT_ANIMATION_PRESETS = ["fade", "slide-up", "pop", "typewriter", "blur-in", "stagger-words", "type-caret"] as const;
 export type TextAnimationPreset = (typeof TEXT_ANIMATION_PRESETS)[number];
 
 export interface TextAnimationSpec {

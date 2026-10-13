@@ -72,6 +72,12 @@ const TEXT_SPECS: ParamSpec[] = [
   num(PARAM.shadowOffsetX, { min: -1000, max: 1000 }),
   num(PARAM.shadowOffsetY, { min: -1000, max: 1000 }),
   num(PARAM.reveal, { min: 0, max: 1, unit: "fraction of characters shown" }),
+  num(PARAM.blur, { min: 0, max: 100, unit: "text blur strength, 0 = sharp" }),
+  num(PARAM.wordReveal, { min: 0, max: 1, unit: "per-word stagger progress: words enter one after another as it rises to 1" }),
+  bool(PARAM.caret),
+  num(PARAM.highlightWord, { min: -1, max: 100000, unit: "index of the word drawn in highlightColor, counted from 0 across lines; -1 = none" }),
+  color(PARAM.highlightColor),
+  bool(PARAM.highlightSweep),
 ];
 
 export function specFromDef(def: ParamDef): ParamSpec {

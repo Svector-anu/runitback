@@ -82,8 +82,8 @@ describe("freezeAvailability", () => {
 
 describe("text animation controls logic", () => {
   const clip = (seconds: number): TextElement => text("t", 0, seconds);
-  it("offers none plus the four engine presets", () => {
-    expect(ANIMATION_CHOICES.map((c) => c.id)).toEqual(["none", "fade", "slide-up", "pop", "typewriter"]);
+  it("offers none plus every engine preset", () => {
+    expect(ANIMATION_CHOICES.map((c) => c.id)).toEqual(["none", "fade", "slide-up", "pop", "typewriter", "blur-in", "stagger-words", "type-caret"]);
   });
   it("sets, changes and clears each side independently", () => {
     const { editor } = makeEditor();

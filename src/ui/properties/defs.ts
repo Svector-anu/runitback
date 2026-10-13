@@ -1,5 +1,5 @@
 import {
-  BLEND_MODES, ELEMENT_NUMBER_LIMITS, PARAM, TEXT_NUMBER_LIMITS, VOLUME_DB_MAX, VOLUME_DB_MIN, type NumberLimit, type ParamDef, type ParamValues,
+  BLEND_MODES, ELEMENT_NUMBER_LIMITS, PARAM, numberParam, TEXT_NUMBER_LIMITS, VOLUME_DB_MAX, VOLUME_DB_MIN, type NumberLimit, type ParamDef, type ParamValues,
 } from "#/engine/model";
 import type { IconName } from "../icons";
 
@@ -94,6 +94,18 @@ export const SHADOW_FIELDS: FieldDef[] = bounded([
   { type: "number", key: PARAM.shadowBlur, label: "Shadow blur", default: 8, min: 0, step: 1, keyframable: true, control: "slider", sliderMax: 50, showWhen: shadowOn },
   { type: "number", key: PARAM.shadowOffsetX, label: "Shadow offset X", default: 4, step: 1, keyframable: true, control: "slider", sliderMin: -50, sliderMax: 50, showWhen: shadowOn },
   { type: "number", key: PARAM.shadowOffsetY, label: "Shadow offset Y", default: 4, step: 1, keyframable: true, control: "slider", sliderMin: -50, sliderMax: 50, showWhen: shadowOn },
+], TEXT_NUMBER_LIMITS);
+
+const highlightOn = (p: ParamValues): boolean => numberParam(p, PARAM.highlightWord, -1) >= 0;
+
+/** Blur-in, per-word stagger, typing caret and word highlight: each is a plain parameter, so all of them can be keyframed. */
+export const TEXT_EFFECT_FIELDS: FieldDef[] = bounded([
+  { type: "number", key: PARAM.blur, label: "Blur", default: 0, min: 0, max: 100, step: 1, keyframable: true, control: "slider" },
+  { type: "number", key: PARAM.wordReveal, label: "Word reveal", default: 1, min: 0, max: 1, step: 0.01, keyframable: true, control: "slider", displayMultiplier: 100, suffix: "%" },
+  { type: "boolean", key: PARAM.caret, label: "Typing caret", default: false },
+  { type: "number", key: PARAM.highlightWord, label: "Highlight word (0 = first, -1 = none)", default: -1, min: -1, step: 1, keyframable: true },
+  { type: "color", key: PARAM.highlightColor, label: "Highlight color", default: "#ffd400", keyframable: true, showWhen: highlightOn },
+  { type: "boolean", key: PARAM.highlightSweep, label: "Keep earlier words lit", default: false, showWhen: highlightOn },
 ], TEXT_NUMBER_LIMITS);
 
 export const MASK_LABELS: Record<string, string> = {

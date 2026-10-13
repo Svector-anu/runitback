@@ -1,10 +1,10 @@
 import { mediaTime, type MediaTime } from "#/engine/time";
 import {
-  buildDefaultEffect, buildDefaultMask, InvalidInputError, TEXT_ANIMATION_PRESETS, type TextAnimationSpec, type TextAnimationState, type TransitionType, clampParams, clampToLimit, isMaskable, limitForPath, limitsForEffect, limitsForMask, isVisualElement, type AnimationInterpolation, type ElementRef, type Effect, type Mask,
+  buildDefaultEffect, buildDefaultMask, InvalidInputError, PARAM, TEXT_ANIMATION_PRESETS, TEXT_DEFAULTS, type TextAnimationSpec, type TextAnimationState, type TransitionType, clampParams, clampToLimit, isMaskable, limitForPath, limitsForEffect, limitsForMask, isVisualElement, type AnimationInterpolation, type ElementRef, type Effect, type Mask,
   type MaskType, type ParamValue, type TimelineElement, type ParamValues,
 } from "#/engine/model";
 import {
-  applyTextAnimation, keyframeIdAtTime, maxTextAnimationDuration, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
+  applyTextAnimation, TEXT_ANIMATION_PATHS, keyframeIdAtTime, maxTextAnimationDuration, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
   type ScalarCurvePatch,
 } from "#/engine/animation";
 import {
@@ -268,6 +268,9 @@ export function setTextAnimationCommand(input: { ref: ElementRef; in?: TextAnima
         });
         const out: TimelineElement = { ...el };
         if (animations) out.animations = animations; else delete out.animations;
+        const missing = Object.entries(TEXT_DEFAULTS).filter(([key]) => (TEXT_ANIMATION_PATHS as readonly string[]).includes(key) && el.params[key] === undefined);
+        const typesCaret = next.in?.preset === "type-caret" || next.out?.preset === "type-caret";
+        if (missing.length > 0 || typesCaret) out.params = { ...el.params, ...Object.fromEntries(missing), ...(typesCaret ? { [PARAM.caret]: true } : {}) };
         if (next.in || next.out) (out as { textAnimation?: TextAnimationState }).textAnimation = next;
         else delete (out as { textAnimation?: TextAnimationState }).textAnimation;
         return out;

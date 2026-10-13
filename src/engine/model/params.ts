@@ -42,6 +42,17 @@ export const PARAM = {
   cropBottom: "crop.bottom",
   /** Fraction of the characters shown, 0..1 (typewriter animation). */
   reveal: "reveal",
+  /** Text blur strength 0-100 (same scale as the blur effect); absent means 0. */
+  blur: "blur",
+  /** Per-word stagger progress 0..1: words enter one after another as it rises; absent means 1 (all shown). */
+  wordReveal: "wordReveal",
+  /** Draws a typing caret after the revealed text; blinks once the text is complete. */
+  caret: "caret",
+  /** Index of the word drawn in the highlight colour (counted across lines, from 0); -1 or absent means none. */
+  highlightWord: "highlightWord",
+  highlightColor: "highlightColor",
+  /** Keeps every word up to `highlightWord` highlighted (karaoke sweep) instead of only that word. */
+  highlightSweep: "highlightSweep",
 } as const;
 
 export const BLEND_MODES = [
@@ -96,6 +107,9 @@ export const TEXT_DEFAULTS: ParamValues = {
   [PARAM.shadowOffsetX]: 4,
   [PARAM.shadowOffsetY]: 4,
   [PARAM.reveal]: 1,
+  [PARAM.blur]: 0,
+  [PARAM.wordReveal]: 1,
+  [PARAM.highlightWord]: -1,
 };
 
 /** Crop edges are fractions (0-1) of the source removed from each side before the transform; the rest stays in place. */
