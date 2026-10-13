@@ -23,7 +23,7 @@ export interface ShotImage {
   ratio?: number;
 }
 
-export type FeatureVisual = "prompt" | "moments" | "plan" | "private" | "timeline" | "templates" | "export";
+export type FeatureVisual = "prompt" | "moments" | "plan" | "private" | "timeline" | "templates" | "effects" | "generate" | "export";
 
 export interface FeatureItem {
   id: string;
@@ -232,6 +232,20 @@ export const LANDING_CONTENT: LandingContent = {
         title: "Start from a template",
         body: "Eight original templates lay out a whole video from your clips, with text, animation and transitions already set. One undo removes it.",
         visual: "templates",
+        span: 5,
+      },
+      {
+        id: "effects",
+        title: "Effects that used to need another app",
+        body: "Chroma key, speed ramps with a curve editor, background removal, point tracking and stabilization, snap cuts to the beat, and noise removal. Heavy models download only after you agree.",
+        visual: "effects",
+        span: 7,
+      },
+      {
+        id: "generate",
+        title: "Generate media in the editor",
+        body: "Create images, video, music and voice-overs from a prompt and drop them straight into your project. Bring your own key; the editor never needs an account.",
+        visual: "generate",
         span: 5,
       },
       {

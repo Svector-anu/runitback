@@ -12,6 +12,8 @@ const MOMENT_ROWS = [
 ];
 const PLAN_STEPS = ["Trim the tail of the first clip", "Add a short title", "Check the whole sequence"];
 const TEMPLATE_CHIPS = ["Product launch", "Numbered list", "Testimonial", "Captions"];
+const EFFECT_CHIPS = ["Chroma key", "Speed ramps", "Remove background", "Track a point", "Stabilize", "Snap to beat", "Noise removal"];
+const GENERATE_CHIPS = ["Images", "Video", "Music", "Voice-overs"];
 const PRIVACY_POINTS = ["Files stay in this browser", "Models run on your device", "API key kept locally"];
 
 function Visual({ kind, soonNote }: { kind: FeatureVisual; soonNote?: string }): ReactNode {
@@ -62,6 +64,18 @@ function Visual({ kind, soonNote }: { kind: FeatureVisual; soonNote?: string }):
       return (
         <ul className="lp-vis lp-vis--templates" aria-hidden="true">
           {TEMPLATE_CHIPS.map((name) => <li key={name}>{name}</li>)}
+        </ul>
+      );
+    case "effects":
+      return (
+        <ul className="lp-vis lp-vis--templates" aria-hidden="true">
+          {EFFECT_CHIPS.map((name) => <li key={name}>{name}</li>)}
+        </ul>
+      );
+    case "generate":
+      return (
+        <ul className="lp-vis lp-vis--templates" aria-hidden="true">
+          {GENERATE_CHIPS.map((name) => <li key={name}>{name}</li>)}
         </ul>
       );
     case "export":
