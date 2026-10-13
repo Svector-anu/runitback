@@ -50,6 +50,12 @@ pointerdown on a clip → `startClipDrag` (ui/timeline/controllers) → each mov
 
 The model files come from Hugging Face on first use; that is the only network access and audio never leaves the device. `app/transcribe-service.ts` owns the consent gate: the Transcribe action (assets panel) shows a confirm dialog (model, approximate size, audio stays on device) and records consent in prefs; the agent's `transcribe_asset` goes through the same `gatedTranscriber` and fails with an "ask the user to press Transcribe" error until the model is cached or consent is given. E2E replaces the recogniser through the dev-only `window.__transcriber` hook; no model is downloaded in tests.
 
+## Audio effects and voice (beat snap, noise removal, text to speech, translation)
+
+Full record in `docs/AUDIO_VOICE.md`. Layering follows the rest of the app: `engine/beatsync` (rolling-edit planner over `engine/analysis` beats), `engine/audio/{denoise,resample,wav}`, `engine/voiceover` and `engine/translate` are pure and run in Node; `platform/denoise` (vendored RNNoise wasm, whole-source cache), `platform/tts` and `platform/translate` (module workers over transformers.js) are the adapters; the app layer adds consent-gated services (`voice-service`, `translate-service`) and `beat-service`; agent tools take their model and storage through injected deps (`createNoiseTools`, `createVoiceoverTools`, `createTranslateTools`, wired in `app/agent/audio-wiring.ts`).
+
+Preview and export share the audio path by one seam: both ask `AudioSinkCache.forClip(clip)` for the audio to schedule (`wait: false` live, awaited in `export/audio-mix.ts`), so a clip's `denoise` parameter reaches `scheduleClipWindow` through the same wrapper in either place. The cleaned copy of a source is computed once per media blob (`DenoiseCache`) and released by the project's `MediaRuntime`.
+
 ## Dependencies (minimal)
 
 Runtime: react, react-dom, mediabunny (probing, decoding, encoding, muxing), @huggingface/transformers + onnxruntime-web (lazy, worker-only; local Whisper). Dev: vite, vitest, typescript 5.9 (typescript-eslint does not yet support TS 7), eslint, fake-indexeddb, happy-dom, Playwright. No UI kit, state library or router library (own primitives, external-store hooks, hash router).

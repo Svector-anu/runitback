@@ -48,6 +48,7 @@ export const BLEND_FIELDS: FieldDef[] = bounded([
 export const AUDIO_FIELDS: FieldDef[] = bounded([
   { type: "number", key: PARAM.volume, label: "Volume", default: 0, min: VOLUME_DB_MIN, max: VOLUME_DB_MAX, step: 0.01, keyframable: true, icon: "volume", suffix: "dB" },
   { type: "boolean", key: PARAM.muted, label: "Muted", default: false },
+  { type: "number", key: PARAM.denoise, label: "Noise removal", default: 0, min: 0, max: 1, step: 0.01, keyframable: false, control: "slider", displayMultiplier: 100, suffix: "%" },
 ], ELEMENT_NUMBER_LIMITS);
 
 const bgOn = (p: ParamValues): boolean => p[PARAM.bgEnabled] === true;

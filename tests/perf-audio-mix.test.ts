@@ -76,7 +76,7 @@ function stubOfflineAudioContext(): ContextLog {
 function tenMinuteClips(): AudioClip[] {
   return Array.from({ length: 14 }, (_, i): AudioClip => ({
     key: `c${i}`, mediaId: "m", start: i * 45, duration: 60, trimStart: 0, rate: 1, maintainPitch: false,
-    gainAt: () => 1, animated: false, constantGain: 1,
+    gainAt: () => 1, animated: false, constantGain: 1, denoise: 0,
   }));
 }
 
@@ -87,7 +87,7 @@ function syntheticSinks(): AudioSinkCache {
       for (let t = Math.floor(start); t < end; t++) yield { timestamp: t, duration: 1, buffer: second };
     },
   };
-  return { get: () => Promise.resolve(sink) } as unknown as AudioSinkCache;
+  return { get: () => Promise.resolve(sink), forClip: () => Promise.resolve(sink) } as unknown as AudioSinkCache;
 }
 
 async function drain(input: { chunkSeconds?: number }): Promise<{ chunks: number; samples: number; largestChunk: number; peakBytesPerChunkMb: number }> {

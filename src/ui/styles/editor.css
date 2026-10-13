@@ -110,6 +110,7 @@
 .timeline__content { position: relative; }
 .timeline__ruler { position: sticky; top: 0; z-index: 12; height: 22px; background: var(--background); cursor: pointer; user-select: none; }
 .ruler__tick { position: absolute; top: 6px; height: 6px; border-left: 1px solid color-mix(in srgb, var(--muted-foreground) 25%, transparent); }
+.ruler__beat { position: absolute; bottom: 1px; width: 5px; height: 5px; margin-left: -2px; border-radius: 50%; background: var(--primary); opacity: 0.85; pointer-events: none; }
 .ruler__label { position: absolute; top: 4px; padding-left: 4px; font-size: 10px; line-height: 1; color: color-mix(in srgb, var(--muted-foreground) 85%, transparent); white-space: nowrap; }
 .timeline__bookmarks { position: sticky; top: 22px; z-index: 11; height: 16px; background: var(--background); }
 .bookmark { position: absolute; top: 0; width: 12px; height: 15px; margin-left: -6px; clip-path: polygon(50% 100%, 12% 72%, 12% 10%, 88% 10%, 88% 72%); background: var(--bookmark); border: 0; padding: 0; }

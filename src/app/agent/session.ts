@@ -15,6 +15,7 @@ import { createAppFaceTools } from "./face-wiring";
 import { createAppTemplateTools } from "./templates-wiring";
 import { createAppBackgroundTools } from "./background-wiring";
 import { createAppMotionTools } from "./motion-wiring";
+import { createAppAudioTools } from "./audio-wiring";
 import { createAppVisualTools } from "./visual-wiring";
 
 export interface PlanStepView {
@@ -248,6 +249,7 @@ export class AgentSession {
     for (const tool of createAppTemplateTools()) tools.set(tool.name, tool);
     for (const tool of createAppBackgroundTools(() => controller.signal)) tools.set(tool.name, tool);
     for (const tool of createAppMotionTools(() => controller.signal)) tools.set(tool.name, tool);
+    for (const tool of createAppAudioTools()) tools.set(tool.name, tool);
 
     const toolItems = new Map<string, number>();
     const onEvent = (event: AgentEvent): void => {

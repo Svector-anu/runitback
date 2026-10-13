@@ -9,6 +9,7 @@ import { COLOR_TOOLS } from "./tools-color";
 import { VFX_TOOLS } from "./tools-vfx";
 import { TRANSITION_TOOLS } from "./tools-transitions";
 import { READ_TOOLS } from "./tools-read";
+import { createBeatTools } from "./tools-beat";
 import { createReferenceTools, type ReferenceDeps } from "./tools-reference";
 import type { AgentTool, AgentToolRegistry, ToolContext, ToolResult } from "./types";
 import { didYouMean } from "./validate";
@@ -20,7 +21,7 @@ export interface AgentToolOptions {
 
 /** Every tool an agent can use, keyed by name. Share one registry per session: the reference tools keep state in their injected store. */
 export function createAgentTools(options: AgentToolOptions = {}): AgentToolRegistry {
-  const reference = options.reference ? createReferenceTools(options.reference) : [];
+  const reference = options.reference ? [...createReferenceTools(options.reference), ...createBeatTools({ provider: options.reference.provider })] : [];
   const all = [...READ_TOOLS, ...INSERT_TOOLS, ...EDIT_TOOLS, ...PROP_TOOLS, ...TRANSITION_TOOLS, ...COLOR_TOOLS, ...VFX_TOOLS, ...TEXT_TOOLS, ...FRAME_TOOLS, ...PROJECT_TOOLS, ...reference];
   const registry = new Map<string, AgentTool>();
   for (const tool of all) {

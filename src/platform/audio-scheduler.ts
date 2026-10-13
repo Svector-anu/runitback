@@ -1,5 +1,6 @@
 import { ALL_FORMATS, AudioBufferSink, BlobSource, Input } from "mediabunny";
 import { gainEnvelope, sourceWindow, stretch, type AudioClip } from "#/engine/audio";
+import { denoisedSource, sharedDenoiseCache, type BufferSource, type DenoiseCache, type DenoisedAudio, type DenoiseStatus } from "./denoise";
 
 export type AudioContextLike = BaseAudioContext;
 
@@ -7,7 +8,18 @@ export type AudioContextLike = BaseAudioContext;
 export class AudioSinkCache {
   private readonly sinks = new Map<string, Promise<{ input: Input<BlobSource>; sink: AudioBufferSink } | null>>();
 
-  constructor(private readonly getBlob: (mediaId: string) => Blob | undefined) {}
+  private readonly denoise: DenoiseCache;
+  private readonly releasesDenoise: boolean;
+
+  /**
+   * `releasesDenoise`: whether releasing a media id here also drops its cleaned audio from the denoise cache. The cache is
+   * shared page-wide so a preview and an export of the same file compute it once; only the owner of the media (the project's
+   * `MediaRuntime`) releases it, a short-lived cache such as the exporter's must not throw the preview's work away.
+   */
+  constructor(private readonly getBlob: (mediaId: string) => Blob | undefined, options: { denoise?: DenoiseCache; releasesDenoise?: boolean } = {}) {
+    this.denoise = options.denoise ?? sharedDenoiseCache;
+    this.releasesDenoise = options.releasesDenoise ?? false;
+  }
 
   get(mediaId: string): Promise<AudioBufferSink | null> {
     let entry = this.sinks.get(mediaId);
@@ -17,6 +29,42 @@ export class AudioSinkCache {
       this.sinks.set(mediaId, entry);
     }
     return entry.then((e) => e?.sink ?? null);
+  }
+
+  /**
+   * What to schedule for `clip`: its decoded audio, with noise removal mixed in when the clip asks for it. This is the
+   * one place both live playback and the export mix get their audio from, so they cannot disagree. `wait: false` (live
+   * playback) never blocks: while the denoised copy is still being computed it starts that work and plays the original.
+   */
+  async forClip(clip: AudioClip, options: { wait?: boolean } = {}): Promise<BufferSource | null> {
+    const sink = await this.get(clip.mediaId);
+    const blob = this.getBlob(clip.mediaId);
+    if (!sink || !blob || clip.denoise <= 0) return sink;
+    if (this.denoise.status(blob).state === "error") return sink;
+    let audio = this.denoise.peek(blob);
+    if (!audio && options.wait === false) {
+      this.denoise.ensure(blob, sink).catch(() => undefined);
+      return sink;
+    }
+    audio ??= await this.denoise.ensure(blob, sink).catch(() => undefined);
+    if (!audio) return sink;
+    return denoisedSource({ base: sink, audio, strength: clip.denoise });
+  }
+
+  /** Computes (or reuses) the denoised copy of an asset's audio without scheduling anything, so a later play or export is instant. */
+  async prepareDenoise(mediaId: string): Promise<DenoisedAudio> {
+    const sink = await this.get(mediaId);
+    const blob = this.getBlob(mediaId);
+    if (!sink || !blob) throw new Error("This media has no audio to clean up");
+    return this.denoise.ensure(blob, sink);
+  }
+
+  denoiseStatus(mediaId: string): DenoiseStatus {
+    return this.denoise.status(this.getBlob(mediaId));
+  }
+
+  subscribeDenoise(listener: () => void): () => void {
+    return this.denoise.subscribe(listener);
   }
 
   private async open(blob: Blob): Promise<{ input: Input<BlobSource>; sink: AudioBufferSink } | null> {
@@ -30,6 +78,7 @@ export class AudioSinkCache {
   }
 
   async release(mediaId: string): Promise<void> {
+    if (this.releasesDenoise) this.denoise.release(this.getBlob(mediaId));
     const entry = this.sinks.get(mediaId);
     this.sinks.delete(mediaId);
     (await entry)?.input.dispose();
@@ -59,7 +108,7 @@ export function createClipGain(ctx: AudioContextLike, destination: AudioNode): S
  * AudioBufferSourceNodes placed on the context clock, trimmed to the window, with the clip's gain automation.
  */
 export async function scheduleClipWindow(input: {
-  ctx: AudioContextLike; scheduled: ScheduledClip; clip: AudioClip; sink: AudioBufferSink;
+  ctx: AudioContextLike; scheduled: ScheduledClip; clip: AudioClip; sink: BufferSource;
   from: number; to: number; toContext: TimelineToContext; shouldStop?: () => boolean;
 }): Promise<void> {
   const { ctx, clip, scheduled } = input;

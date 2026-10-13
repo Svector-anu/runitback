@@ -14,6 +14,7 @@ import { invokeAction } from "#/app/actions";
 import { insertPayload } from "#/app/insert";
 import { uiStore, toggleExpanded } from "#/app/ui-state";
 import { useEditorState, useSettings, useTracks } from "#/app/hooks";
+import { toggleBeatMarkers, useBeatMarkers } from "#/app/beat-service";
 import { Icon, type IconName } from "../icons";
 import { Button } from "../primitives/Button";
 import { ContextMenu, type ContextMenuState, type MenuEntry } from "../primitives/Menu";
@@ -35,6 +36,7 @@ import { DEFAULT_FREEZE_TICKS, freezeAvailability } from "./freeze";
 import { findCuts } from "./transitions";
 import { useViewport } from "./useViewport";
 import { reportInsert, runEdit } from "../lib/edit";
+import { snapCutsToBeatWithToast } from "./beat-action";
 
 const TRACK_ICON: Record<string, IconName> = { video: "video", text: "type", audio: "music", graphic: "shapes", effect: "wand" };
 
@@ -78,6 +80,8 @@ export function Timeline(): ReactNode {
   const dragDepth = useRef(0);
   const labelsInner = useRef<HTMLDivElement>(null);
   const [scenesOpen, setScenesOpen] = useState(false);
+  const beatState = useBeatMarkers();
+  const [snappingBeats, setSnappingBeats] = useState(false);
 
   const latest = useRef({ viewport, geometry });
   latest.current = { viewport, geometry };
@@ -299,6 +303,11 @@ export function Timeline(): ReactNode {
           <ToolbarButton icon="bookmark" label={bookmarkAtPlayhead ? "Remove bookmark" : "Add bookmark"} active={bookmarkAtPlayhead}
             onClick={() => runEdit(editor, toggleBookmark(editor.playback.getState().currentTime))} />
           <EasingPopover disabled={!hasKeyframeSelection} />
+          <div className="timeline__divider" />
+          <ToolbarButton icon="beat" label={snappingBeats ? "Snapping cuts to the beat..." : selection.elements.length > 0 ? "Snap selected cuts to beat" : "Snap cuts to beat"} disabled={snappingBeats}
+            onClick={() => { setSnappingBeats(true); void snapCutsToBeatWithToast(editor).finally(() => setSnappingBeats(false)); }} />
+          <ToolbarButton icon="beat-ticks" label={beatState.show ? (beatState.status === "analyzing" ? "Finding beats..." : beatState.message || "Hide beats on the ruler") : "Show beats on the ruler"}
+            active={beatState.show} onClick={toggleBeatMarkers} />
         </div>
         <div className="scene-select" role="group" aria-label="Scene">
           <span className="scene-select__name">{scene.name || "No scene"}</span>
@@ -357,7 +366,7 @@ export function Timeline(): ReactNode {
         >
           <div className="timeline__content" style={{ width: viewport.width, height: contentHeight, minHeight: "100%" }}>
             <Ruler zoom={viewport.zoom} fps={settings.fps} scrollLeft={viewport.scrollLeft} viewportWidth={viewport.containerWidth} maxTime={Math.max(duration, (viewport.width / (50 * viewport.zoom)) * TICKS_PER_SECOND)}
-              width={viewport.width} onPointerDown={(e) => { if (e.button === 0) startScrub(ctx, e.nativeEvent, { fromRuler: true }); }} />
+              width={viewport.width} beats={beatState.show && beatState.status === "ready" ? beatState.beats : null} onPointerDown={(e) => { if (e.button === 0) startScrub(ctx, e.nativeEvent, { fromRuler: true }); }} />
             <BookmarkRow viewport={viewport} bookmarks={scene.bookmarks} height={BOOKMARK_ROW_HEIGHT} ctx={ctx} />
             <div
               data-track-area style={{ position: "absolute", top: HEADER_HEIGHT, left: 0, right: 0, bottom: 0 }}

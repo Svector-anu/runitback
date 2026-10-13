@@ -107,16 +107,15 @@ function stubOfflineAudioContext(): { nodes: FakeSourceNode[] } {
 function makeClip(overrides: Partial<AudioClip> = {}): AudioClip {
   return {
     key: "clip", mediaId: "media", start: 0, duration: 0.5, trimStart: 0, rate: 2, maintainPitch: false,
-    gainAt: () => 1, animated: false, constantGain: 1,
+    gainAt: () => 1, animated: false, constantGain: 1, denoise: 0,
     ...overrides,
   };
 }
 
 function sinkCache(mediaId: string, buffer: FakeAudioBuffer): AudioSinkCache {
-  return {
-    get: (id: string) =>
-      Promise.resolve(id === mediaId ? { buffers: async function* buffers() { yield { timestamp: 0, duration: buffer.duration, buffer }; } } : null),
-  } as unknown as AudioSinkCache;
+  const get = (id: string) =>
+    Promise.resolve(id === mediaId ? { buffers: async function* buffers() { yield { timestamp: 0, duration: buffer.duration, buffer }; } } : null);
+  return { get, forClip: (clip: AudioClip) => get(clip.mediaId) } as unknown as AudioSinkCache;
 }
 
 afterEach(() => {

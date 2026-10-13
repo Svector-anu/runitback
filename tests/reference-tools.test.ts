@@ -50,7 +50,8 @@ describe("reference tools: registry and schemas", () => {
     expect(tools.get("compare_to_style")?.readOnly).toBe(true);
     expect(tools.get("apply_cut_plan")?.description).toContain("One undo step");
     expect(tools.get("plan_cuts_to_style")?.description).toContain("Does NOT edit");
-    expect(tools.size).toBe(createAgentTools().size + names.length);
+    // createAgentTools({ reference }) also registers snap_cuts_to_beat, which shares the reference deps' analysis provider.
+    expect(tools.size).toBe(createAgentTools().size + names.length + 1);
   });
 
   it("is absent unless the app injects dependencies, so existing registries are unchanged", () => {

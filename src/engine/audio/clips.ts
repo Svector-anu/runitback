@@ -22,6 +22,8 @@ export interface AudioClip {
   /** True when gain varies over time and needs automation. */
   animated: boolean;
   constantGain: number;
+  /** Noise removal strength 0..1 (0 = off). Part of the clip so live playback and export treat it identically. */
+  denoise: number;
 }
 
 const seconds = (ticks: number): number => ticks / TICKS_PER_SECOND;
@@ -64,6 +66,7 @@ function clipFor(input: { element: TimelineElement; trackId: string; trackMuted:
     start: seconds(element.startTime), duration: seconds(element.duration), trimStart: seconds(element.trimStart),
     rate: effectiveRate(retime), maintainPitch: retime?.maintainPitch === true,
     gainAt, animated, constantGain: dbToLinear(clampDb(baseDb)),
+    denoise: Math.min(1, Math.max(0, numberParam(element.params, PARAM.denoise, 0))),
   };
 }
 

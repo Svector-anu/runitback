@@ -22,7 +22,7 @@ export class MediaRuntime {
   private readonly urls = new Map<string, string>();
   readonly video = new VideoFrameCache((id) => this.blobs.get(id), { maxEdge: PREVIEW_MAX_EDGE });
   readonly images = new ImageCache((id) => this.blobs.get(id));
-  readonly audio = new AudioSinkCache((id) => this.blobs.get(id));
+  readonly audio = new AudioSinkCache((id) => this.blobs.get(id), { releasesDenoise: true });
   readonly waveforms = new WaveformCache(this.audio);
   readonly frameSources = new CachedFrameSources(this.video, this.images);
 

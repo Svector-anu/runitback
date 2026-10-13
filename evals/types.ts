@@ -132,6 +132,10 @@ export interface EvalCase {
   /** The user's request, verbatim. */
   brief: string;
   fixtures: FixtureSpec[];
+  /** Tool calls that build the starting timeline after the fixtures are placed (before the undo history is reset). */
+  setup?: Array<{ tool: string; args: Record<string, unknown> }>;
+  /** Tools outside the base registry that the case needs; the harness backs them with deterministic stubs. */
+  extraTools?: Array<"voiceover">;
   budget: EvalBudget;
   /** Task checks; the invariant checks are added by the harness. */
   checks: Check[];

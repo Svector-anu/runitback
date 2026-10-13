@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+import { importWav } from "./audio-support";
 import { importGenerated, makeWebm } from "./media";
+import { speechPlusNoise } from "../tests/speech-fixture";
 
 /**
  * Runs against `vite preview` (PLAYWRIGHT_TARGET=production), which serves the exact headers from vercel.json. Every
@@ -214,6 +216,59 @@ test("Understand starts the real workers; the model hub is reachable and the fac
   expect(await chip.getAttribute("title")).not.toMatch(/faces failed/);
   expect(await allViolations(page, recorder)).toEqual([]);
   expect(recorder.hosts().filter((host) => host !== ORIGIN_HOST(page))).toEqual(expect.arrayContaining(["huggingface.co"]));
+});
+
+test("noise removal runs the vendored RNNoise wasm under the CSP: no violation, no third-party request", async ({ page }) => {
+  const recorder = await record(page);
+  const fixture = speechPlusNoise({ seconds: 3 });
+  await page.goto("/#/projects");
+  await page.getByRole("button", { name: "Create your first project" }).click();
+  await expect(page.getByLabel("Project name")).toBeVisible();
+  await importWav(page, { name: "speech.wav", samples: fixture.mixed, sampleRate: fixture.sampleRate });
+  await page.getByRole("button", { name: "Add speech.wav to timeline" }).click({ force: true });
+  await page.locator("[data-clip-id]").first().click();
+  await page.getByRole("tab", { name: "Audio" }).click();
+  await page.getByRole("slider", { name: "Noise removal" }).fill("1");
+  const note = page.getByTestId("denoise-note");
+  await expect(note).toHaveAttribute("data-state", /ready|error/, { timeout: 60_000 });
+  expect(await note.getAttribute("data-state"), (await note.textContent()) ?? "").toBe("ready");
+  expect(await allViolations(page, recorder)).toEqual([]);
+  expect(recorder.hosts().filter((host) => host !== ORIGIN_HOST(page))).toEqual([]);
+});
+
+test.describe("real audio models (opt-in: REAL_CSP=1 downloads about 220 MB from Hugging Face)", () => {
+  test.skip(process.env.REAL_CSP !== "1", "set REAL_CSP=1");
+  test.setTimeout(1_500_000);
+
+  test("text to speech and caption translation run ONNX Runtime WASM in workers under the CSP, from the pinned revisions", async ({ page }) => {
+    const recorder = await record(page);
+    const modelRequests: string[] = [];
+    page.on("request", (request) => { if (/huggingface\.co|\.hf\.co/.test(request.url())) modelRequests.push(request.url()); });
+    await page.goto("/#/projects");
+    await page.getByRole("button", { name: "Create your first project" }).click();
+    await expect(page.getByLabel("Project name")).toBeVisible();
+    await page.getByRole("tab", { name: "Text" }).click();
+    await page.getByLabel("Voice-over script").fill("Welcome to the show.");
+    await page.getByRole("button", { name: "Generate voice-over" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Download and generate" }).click();
+    await expect(page.getByText("Voice-over added")).toBeVisible({ timeout: 1_400_000 });
+    const speech = [...new Set(modelRequests.map((url) => new URL(url).pathname))];
+    expect(speech.some((path) => path.includes("speecht5_tts") && path.includes("1723781b8ce2d02f0400c8337be04ae8ee3d6d56") && path.endsWith("q4f16.onnx"))).toBe(true);
+    expect(speech.some((path) => path.includes("speecht5_hifigan") && path.includes("cf980c3610d7b7f20919960031066ef7905737bd") && path.endsWith(".onnx"))).toBe(true);
+    await page.getByRole("tab", { name: "Captions" }).click();
+    await page.getByLabel("Import subtitle file").setInputFiles({
+      name: "lines.srt", mimeType: "text/plain",
+      buffer: Buffer.from("1\n00:00:00,000 --> 00:00:02,000\nWelcome to the show.\n\n2\n00:00:02,500 --> 00:00:05,000\nToday we talk about editing video.\n"),
+    });
+    await expect(page.getByText("Added 2 captions")).toBeVisible();
+    await page.getByTestId("translate-captions").getByRole("button", { name: "Translate", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Download and translate" }).click();
+    await expect(page.getByText("Translated 2 captions")).toBeVisible({ timeout: 1_400_000 });
+    const translation = [...new Set(modelRequests.map((url) => new URL(url).pathname))];
+    expect(translation.some((path) => path.includes("opus-mt-en-es") && path.includes("4b002a4c7edd54a7ced58877258b87f7efd3f892") && path.endsWith("encoder_model_quantized.onnx"))).toBe(true);
+    expect(await allViolations(page, recorder)).toEqual([]);
+    console.log("hosts", recorder.hosts().join(","));
+  });
 });
 
 test.describe("real models (opt-in: REAL_CSP=1 downloads about 210 MB from Hugging Face)", () => {

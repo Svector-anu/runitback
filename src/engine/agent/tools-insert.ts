@@ -9,7 +9,7 @@ import { defineTool, ok, toSec, ToolError, type ToolEnv } from "./env";
 import { paramSpecsFor, textSpecs, validateParamValues } from "./params";
 import type { AgentTool, JsonSchema } from "./types";
 
-const PLACEMENT_PROPS: Record<string, JsonSchema> = {
+export const PLACEMENT_PROPS: Record<string, JsonSchema> = {
   start: { type: "number", minimum: 0, description: "Timeline position in SECONDS (snapped to the frame grid)." },
   trackId: { type: "string", description: "Existing track to place on; its kind must match. Fails if the span is occupied." },
   newTrack: { type: "boolean", description: "Create a new track for this element (above the main track for visual kinds)." },
@@ -76,7 +76,7 @@ function choosePlacement(env: ToolEnv, element: TimelineElement, input: Placemen
   return { mode: "auto" };
 }
 
-function place(env: ToolEnv, input: { element: TimelineElement; start: MediaTime | undefined } & PlacementInput, what: string) {
+export function place(env: ToolEnv, input: { element: TimelineElement; start: MediaTime | undefined } & PlacementInput, what: string) {
   env.requireProject();
   const startTime = input.start ?? defaultStart(env, input.element, input.trackId);
   const element = { ...input.element, startTime } as TimelineElement;

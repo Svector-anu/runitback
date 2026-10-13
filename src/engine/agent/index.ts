@@ -1,5 +1,9 @@
 export * from "./types";
 export { createAgentTools, callTool, type AgentToolOptions } from "./registry";
+export { createNoiseTools, type NoiseDeps, type NoiseMeasurement } from "./tools-noise";
+export { createVoiceoverTools, type VoiceoverDeps } from "./tools-voiceover";
+export { createTranslateTools, type TranslateDeps } from "./tools-translate";
+export { createBeatTools } from "./tools-beat";
 export { createReferenceTools, type ReferenceDeps } from "./tools-reference";
 export { createTranscriptTools, type TranscriptDeps } from "./tools-transcript";
 export { createTemporalTools, type TemporalDeps } from "./tools-temporal";

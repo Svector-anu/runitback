@@ -12,6 +12,8 @@ import { Icon, type IconName } from "../icons";
 import { Button } from "../primitives/Button";
 import { toast } from "../primitives/toast";
 import { reportInsert, runEdit } from "../lib/edit";
+import { TextToSpeechPanel } from "./TextToSpeechPanel";
+import { TranslateCaptions } from "./TranslateCaptions";
 
 function ViewShell({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }): ReactNode {
   return (
@@ -46,6 +48,7 @@ export function TextView(): ReactNode {
       <div className="tile-grid">
         <PayloadTile payload={{ kind: "text" }} label="Default text"><span style={{ fontSize: "var(--text-xs)" }}>Default text</span></PayloadTile>
       </div>
+      <TextToSpeechPanel />
     </ViewShell>
   );
 }
@@ -118,6 +121,7 @@ export function CaptionsView(): ReactNode {
       </>
     }>
       <p className="muted" style={{ lineHeight: 1.5 }}>Import an .srt or .ass file to add one text clip per caption on new text tracks at the top of the timeline. Overlapping captions get their own track.</p>
+      <TranslateCaptions />
       {error ? <div className="alert alert--destructive" role="alert" style={{ marginTop: 12 }}>{error}</div> : null}
       {warnings.length > 0 ? (
         <div className="alert alert--caution" style={{ marginTop: 12, flexDirection: "column", gap: 4 }}>

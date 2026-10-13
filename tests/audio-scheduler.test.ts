@@ -75,7 +75,7 @@ function fakeCtx(): { ctx: never; nodes: Array<{ buffer: FakeAudioBuffer | null;
 function makeClip(overrides: Partial<AudioClip> = {}): AudioClip {
   return {
     key: "clip", mediaId: "media", start: 0, duration: 0.5, trimStart: 0, rate: 2, maintainPitch: false,
-    gainAt: () => 1, animated: false, constantGain: 1,
+    gainAt: () => 1, animated: false, constantGain: 1, denoise: 0,
     ...overrides,
   };
 }

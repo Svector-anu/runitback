@@ -18,6 +18,7 @@ import { DropdownMenu } from "../primitives/Menu";
 import { ColorField, Field, NumberField, Section, SelectField, Switch } from "../primitives/fields";
 import { AUDIO_FIELDS, BLEND_FIELDS, CROP_FIELDS, MASK_LABELS, SHADOW_FIELDS, STROKE_FIELDS, TEXT_FIELDS, TRANSFORM_FIELDS, type FieldDef } from "./defs";
 import { AdjustPanel } from "./AdjustPanel";
+import { DenoiseNote } from "./DenoiseNote";
 import { TextAnimationControls } from "./TextAnimationControls";
 import { ParamControl } from "./ParamControl";
 import { SpeedCurveEditor } from "./SpeedCurveEditor";
@@ -300,7 +301,7 @@ export function PropertiesPanel(): ReactNode {
       );
       break;
     case "blending": content = <Section sectionKey={key("blending")} title="Blending" collapsible={false}><Fields element={element} refValue={ref} defs={BLEND_FIELDS} playhead={playhead} /></Section>; break;
-    case "audio": content = <Section sectionKey={key("audio")} title="Audio" collapsible={false}><Fields element={element} refValue={ref} defs={AUDIO_FIELDS} playhead={playhead} /></Section>; break;
+    case "audio": content = <Section sectionKey={key("audio")} title="Audio" collapsible={false}><Fields element={element} refValue={ref} defs={AUDIO_FIELDS} playhead={playhead} /><DenoiseNote element={element} /></Section>; break;
     case "speed": content = <SpeedTab element={element} refValue={ref} />; break;
     case "masks": content = isMaskable(element) ? <MasksTab element={element} refValue={ref} /> : null; break;
     case "effects": content = <EffectsTab element={element} refValue={ref} />; break;
