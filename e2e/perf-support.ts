@@ -82,12 +82,27 @@ export async function sampleHeap(page: Page): Promise<() => Promise<{ peakMb: nu
 
 const MEDIA_DIR = `${ARTIFACTS}/perf-media`;
 
+/** Resolves ffmpeg from FFMPEG_PATH or PATH. Returns null when it is not installed or has no libx264. */
+export function findFfmpeg(): string | null {
+  const candidate = process.env.FFMPEG_PATH || "ffmpeg";
+  try {
+    const encoders = execFileSync(candidate, ["-hide_banner", "-encoders"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return encoders.includes("libx264") ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
+export const FFMPEG_SKIP_REASON = "needs ffmpeg with libx264 on PATH (or FFMPEG_PATH) to generate H.264 test media";
+
 /** Generates (once) a synthetic H.264/AAC file with ffmpeg. Never committed: e2e/.artifacts is gitignored. */
 export function ensureH264(input: { name: string; width: number; height: number; fps: number; seconds: number; keyframeSeconds?: number }): string {
   const path = `${MEDIA_DIR}/${input.name}`;
   if (existsSync(path)) return path;
+  const ffmpeg = findFfmpeg();
+  if (!ffmpeg) throw new Error(FFMPEG_SKIP_REASON);
   mkdirSync(MEDIA_DIR, { recursive: true });
-  execFileSync("/opt/homebrew/bin/ffmpeg", [
+  execFileSync(ffmpeg, [
     "-y", "-loglevel", "error",
     "-f", "lavfi", "-i", `testsrc2=size=${input.width}x${input.height}:rate=${input.fps}:duration=${input.seconds}`,
     "-f", "lavfi", "-i", `sine=frequency=440:sample_rate=44100:duration=${input.seconds}`,

@@ -1,10 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import { mediabunnyModuleUrl } from "./media";
-import { ensureH264, recordMeasurement, sampleHeap } from "./perf-support";
+import { ensureH264, FFMPEG_SKIP_REASON, findFfmpeg, recordMeasurement, sampleHeap } from "./perf-support";
 
 // Playwright's bundled Chromium has no H.264 decoder; the installed Chrome does.
 test.use({ channel: "chrome" });
+test.skip(findFfmpeg() === null, FFMPEG_SKIP_REASON);
 
 async function openProject(page: Page): Promise<void> {
   await page.goto("/#/projects");
@@ -46,6 +47,7 @@ async function measureDecode(page: Page): Promise<DecodeTimes> {
 const round = (n: number): number => Math.round(n * 10) / 10;
 
 test("a 4K H.264 source imports, previews and exports", async ({ page }) => {
+  test.skip(!!process.env.CI && !process.env.RUN_4K, "the 4K export exhausts the Node heap on 7 GB CI runners; set RUN_4K=1 to force");
   test.setTimeout(600_000);
   const path = ensureH264({ name: "uhd-30fps-8s.mp4", width: 3840, height: 2160, fps: 30, seconds: 8 });
   await openProject(page);
