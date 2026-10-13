@@ -60,9 +60,9 @@ test("FAQ accordion works from the keyboard", async ({ page }) => {
   await expect(answer).toBeVisible();
   await expect(answer).toContainText("7 transitions");
   await page.keyboard.press("End");
-  await expect(questions.nth(10)).toBeFocused();
+  await expect(questions.nth(11)).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.locator("#faq-a-10")).toContainText(/CONTRIBUTING/);
+  await expect(page.locator("#faq-a-11")).toContainText(/CONTRIBUTING/);
   await expect(page.locator("#faq-a-1")).toBeHidden();
   await page.keyboard.press("Home");
   await expect(questions.nth(0)).toBeFocused();
