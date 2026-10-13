@@ -5,7 +5,7 @@ import { GRAPHIC_DEFINITIONS, PARAM, buildGraphicElement, defaultsOf, sequential
 import { buildFramePlan, type MediaLayer } from "#/engine/render";
 import { TICKS_PER_SECOND } from "#/engine/time";
 import { allElements, resolveElementParams } from "#/engine/timeline";
-import { drawCursor, drawWindowFrame } from "#/render/graphic-symbols";
+import { drawCursor, drawAppFrame } from "#/render/graphic-symbols";
 import { setupAgent } from "./agent-harness";
 import { makeEditor, sec, tracksWith } from "./helpers";
 
@@ -150,10 +150,10 @@ describe("cursor and window drawing", () => {
     };
     expect(new Set(["arrow", "hand", "dot"].map(sequence)).size).toBe(3);
   });
-  it("lays a window frame out from the box: bar, three lights, address pill only for browsers", () => {
+  it("lays a app frame out from the box: bar, three lights, address pill only for browsers", () => {
     const frame = (style: string) => {
       const { ctx, calls } = recorder();
-      drawWindowFrame(ctx, { ...defaultsOf(GRAPHIC_DEFINITIONS["window-frame"]!.params), style }, { width: 800, height: 500, canvasHeight: 1080 });
+      drawAppFrame(ctx, { ...defaultsOf(GRAPHIC_DEFINITIONS["app-frame"]!.params), style }, { width: 800, height: 500, canvasHeight: 1080 });
       return calls;
     };
     expect(frame("mac").filter((c) => c[0] === "arc")).toHaveLength(3);

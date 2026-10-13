@@ -1,7 +1,7 @@
-import { numberParam, type BlendMode, type GradientBackground } from "#/engine/model";
+import { numberParam, PARAM, type BlendMode, type GradientBackground, type ParamValues } from "#/engine/model";
 import { TICKS_PER_SECOND } from "#/engine/time";
-import type { DrawItem, FramePlan, GlitchLook, LayerSource, MediaLayer, ResolvedEffect, TextLayer } from "#/engine/render";
-import { adjustPlan, applyChromaKey, blurSigma, chromaKeyIsNoop, chromaKeyPlan, gradientAngleAt, gradientBlobs, linearGradientLine, radialCenter, rgba, TRANSITION_BLUR_INTENSITY, transitionLook, type AdjustPlan, type ChromaKeyPlan } from "#/engine/render";
+import type { DrawItem, FramePlan, GlitchLook, LayerTilt, LayerSource, MediaLayer, ResolvedEffect, TextLayer } from "#/engine/render";
+import { adjustPlan, applyChromaKey, blurSigma, chromaKeyIsNoop, chromaKeyPlan, gradientAngleAt, gradientBlobs, linearGradientLine, radialCenter, affineBetween, rgba, rotatedBox, tiltMesh, TRANSITION_BLUR_INTENSITY, transitionLook, type AdjustPlan, type ChromaKeyPlan } from "#/engine/render";
 import type { MaskFrame } from "#/engine/segmentation";
 import { ChromaKeyGpu } from "./chroma-gpu";
 import { MaskRasterizer } from "./segmentation";
@@ -18,6 +18,10 @@ export interface FrameSources {
   mask?(source: Extract<LayerSource, { type: "video" | "image" }>): MaskFrame | null;
 }
 
+/** Triangles of a tilted layer are painted this much larger than they are, so neighbouring ones overlap instead of leaving hairline gaps. */
+const TILT_SEAM_PX = 0.75;
+const HEX_COLOR = /^#[0-9a-f]{6}/i;
+
 const COMPOSITE: Record<BlendMode, GlobalCompositeOperation> = {
   normal: "source-over", darken: "darken", multiply: "multiply", "color-burn": "color-burn", lighten: "lighten",
   screen: "screen", "plus-lighter": "lighter", "color-dodge": "color-dodge", overlay: "overlay", "soft-light": "soft-light",
@@ -27,6 +31,26 @@ const COMPOSITE: Record<BlendMode, GlobalCompositeOperation> = {
 
 export function compositeOperation(mode: BlendMode): GlobalCompositeOperation {
   return COMPOSITE[mode];
+}
+
+/** Box on the canvas around a text layout after the element's position, scale and rotation. */
+function textContentBox(rect: { left: number; top: number; width: number; height: number }, params: ParamValues, plan: FramePlan): { left: number; top: number; width: number; height: number } {
+  const sx = numberParam(params, PARAM.scaleX, 1);
+  const sy = numberParam(params, PARAM.scaleY, 1);
+  const turn = (numberParam(params, PARAM.rotate, 0) * Math.PI) / 180;
+  const ox = plan.width / 2 + numberParam(params, PARAM.positionX, 0);
+  const oy = plan.height / 2 + numberParam(params, PARAM.positionY, 0);
+  const corners = [[rect.left, rect.top], [rect.left + rect.width, rect.top], [rect.left, rect.top + rect.height], [rect.left + rect.width, rect.top + rect.height]]
+    .map(([x, y]) => {
+      const scaledX = (x as number) * sx;
+      const scaledY = (y as number) * sy;
+      return { x: ox + scaledX * Math.cos(turn) - scaledY * Math.sin(turn), y: oy + scaledX * Math.sin(turn) + scaledY * Math.cos(turn) };
+    });
+  const xs = corners.map((c) => c.x);
+  const ys = corners.map((c) => c.y);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  return { left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top };
 }
 
 function imageSize(image: CanvasImageSource): { width: number; height: number } {
@@ -319,6 +343,69 @@ export class Compositor {
     lc.globalCompositeOperation = "source-over";
   }
 
+  /** Soft drop shadows follow the layer's final outline (after mask and tilt), so a rounded, tilted card casts a rounded, tilted shadow. */
+  private applyShadows(effects: ResolvedEffect[], canvasHeight: number): void {
+    const scale = canvasHeight / 1080;
+    for (const effect of effects) {
+      if (effect.type !== "shadow") continue;
+      const opacity = numberParam(effect.params, "opacity", 40) / 100;
+      if (opacity <= 0) continue;
+      const named = effect.params["color"];
+      const color = typeof named === "string" && HEX_COLOR.test(named) ? named : "#000000";
+      const offsetX = numberParam(effect.params, "offsetX", 0) * scale;
+      const offsetY = numberParam(effect.params, "offsetY", 24) * scale;
+      const blur = numberParam(effect.params, "blur", 40) * scale;
+      this.copyLayerTo(this.scratchCtx);
+      this.layerCtx.globalCompositeOperation = "copy";
+      this.layerCtx.filter = `drop-shadow(${offsetX}px ${offsetY}px ${blur}px ${rgba(color, opacity)})`;
+      this.layerCtx.drawImage(this.scratch as CanvasImageSource, 0, 0);
+      this.layerCtx.filter = "none";
+      this.layerCtx.globalCompositeOperation = "source-over";
+    }
+  }
+
+  /**
+   * Re-draws the layer as if it were turned in space: the box around its content is cut into small triangles and each one is
+   * painted through the affine transform that matches the projection at its corners. The pivot is the box centre.
+   */
+  private applyTilt(tilt: LayerTilt, content: { left: number; top: number; width: number; height: number }): void {
+    const { width, height } = this.layer;
+    const pad = Math.max(16, Math.max(content.width, content.height) * 0.03);
+    const left = Math.max(0, content.left - pad);
+    const top = Math.max(0, content.top - pad);
+    const right = Math.min(width, content.left + content.width + pad);
+    const bottom = Math.min(height, content.top + content.height + pad);
+    if (right - left < 2 || bottom - top < 2) return;
+    const box = { left, top, width: right - left, height: bottom - top };
+    const pivot = { x: content.left + content.width / 2, y: content.top + content.height / 2 };
+    this.copyLayerTo(this.scratchCtx);
+    const lc = this.layerCtx;
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.globalAlpha = 1;
+    lc.filter = "none";
+    lc.globalCompositeOperation = "source-over";
+    lc.clearRect(0, 0, width, height);
+    for (const triangle of tiltMesh({ box, pivot, tilt })) {
+      const matrix = affineBetween(triangle.src, triangle.dst);
+      if (!matrix) continue;
+      const cx = (triangle.dst[0].x + triangle.dst[1].x + triangle.dst[2].x) / 3;
+      const cy = (triangle.dst[0].y + triangle.dst[1].y + triangle.dst[2].y) / 3;
+      lc.save();
+      lc.beginPath();
+      triangle.dst.forEach((p, i) => {
+        const away = Math.hypot(p.x - cx, p.y - cy) || 1;
+        const x = p.x + ((p.x - cx) / away) * TILT_SEAM_PX;
+        const y = p.y + ((p.y - cy) / away) * TILT_SEAM_PX;
+        if (i === 0) lc.moveTo(x, y); else lc.lineTo(x, y);
+      });
+      lc.closePath();
+      lc.clip();
+      lc.setTransform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+      lc.drawImage(this.scratch as CanvasImageSource, 0, 0);
+      lc.restore();
+    }
+  }
+
   private composite(blend: BlendMode): void {
     this.ctx.save();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -342,9 +429,11 @@ export class Compositor {
   private drawTextLayer(item: TextLayer, plan: FramePlan): void {
     this.clearLayer();
     this.layerCtx.globalAlpha = item.opacity;
-    drawText({ ctx: this.layerCtx, params: item.params, canvasWidth: plan.width, canvasHeight: plan.height, seconds: item.seconds });
+    const layout = drawText({ ctx: this.layerCtx, params: item.params, canvasWidth: plan.width, canvasHeight: plan.height, seconds: item.seconds });
     this.layerCtx.globalAlpha = 1;
     this.applyEffects(item.effects, { width: plan.width, height: plan.height, centerX: plan.width / 2, centerY: plan.height / 2 });
+    if (item.tilt) this.applyTilt(item.tilt, textContentBox(layout.visualRect, item.params, plan));
+    this.applyShadows(item.effects, plan.height);
     this.composite(item.blendMode);
   }
 
@@ -436,6 +525,8 @@ export class Compositor {
       this.layerCtx.globalCompositeOperation = "source-over";
       stroke = renderMaskStroke(input);
     }
+    if (item.tilt) this.applyTilt(item.tilt, rotatedBox({ center: { x: centerX, y: t.centerY }, width: drawnWidth, height: drawnHeight, degrees: t.rotationDegrees }));
+    this.applyShadows(item.effects, plan.height);
     this.composite(item.blendMode);
     if (stroke) {
       this.ctx.save();

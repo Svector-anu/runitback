@@ -24,7 +24,7 @@ export const PROJECT_MIGRATIONS: ReadonlyArray<ProjectMigration> = [
   /**
    * v7 added template effects, all absent on older projects: text `blur` / `wordReveal` / `caret` / `highlight*` / `count*` params and the
    * `blur-in` / `stagger-words` / `type-caret` text animations, the `gradient` canvas background, the `blur` / `flash` / `glitch` transitions,
-   * the `transform.rotateX` / `rotateY` / `perspective` params, the `shadow` effect type and the `cursor` / `window-frame` / `card` graphics.
+   * the `transform.rotateX` / `rotateY` / `perspective` params, the `shadow` effect type and the `cursor` / `app-frame` graphics and the rectangle mask `cornerRadius`.
    */
   { from: 6, to: 7, run: (project) => project },
 ];

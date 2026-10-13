@@ -45,7 +45,9 @@ export function upsertKeyframeCommand(input: {
           animations: el.animations, path: input.path, time, value,
           interpolation: input.interpolation, keyframeId: input.keyframeId, newId: ctx.newId,
         });
-        return { ...el, animations };
+        const keyed = { ...el, animations };
+        // A parameter older clips never stored has no base value, and animated values are only read for parameters that have one.
+        return getBaseValue(el, input.path) === undefined ? setBaseValue(keyed, input.path, value) : keyed;
       }) };
     },
   };

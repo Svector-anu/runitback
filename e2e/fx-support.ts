@@ -22,6 +22,10 @@ export interface FxHarness {
   pixelsAt(seconds: number, points: Point[]): Promise<Rgb[]>;
   /** Mean colour of a rectangle (x, y, w, h) of the frame at `seconds`. */
   meanAt(seconds: number, rect: [number, number, number, number]): Promise<Rgb>;
+  /** Brightest red, green and blue found in a rectangle (x, y, w, h) of the frame at `seconds`. */
+  peakAt(seconds: number, rect: [number, number, number, number]): Promise<Rgb>;
+  /** Mean colour of a rectangle in each decoded frame of an export, at `times`. */
+  exportMeans(input: { times: number[]; rect: [number, number, number, number] }): Promise<Rgb[]>;
   /** Exports the project with the shipped exporter and returns the pixels at `points` of the decoded frames at `times`. */
   exportPixels(input: { times: number[]; points: Point[] }): Promise<Rgb[][]>;
 }
@@ -119,6 +123,30 @@ export async function openFxHarness(page: Page, images: FxImage[] = []): Promise
         for (let i = 0; i < data.length; i += 4) { r += data[i] ?? 0; g += data[i + 1] ?? 0; b += data[i + 2] ?? 0; }
         const n = data.length / 4;
         return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+      },
+      peakAt: async (seconds, [x, y, w, h]) => {
+        const ctx = await draw(seconds);
+        const data = ctx.getImageData(x, y, w, h).data;
+        let r = 0, g = 0, b = 0;
+        for (let i = 0; i < data.length; i += 4) { r = Math.max(r, data[i] ?? 0); g = Math.max(g, data[i + 1] ?? 0); b = Math.max(b, data[i + 2] ?? 0); }
+        return [r, g, b];
+      },
+      exportMeans: async ({ times, rect: [x, y, w, h] }) => {
+        const result = await exporterMod.exportProject({ doc: editor.getState().doc, getBlob, options: { format: "webm", quality: "high", includeAudio: false } });
+        const input = new mb.Input({ source: new mb.BlobSource(result.blob), formats: mb.ALL_FORMATS });
+        const track = await input.getPrimaryVideoTrack();
+        const sink = new mb.CanvasSink(track!);
+        const out: Array<[number, number, number]> = [];
+        for (const t of times) {
+          const frame = await sink.getCanvas(t);
+          const ctx = (frame!.canvas as HTMLCanvasElement | OffscreenCanvas).getContext("2d") as CanvasRenderingContext2D;
+          const data = ctx.getImageData(x, y, w, h).data;
+          let r = 0, g = 0, b = 0;
+          for (let i = 0; i < data.length; i += 4) { r += data[i] ?? 0; g += data[i + 1] ?? 0; b += data[i + 2] ?? 0; }
+          const n = data.length / 4;
+          out.push([Math.round(r / n), Math.round(g / n), Math.round(b / n)]);
+        }
+        return out;
       },
       exportPixels: async ({ times, points }) => {
         const result = await exporterMod.exportProject({ doc: editor.getState().doc, getBlob, options: { format: "webm", quality: "high", includeAudio: false } });

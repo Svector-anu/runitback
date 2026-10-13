@@ -73,8 +73,8 @@ export function drawCursor(ctx: AnyContext, params: ParamValues, width: number, 
 const BAR_PX = 46;
 const TRAFFIC = ["#ff5f57", "#febc2e", "#28c840"] as const;
 
-/** A window with an optional title bar (traffic lights, and an address pill for the browser style) filling the whole box. */
-export function drawWindowFrame(ctx: AnyContext, params: ParamValues, size: { width: number; height: number; canvasHeight: number }): void {
+/** An app frame with an optional title bar (traffic lights, and an address pill for the browser style) filling the whole box. */
+export function drawAppFrame(ctx: AnyContext, params: ParamValues, size: { width: number; height: number; canvasHeight: number }): void {
   const { width, height } = size;
   const sc = size.canvasHeight / 1080;
   const style = stringParam(params, "style", "mac");

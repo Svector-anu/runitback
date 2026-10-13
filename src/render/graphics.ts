@@ -1,6 +1,6 @@
 import { DEFAULT_GRAPHIC_SOURCE_SIZE, GRAPHIC_DEFINITIONS, numberParam, stringParam, type ParamValues } from "#/engine/model";
 import { context2d, createCanvas, type AnyCanvas, type AnyContext } from "./canvas";
-import { drawCursor, drawWindowFrame } from "./graphic-symbols";
+import { drawCursor, drawAppFrame } from "./graphic-symbols";
 
 export interface Point { x: number; y: number }
 
@@ -122,7 +122,7 @@ export interface GraphicBox { width: number; height: number; canvasHeight: numbe
 export function drawSizedGraphic(ctx: AnyContext, definitionId: string, params: ParamValues, box: GraphicBox): void {
   switch (definitionId) {
     case "cursor": return drawCursor(ctx, params, box.width, box.height);
-    case "window-frame": return drawWindowFrame(ctx, params, box);
+    case "app-frame": return drawAppFrame(ctx, params, box);
     default: throw new Error(`Unknown sized graphic "${definitionId}"`);
   }
 }

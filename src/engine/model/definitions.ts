@@ -83,6 +83,18 @@ export const EFFECT_DEFINITIONS: Record<string, EffectDefinition> = {
       { type: "boolean", key: "invert", label: "Keep background instead", default: false },
     ],
   },
+  shadow: {
+    type: "shadow",
+    name: "Drop shadow",
+    scope: "clip",
+    params: [
+      { type: "color", key: "color", label: "Color", default: "#000000" },
+      { type: "number", key: "opacity", label: "Opacity", default: 40, min: 0, max: 100, step: 1, unit: "%" },
+      { type: "number", key: "blur", label: "Blur", default: 40, min: 0, max: 200, step: 1, unit: "px at 1080p" },
+      { type: "number", key: "offsetX", label: "Offset X", default: 0, min: -400, max: 400, step: 1, unit: "px at 1080p" },
+      { type: "number", key: "offsetY", label: "Offset Y", default: 24, min: -400, max: 400, step: 1, unit: "px at 1080p" },
+    ],
+  },
 };
 
 /** Effects that can be dropped on an empty area as a scene-wide effect layer. */
@@ -126,8 +138,8 @@ export const STROKE_PARAMS: ReadonlyArray<ParamDef> = [
 
 export const CURSOR_STYLES = ["arrow", "hand", "dot"] as const;
 export type CursorStyle = (typeof CURSOR_STYLES)[number];
-export const WINDOW_FRAME_STYLES = ["mac", "browser", "plain"] as const;
-export type WindowFrameStyle = (typeof WINDOW_FRAME_STYLES)[number];
+export const APP_FRAME_STYLES = ["mac", "browser", "plain"] as const;
+export type AppFrameStyle = (typeof APP_FRAME_STYLES)[number];
 
 const optionsOf = (values: ReadonlyArray<string>, labels: Record<string, string>): Array<{ value: string; label: string }> =>
   values.map((value) => ({ value, label: labels[value] ?? value }));
@@ -166,10 +178,10 @@ export const GRAPHIC_DEFINITIONS: Record<string, GraphicDefinition> = {
       { type: "number", key: "click", label: "Click", default: 0, min: 0, max: 1, step: 0.01 },
     ],
   },
-  "window-frame": {
-    id: "window-frame", name: "Window frame", sized: true,
+  "app-frame": {
+    id: "app-frame", name: "App frame", sized: true,
     params: [
-      { type: "select", key: "style", label: "Style", default: "mac", options: optionsOf(WINDOW_FRAME_STYLES, { mac: "Mac window", browser: "Browser", plain: "Plain card" }) },
+      { type: "select", key: "style", label: "Style", default: "mac", options: optionsOf(APP_FRAME_STYLES, { mac: "Desktop app", browser: "Browser", plain: "Plain card" }) },
       { type: "color", key: "fill", label: "Body", default: "#ffffff" },
       { type: "color", key: "barColor", label: "Title bar", default: "#ececf1" },
       { type: "color", key: "stroke", label: "Outline", default: "#d4d4dc" },
@@ -213,7 +225,10 @@ export const MASK_DEFINITIONS: Record<MaskType, MaskDefinition> = {
     { type: "number", key: "rotation", label: "Rotation", default: 0, min: 0, max: 360, step: 1 },
   ] },
   "cinematic-bars": { type: "cinematic-bars", name: "Cinematic bars", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },
-  rectangle: { type: "rectangle", name: "Rectangle", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },
+  rectangle: { type: "rectangle", name: "Rectangle", params: [
+    ...MASK_BASE_PARAMS, ...BOX_PARAMS,
+    { type: "number", key: "cornerRadius", label: "Corner radius", default: 0, min: 0, max: 50, step: 1 },
+  ] },
   ellipse: { type: "ellipse", name: "Ellipse", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },
   heart: { type: "heart", name: "Heart", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },
   diamond: { type: "diamond", name: "Diamond", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },

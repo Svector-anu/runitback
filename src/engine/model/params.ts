@@ -8,6 +8,11 @@ export const PARAM = {
   scaleX: "transform.scaleX",
   scaleY: "transform.scaleY",
   rotate: "transform.rotate",
+  /** Perspective tilt in degrees about the horizontal / vertical axis through the layer's centre; absent means flat. */
+  rotateX: "transform.rotateX",
+  rotateY: "transform.rotateY",
+  /** Camera distance in multiples of the layer's longer side: lower is a stronger perspective. Absent means `DEFAULT_PERSPECTIVE`. */
+  perspective: "transform.perspective",
   volume: "volume",
   muted: "muted",
   /** Noise removal strength 0-1 on clips with audio; absent means 0 (off). */
@@ -62,6 +67,11 @@ export const PARAM = {
   countPrefix: "countPrefix",
   countSuffix: "countSuffix",
 } as const;
+
+export const DEFAULT_PERSPECTIVE = 2;
+export const MAX_TILT_DEGREES = 80;
+export const PERSPECTIVE_MIN = 1;
+export const PERSPECTIVE_MAX = 10;
 
 export const BLEND_MODES = [
   "normal", "darken", "multiply", "color-burn", "lighten", "screen", "plus-lighter", "color-dodge",

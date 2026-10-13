@@ -6,3 +6,4 @@ export * from "./pick";
 export * from "./text-effects";
 export * from "./gradient";
 export * from "./count";
+export * from "./perspective";

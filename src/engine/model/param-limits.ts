@@ -1,5 +1,5 @@
 import { EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, MASK_DEFINITIONS, type ParamDef } from "./definitions";
-import { CROP_MAX_EDGE, PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN } from "./params";
+import { CROP_MAX_EDGE, MAX_TILT_DEGREES, PARAM, PERSPECTIVE_MAX, PERSPECTIVE_MIN, VOLUME_DB_MAX, VOLUME_DB_MIN } from "./params";
 import type { Effect, Mask, ParamValues, TimelineElement } from "./types";
 
 /** Letters, digits, spaces, underscores and hyphens: keeps document-supplied names out of URLs and CSS font shorthands. */
@@ -22,6 +22,9 @@ export const ELEMENT_NUMBER_LIMITS: Readonly<Record<string, NumberLimit>> = {
   [PARAM.scaleX]: { min: 0.01, max: 100 },
   [PARAM.scaleY]: { min: 0.01, max: 100 },
   [PARAM.rotate]: { min: -36_000, max: 36_000 },
+  [PARAM.rotateX]: { min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES },
+  [PARAM.rotateY]: { min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES },
+  [PARAM.perspective]: { min: PERSPECTIVE_MIN, max: PERSPECTIVE_MAX },
   [PARAM.opacity]: { min: 0, max: 1 },
   [PARAM.volume]: { min: VOLUME_DB_MIN, max: VOLUME_DB_MAX },
   [PARAM.denoise]: { min: 0, max: 1 },

@@ -53,7 +53,7 @@ export function TextView(): ReactNode {
   );
 }
 
-const SHAPE_ICON: Record<string, IconName> = { rectangle: "square", ellipse: "circle", polygon: "polygon", star: "star", cursor: "pointer", "window-frame": "app-window" };
+const SHAPE_ICON: Record<string, IconName> = { rectangle: "square", ellipse: "circle", polygon: "polygon", star: "star", cursor: "pointer", "app-frame": "app-window" };
 
 export function GraphicsView(): ReactNode {
   return (

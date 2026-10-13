@@ -35,7 +35,7 @@ const insertCursor = defineTool<{
 }>({
   name: "insert_cursor",
   description:
-    `Add an animated mouse cursor on top of the picture and move it through \`points\`. The cursor's tip is at its position. \`params\`: style (${CURSOR_STYLES.join("|")}), fill, stroke, rippleColor (#rrggbb), plus transform.scaleX/scaleY to size it (scale 1 is a 1080 px box; about 0.45 gives a normal pointer). Without \`duration\` it lasts until the last stop plus one second. Use set_cursor_path to re-route it later.`,
+    `Add an animated mouse cursor on top of the picture and move it through \`points\`. The cursor's tip is at its position. \`params\`: style (${CURSOR_STYLES.join("|")}), fill, stroke, rippleColor (#rrggbb), plus transform.scaleX/scaleY to size it (scale 1 is a 1080 px box; about 0.45 gives a normal pointer). \`start\`, \`duration\` and each stop's \`time\` are in SECONDS. Without \`duration\` it lasts until the last stop plus one second. Use set_cursor_path to re-route it later.`,
   inputSchema: {
     type: "object",
     properties: {

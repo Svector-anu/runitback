@@ -1,5 +1,5 @@
 import {
-  BLEND_MODES, ELEMENT_NUMBER_LIMITS, PARAM, numberParam, TEXT_NUMBER_LIMITS, VOLUME_DB_MAX, VOLUME_DB_MIN, type NumberLimit, type ParamDef, type ParamValues,
+  BLEND_MODES, DEFAULT_PERSPECTIVE, ELEMENT_NUMBER_LIMITS, MAX_TILT_DEGREES, PARAM, PERSPECTIVE_MAX, PERSPECTIVE_MIN, numberParam, TEXT_NUMBER_LIMITS, VOLUME_DB_MAX, VOLUME_DB_MIN, type NumberLimit, type ParamDef, type ParamValues,
 } from "#/engine/model";
 import type { IconName } from "../icons";
 
@@ -32,12 +32,17 @@ const BLEND_LABELS: Record<string, string> = {
   difference: "Difference", exclusion: "Exclusion", hue: "Hue", saturation: "Saturation", color: "Color", luminosity: "Luminosity",
 };
 
+const tilted = (p: ParamValues): boolean => numberParam(p, PARAM.rotateX, 0) !== 0 || numberParam(p, PARAM.rotateY, 0) !== 0;
+
 export const TRANSFORM_FIELDS: FieldDef[] = bounded([
   { type: "number", key: PARAM.positionX, label: "Position X", default: 0, min: -100000, step: 1, keyframable: true, icon: "move" },
   { type: "number", key: PARAM.positionY, label: "Position Y", default: 0, min: -100000, step: 1, keyframable: true, icon: "move" },
   { type: "number", key: PARAM.scaleX, label: "Scale X", default: 1, min: 0.01, step: 0.01, keyframable: true, icon: "zoom-in", displayMultiplier: 100, suffix: "%" },
   { type: "number", key: PARAM.scaleY, label: "Scale Y", default: 1, min: 0.01, step: 0.01, keyframable: true, icon: "zoom-in", displayMultiplier: 100, suffix: "%" },
   { type: "number", key: PARAM.rotate, label: "Rotation", default: 0, min: -360, max: 360, step: 1, keyframable: true, icon: "rotate", suffix: "°" },
+  { type: "number", key: PARAM.rotateX, label: "Tilt X (top away)", default: 0, min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES, step: 1, keyframable: true, control: "slider", suffix: "°" },
+  { type: "number", key: PARAM.rotateY, label: "Tilt Y (right away)", default: 0, min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES, step: 1, keyframable: true, control: "slider", suffix: "°" },
+  { type: "number", key: PARAM.perspective, label: "Perspective distance", default: DEFAULT_PERSPECTIVE, min: PERSPECTIVE_MIN, max: PERSPECTIVE_MAX, step: 0.1, keyframable: true, control: "slider", showWhen: tilted },
 ], ELEMENT_NUMBER_LIMITS);
 
 export const BLEND_FIELDS: FieldDef[] = bounded([

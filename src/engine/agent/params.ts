@@ -1,6 +1,6 @@
 import { batch, updateElements, upsertKeyframeCommand, type Command } from "#/engine/commands";
 import {
-  BLEND_MODES, CROP_MAX_EDGE, EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, MASK_DEFINITIONS, PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN,
+  BLEND_MODES, CROP_MAX_EDGE, MAX_TILT_DEGREES, PERSPECTIVE_MAX, PERSPECTIVE_MIN, EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, MASK_DEFINITIONS, PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN,
   type ElementRef, type MaskType, type ParamDef, type ParamValue, type ParamValues, type TimelineElement,
 } from "#/engine/model";
 import { COUNT_FORMATS } from "#/engine/render";
@@ -30,6 +30,9 @@ const TRANSFORM_SPECS: ParamSpec[] = [
   num(PARAM.scaleX, { min: 0 }),
   num(PARAM.scaleY, { min: 0 }),
   num(PARAM.rotate, { unit: "degrees" }),
+  num(PARAM.rotateX, { min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES, unit: "degrees of perspective tilt about the horizontal axis; positive tips the top edge away" }),
+  num(PARAM.rotateY, { min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES, unit: "degrees of perspective tilt about the vertical axis; positive tips the right edge away" }),
+  num(PARAM.perspective, { min: PERSPECTIVE_MIN, max: PERSPECTIVE_MAX, unit: "camera distance in layer lengths for the tilt; lower is stronger, default 2" }),
   num(PARAM.opacity, { min: 0, max: 1 }),
   choice(PARAM.blendMode, BLEND_MODES),
 ];

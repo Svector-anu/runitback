@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { callAgentTool, near, openFxHarness, savePng, type Rgb } from "./fx-support";
 
-/** Cursor with click ripple and the window frame: drawn at their laid-out size, identical in the preview compositor and the exporter. */
-test.describe("cursor and window frame", () => {
+/** Cursor with click ripple and the app frame: drawn at their laid-out size, identical in the preview compositor and the exporter. */
+test.describe("cursor and app frame", () => {
   test.beforeEach(async ({ page }) => {
     await openFxHarness(page);
     await page.evaluate(() => {
@@ -11,8 +11,8 @@ test.describe("cursor and window frame", () => {
       const seconds = (s: number) => mods.time.mediaTimeFromSeconds(s);
       const backdrop = model.buildGraphicElement({ id: "backdrop", startTime: seconds(0), definitionId: "rectangle", params: { fill: "#1e1b4b", "transform.scaleX": 2, "transform.scaleY": 1.1 } });
       editor.execute(commands.insertElement({ element: { ...backdrop, duration: seconds(4) }, placement: { mode: "newTrack", index: 0, trackId: "bg" } }));
-      const defaults = model.defaultsOf(model.GRAPHIC_DEFINITIONS["window-frame"]!.params);
-      const frame = model.buildGraphicElement({ id: "frame", startTime: seconds(0), definitionId: "window-frame", params: { ...defaults, style: "mac", "transform.scaleX": 1.2, "transform.scaleY": 0.7 } });
+      const defaults = model.defaultsOf(model.GRAPHIC_DEFINITIONS["app-frame"]!.params);
+      const frame = model.buildGraphicElement({ id: "frame", startTime: seconds(0), definitionId: "app-frame", params: { ...defaults, style: "mac", "transform.scaleX": 1.2, "transform.scaleY": 0.7 } });
       editor.execute(commands.insertElement({ element: { ...frame, duration: seconds(4) }, placement: { mode: "newTrack", index: 0, trackId: "frame" } }));
     });
     const cursor = await callAgentTool(page, "insert_cursor", {

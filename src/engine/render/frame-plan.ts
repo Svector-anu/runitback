@@ -6,6 +6,7 @@ import {
 import { TICKS_PER_SECOND } from "#/engine/time";
 import { effectiveTransition, resolveEffectParams, resolveElementParams, sourceTimeAt } from "#/engine/timeline";
 import { activeGradient } from "./gradient";
+import { resolveTilt, type LayerTilt } from "./perspective";
 import { easeTransition, isTransitionLayerVisible, type LayerTransition } from "./transitions";
 
 export interface LayerTransform {
@@ -58,6 +59,8 @@ export interface MediaLayer extends LayerBase {
   transform: LayerTransform;
   mask: ResolvedMask | null;
   crop: LayerCrop | null;
+  /** Perspective tilt about the layer's centre; null while flat. */
+  tilt: LayerTilt | null;
   /** Set while this clip is part of a transition (also outside its own start/end, using the media either side of the cut). */
   transition: LayerTransition | null;
 }
@@ -67,6 +70,7 @@ export interface TextLayer extends LayerBase {
   params: ParamValues;
   /** Seconds into the clip; drives the blinking caret. */
   seconds: number;
+  tilt: LayerTilt | null;
 }
 
 export interface SceneEffectItem {
@@ -233,7 +237,7 @@ export function buildFramePlan(input: {
           const blur = numberParam(params, PARAM.blur, 0);
           const effects = resolveEffects(element, clipTime);
           items.push({
-            kind: "text", elementId: element.id, params, opacity, blendMode, seconds: clipTime / TICKS_PER_SECOND,
+            kind: "text", elementId: element.id, params, opacity, blendMode, seconds: clipTime / TICKS_PER_SECOND, tilt: resolveTilt(params),
             effects: blur > 0 ? [{ type: "blur", params: { intensity: blur } }, ...effects] : effects,
           });
           break;
@@ -246,7 +250,7 @@ export function buildFramePlan(input: {
             kind: "layer", elementId: element.id, opacity, blendMode, effects: resolveEffects(element, clipTime),
             source: { type: "graphic", definitionId: element.definitionId, params: graphicParams, width: size, height: size },
             transform: computeVisualTransform({ canvas, sourceWidth: size, sourceHeight: size, params }),
-            mask: activeMask(element), crop: null, transition: null,
+            mask: activeMask(element), crop: null, tilt: resolveTilt(params), transition: null,
           });
           break;
         }
@@ -268,7 +272,7 @@ export function buildFramePlan(input: {
           items.push({
             kind: "layer", elementId: element.id, opacity, blendMode, effects: resolveEffects(element, clipTime), source,
             transform: computeVisualTransform({ canvas, sourceWidth: asset.width, sourceHeight: asset.height, params }),
-            mask: activeMask(element), crop: resolveCrop(params), transition,
+            mask: activeMask(element), crop: resolveCrop(params), tilt: resolveTilt(params), transition,
           });
           if (active && input.background.type === "blur" && track.id === tracks.main.id) {
             blurBackgrounds.push({ kind: "blurBackground", elementId: element.id, source, intensity: input.background.blurIntensity ?? DEFAULT_BACKGROUND_BLUR_INTENSITY });
