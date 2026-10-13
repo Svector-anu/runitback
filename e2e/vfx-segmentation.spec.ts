@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { importGenerated } from "./media";
+import { importGenerated, mediabunnyModuleUrl } from "./media";
 
 test.use({ channel: "chrome" });
 test.setTimeout(300_000);
@@ -152,4 +152,84 @@ test("real model speed: ms per frame on a landscape and a portrait frame", async
   }, (bytes as Buffer).toString("base64"));
   console.log("SEGMENT ms/frame", JSON.stringify(timing));
   expect(timing.landscape384x216.msPerFrame).toBeGreaterThan(0);
+});
+
+test("real model on a VIDEO clip: person stays and the room goes at several moments, in the preview and in a decoded export", async ({ page }) => {
+  test.skip(!bytes, "portrait.jpg is not available (offline and not cached)");
+  await page.goto("/#/projects");
+  await page.getByRole("button", { name: /New project|Create your first project/ }).first().click();
+  await expect(page.getByLabel("Project name")).toBeVisible();
+  const mediabunny = await mediabunnyModuleUrl(page);
+  await page.evaluate(async ({ b64, url }) => {
+    const mb = (await import(/* @vite-ignore */ url)) as typeof import("mediabunny");
+    const photo = await createImageBitmap(new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], { type: "image/jpeg" }));
+    const W = 640, H = 360, FPS = 24;
+    const canvas = new OffscreenCanvas(W, H);
+    const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+    const output = new mb.Output({ format: new mb.WebMOutputFormat(), target: new mb.BufferTarget() });
+    const video = new mb.CanvasSource(canvas, { codec: "vp9", bitrate: 8_000_000 });
+    output.addVideoTrack(video, { frameRate: FPS });
+    await output.start();
+    const width = (photo.width / photo.height) * H;
+    for (let i = 0; i < 2 * FPS; i++) {
+      ctx.fillStyle = "#808080"; ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(photo, (W - width) / 2 + 20 * Math.sin(i / 8), 0, width, H);
+      await video.add(i / FPS, 1 / FPS);
+    }
+    await output.finalize();
+    (window as unknown as { __files: File[] }).__files = [new File([(output.target as InstanceType<typeof mb.BufferTarget>).buffer as ArrayBuffer], "person.webm", { type: "video/webm" })];
+  }, { b64: (bytes as Buffer).toString("base64"), url: mediabunny });
+  await importGenerated(page);
+  const add = page.getByRole("button", { name: "Add person.webm to timeline" });
+  await expect(add).toBeVisible({ timeout: 30_000 });
+  await add.click({ force: true });
+  await expect(page.locator("[data-clip-id]")).toHaveCount(1);
+  await page.evaluate(async () => {
+    const load = <T>(url: string): Promise<T> => import(/* @vite-ignore */ url) as Promise<T>;
+    const { getServices } = await load<typeof import("../src/app/services")>("/src/app/services.ts");
+    const commands = await load<typeof import("../src/engine/commands")>("/src/engine/commands/index.ts");
+    getServices().editor.execute(commands.updateSettings({ background: { type: "color", color: "#ff00ff" } }));
+  });
+  await page.locator("[data-clip-id]").first().click();
+  await page.getByRole("tablist", { name: "Property tabs" }).getByRole("tab", { name: "Effects", exact: true }).click();
+  await page.getByRole("button", { name: "Add effect" }).click();
+  await page.getByRole("menuitem", { name: "Remove background" }).click();
+  const started = Date.now();
+  await expect(page.getByTestId("bg-removal-status")).toHaveAttribute("data-state", "ready", { timeout: 120_000 });
+  console.log(`BG analysis of a 2 s 24 fps video: ${Date.now() - started} ms`);
+
+  const personPts: Array<[number, number]> = [[0.5, 0.62], [0.5, 0.2]];
+  const roomPts: Array<[number, number]> = [[0.05, 0.5], [0.95, 0.5], [0.293, 0.1], [0.706, 0.08]];
+  const seek = (seconds: number): Promise<void> => page.evaluate(async (s) => {
+    const servicesUrl = "/src/app/services.ts";
+    const { getServices } = (await import(/* @vite-ignore */ servicesUrl)) as typeof import("../src/app/services");
+    getServices().editor.playback.seek(Math.round(s * 120_000));
+  }, seconds);
+  for (const t of [0.2, 0.9, 1.7]) {
+    await seek(t);
+    await expect.poll(async () => (await previewAt(page, roomPts)).filter(isMagenta).length, { timeout: 15_000, message: `room at ${t}s` }).toBe(4);
+    expect((await previewAt(page, personPts)).every((c) => !isMagenta(c)), `person at ${t}s`).toBe(true);
+  }
+  const exported = await page.evaluate(async ({ points }) => {
+    const load = <T>(url: string): Promise<T> => import(/* @vite-ignore */ url) as Promise<T>;
+    const { getServices } = await load<typeof import("../src/app/services")>("/src/app/services.ts");
+    const { exportProject } = await load<typeof import("../src/export/exporter")>("/src/export/exporter.ts");
+    const mb = await load<typeof import("mediabunny")>("/@id/mediabunny");
+    const services = getServices();
+    const result = await exportProject({ doc: services.editor.getState().doc, getBlob: services.runtime.getBlob, options: { format: "webm", quality: "high", includeAudio: false } });
+    const input = new mb.Input({ source: new mb.BlobSource(result.blob), formats: mb.ALL_FORMATS });
+    const sink = new mb.CanvasSink((await input.getPrimaryVideoTrack()) as NonNullable<Awaited<ReturnType<typeof input.getPrimaryVideoTrack>>>);
+    const out: Array<Array<[number, number, number]>> = [];
+    for (const t of [0.5, 1.5]) {
+      const c = (await sink.getCanvas(t))?.canvas as OffscreenCanvas;
+      const ctx = c.getContext("2d") as OffscreenCanvasRenderingContext2D;
+      out.push(points.map(([fx, fy]) => { const d = ctx.getImageData(Math.floor(fx * (c.width - 1)), Math.floor(fy * (c.height - 1)), 1, 1).data; return [d[0] ?? 0, d[1] ?? 0, d[2] ?? 0] as [number, number, number]; }));
+    }
+    return out;
+  }, { points: [...personPts, ...roomPts] });
+  const nearMagenta = (c: [number, number, number]): boolean => c[0] > 170 && c[1] < 90 && c[2] > 170;
+  for (const frame of exported) {
+    expect(frame.slice(2).filter(nearMagenta).length).toBe(4);
+    expect(frame.slice(0, 2).every((c) => !nearMagenta(c))).toBe(true);
+  }
 });
