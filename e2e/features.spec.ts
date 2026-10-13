@@ -180,11 +180,14 @@ test("narrow viewports keep a usable editor and dark theme renders", async ({ pa
   // Below 900 px the editor uses the mobile layout: preview on top and a bottom tab bar (Assets | Properties | Agent).
   await expect(page.locator(".preview__scene canvas")).toBeVisible();
   await expect(page.getByRole("tab", { name: "Assets" })).toBeVisible();
-  await page.getByRole("tab", { name: "Assets" }).click();
+  // The Assets sheet opens by itself on an empty project; tapping the active tab would close it.
+  if (!(await page.getByRole("button", { name: "Import" }).isVisible())) await page.getByRole("tab", { name: "Assets" }).click();
   await expect(page.getByRole("button", { name: "Import" })).toBeVisible();
   await makeWebm(page, { seconds: 2, hue: 10, name: "clip-a.webm" });
   await importGenerated(page);
-  await page.getByRole("button", { name: "Add clip-a.webm to timeline" }).click({ force: true });
+  await page.getByRole("button", { name: "Add clip-a.webm to timeline" }).click();
+  // The sheet hides the timeline while open; close it to see the clip.
+  await page.getByTestId("mobile-sheet").getByRole("button", { name: /^Close .* panel$/ }).click();
   await expect(clips(page)).toHaveCount(1);
   await page.getByRole("button", { name: /Switch to dark theme/ }).click();
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe("dark");
