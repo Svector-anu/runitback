@@ -35,7 +35,7 @@ In progress or known gaps (stated plainly):
 - The in-app agent's quality with a real model is not yet measured end to end; the scripted evals pass, the real-model run is partial ([`docs/EVALS.md`](docs/EVALS.md), [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)).
 - Word-level caption styling is data plumbing only. Stickers, speed curves, chroma key, background removal and audio effects do not exist yet.
 - Long media and large projects are untested; whole-timeline audio mixing happens in memory.
-- Chromium only. Firefox and Safari are untested.
+- Safari is the least capable browser: canvas filters (blur, colour adjustments) do not render there. See [Browser support](#browser-support).
 
 ## Quick start
 
@@ -44,11 +44,24 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:5173 in **Chrome** (or another Chromium browser; the editor needs WebCodecs and OPFS). Requires Node 22 and pnpm.
+Open http://localhost:5173 in a current **Chrome** or Edge for the full feature set (see [Browser support](#browser-support)). Requires Node 22 and pnpm.
 
 ```sh
 pnpm build    # typecheck + production bundle in dist/ (static, no server needed)
 ```
+
+## Browser support
+
+The editor needs WebCodecs (video decode and encode) and IndexedDB; the rest degrades with a notice in the editor.
+
+| Browser | Status |
+|---|---|
+| Chrome / Edge (desktop, current) | Supported: everything works, MP4 (H.264/AAC) and WebM export. |
+| Firefox (desktop, 155 tested) | Supported with one difference: no AAC encoder, so MP4 exports carry Opus audio. |
+| Safari (WebKit 26.6 tested) | Partial: edit, preview and export work, but canvas filters (blur, colour adjustments, sharpen) do not render. |
+| Mobile browsers | Limited; see the in-app notice. |
+
+Versions tested, the per-feature matrix and the fallbacks are in [`docs/BROWSERS.md`](docs/BROWSERS.md).
 
 ## Bring your own key, and privacy
 

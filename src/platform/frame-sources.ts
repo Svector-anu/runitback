@@ -56,9 +56,13 @@ export class CachedFrameSources implements FrameSources {
         wanted.set(key(item.source), item.source);
       }
     }
+    const positionsPerMedia = new Map<string, number>();
+    for (const source of wanted.values()) if (source.type === "video") positionsPerMedia.set(source.mediaId, (positionsPerMedia.get(source.mediaId) ?? 0) + 1);
     const next = new Map<string, CanvasImageSource>();
     await Promise.all([...wanted].map(async ([k, source]) => {
-      const image = source.type === "video" ? await this.video.getFrame(source.mediaId, source.sourceSeconds) : await this.images.get(source.mediaId);
+      const image = source.type === "video"
+        ? await this.video.getFrame(source.mediaId, source.sourceSeconds, { exclusive: positionsPerMedia.get(source.mediaId) === 1 })
+        : await this.images.get(source.mediaId);
       if (image) next.set(k, image);
     }));
     this.frames = next;

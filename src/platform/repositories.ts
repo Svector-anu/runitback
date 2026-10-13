@@ -13,8 +13,16 @@ const DB_VERSION = 1;
 export interface Database {
   projects: KeyValueStore<{ id: string; json: string }>;
   assets: KeyValueStore<{ key: string; projectId: string; info: MediaAssetInfo }>;
-  blobs: KeyValueStore<Blob>;
+  blobs: KeyValueStore<Blob | BufferedBlob>;
 }
+
+/** Bytes stored as a plain buffer: some browsers (Safari private windows) refuse `Blob` values in IndexedDB. */
+export interface BufferedBlob {
+  type: string;
+  bytes: ArrayBuffer;
+}
+
+const isBufferedBlob = (value: Blob | BufferedBlob): value is BufferedBlob => !(value instanceof Blob);
 
 export function openAppDatabase(factory?: IDBFactory): Database {
   const dbPromise = openDatabase({
@@ -96,12 +104,15 @@ export class IdbAssetRepository implements AssetRepository {
     return [...new Set((await this.db.assets.getAll()).map((r) => r.info.id))];
   }
 
-  /** Bytes first, metadata second: a failure never leaves metadata pointing at missing bytes. */
+  /**
+   * Bytes first, metadata second: a failure never leaves metadata pointing at missing bytes. Where the file store exists
+   * but cannot write (Safari without `createWritable`, private windows), the bytes go to IndexedDB instead; reads and
+   * deletes look in both places.
+   */
   async save(projectId: string, asset: StoredAsset): Promise<void> {
     const key = this.key(projectId, asset.info.id);
     try {
-      if (this.files) await this.files.put(key, asset.file);
-      else await this.db.blobs.put(asset.file, key);
+      await this.putBytes(key, asset.file);
       await this.db.assets.put({ key, projectId, info: asset.info });
     } catch (error) {
       await this.removeBytes(key).catch(() => undefined);
@@ -110,15 +121,37 @@ export class IdbAssetRepository implements AssetRepository {
     }
   }
 
+  private async putBytes(key: string, file: Blob): Promise<void> {
+    if (!this.files) return this.putInIndexedDb(key, file);
+    try {
+      await this.files.put(key, file);
+    } catch (error) {
+      if (isQuotaExceededError(error)) throw error;
+      await this.putInIndexedDb(key, file);
+    }
+  }
+
+  private async putInIndexedDb(key: string, file: Blob): Promise<void> {
+    try {
+      await this.db.blobs.put(file, key);
+    } catch (error) {
+      if (isQuotaExceededError(error)) throw error;
+      await this.db.blobs.put({ type: file.type, bytes: await file.arrayBuffer() }, key);
+    }
+  }
+
   private async removeBytes(key: string): Promise<void> {
     if (this.files) await this.files.delete(key);
-    else await this.db.blobs.delete(key);
+    await this.db.blobs.delete(key);
   }
 
   async getFile(projectId: string, assetId: string): Promise<Blob | null> {
     const key = this.key(projectId, assetId);
-    if (this.files) return this.files.get(key);
-    return (await this.db.blobs.get(key)) ?? null;
+    const fromFiles = this.files ? await this.files.get(key) : null;
+    if (fromFiles) return fromFiles;
+    const stored = await this.db.blobs.get(key);
+    if (!stored) return null;
+    return isBufferedBlob(stored) ? new Blob([stored.bytes], { type: stored.type }) : stored;
   }
 
   async remove(projectId: string, assetId: string): Promise<void> {
@@ -130,7 +163,7 @@ export class IdbAssetRepository implements AssetRepository {
   async removeAll(projectId: string): Promise<void> {
     const prefix = `${projectId}/`;
     if (this.files) await this.files.deletePrefix(prefix);
-    else await this.db.blobs.deleteRange(prefixRange(prefix));
+    await this.db.blobs.deleteRange(prefixRange(prefix));
     await this.db.assets.deleteRange(prefixRange(prefix));
   }
 

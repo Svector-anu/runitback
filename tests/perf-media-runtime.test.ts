@@ -46,7 +46,7 @@ vi.mock("mediabunny", () => {
 });
 
 const { MediaRuntime } = await import("#/platform/media-runtime");
-const { MAX_OPEN_DECODERS } = await import("#/platform/video-frames");
+const { MAX_OPEN_DECODERS, VideoFrameCache } = await import("#/platform/video-frames");
 
 let urlsCreated = 0;
 let urlsRevoked = 0;
@@ -127,5 +127,37 @@ describe("MediaRuntime resource ownership", () => {
     await runtime.video.getFrame("uhd", 0);
     expect(counters.sinkOptions[0]).toMatchObject({ width: 1920, height: 1080, fit: "fill" });
     await runtime.dispose();
+  });
+
+  describe("export decode options", () => {
+    const blobOf = () => new Blob(["x"]);
+
+    it("pools canvases only for exclusive reads and switches sinks when the mode changes", async () => {
+      const cache = new VideoFrameCache(blobOf, { canvasPoolSize: 4 });
+      await cache.getFrame("m", 0, { exclusive: true });
+      await cache.getFrame("m", 1);
+      await cache.getFrame("m", 2, { exclusive: true });
+      expect(counters.sinkOptions).toEqual([{ poolSize: 4 }, {}]);
+      expect(counters.inputsEverOpened).toBe(1);
+      await cache.dispose();
+      expect(counters.inputsOpen).toBe(0);
+      expect(counters.iteratorsOpen).toBe(0);
+    });
+
+    it("never pools when no pool size is configured, even for exclusive reads", async () => {
+      const cache = new VideoFrameCache(blobOf);
+      await cache.getFrame("m", 0, { exclusive: true });
+      expect(counters.sinkOptions).toEqual([{}]);
+      await cache.dispose();
+    });
+
+    it("scales the decode size per media, below the edge cap", async () => {
+      const cache = new VideoFrameCache(blobOf, { maxEdge: 3840, decodeScale: (id) => (id === "small" ? 0.25 : 1) });
+      await cache.getFrame("small", 0);
+      await cache.getFrame("full", 0);
+      expect(counters.sinkOptions[0]).toMatchObject({ width: 960, height: 540, fit: "fill" });
+      expect(counters.sinkOptions[1]).toEqual({});
+      await cache.dispose();
+    });
   });
 });

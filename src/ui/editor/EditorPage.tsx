@@ -19,6 +19,7 @@ import { Button } from "../primitives/Button";
 import { OnboardingHint } from "./OnboardingHint";
 import { EditorHints } from "./EditorHints";
 import { MobileLayout } from "./MobileLayout";
+import { BrowserNotice } from "./BrowserNotice";
 import { MobileNotice } from "./MobileNotice";
 import { useMobileSheetAutopilot } from "./use-sheet-autopilot";
 import { useViewport } from "./use-viewport";
@@ -65,7 +66,6 @@ export function EditorPage({ id, template }: { id: string; template?: string }):
   const [error, setError] = useState("");
   const [recording, setRecording] = useState(false);
   const ready = useEditorState((s) => s.meta !== null);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [templates, setTemplates] = useState<{ initial?: string } | null>(template ? { initial: template } : null);
 
   useEffect(() => {
@@ -145,12 +145,7 @@ export function EditorPage({ id, template }: { id: string; template?: string }):
   }
   return (
     <div className="editor">
-      {!("VideoDecoder" in window) && !bannerDismissed ? (
-        <div className="banner" role="status">
-          For the best experience, open RunItBack in Chrome. This browser may not support video decoding.
-          <Button variant="text" label="Dismiss" onClick={() => setBannerDismissed(true)}><Icon name="x" size={14} /></Button>
-        </div>
-      ) : null}
+      <BrowserNotice />
       <MobileNotice />
       <OnboardingHint />
       <EditorHints />

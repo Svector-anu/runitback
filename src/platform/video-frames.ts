@@ -8,11 +8,23 @@ export const MAX_OPEN_DECODERS = 12;
 export interface VideoFrameCacheOptions {
   /** Longest edge, in pixels, frames are decoded at. Larger sources are scaled down by the decoder. */
   maxEdge?: number;
+  /** Per-media fraction (0..1] of the source's size to decode at, applied on top of `maxEdge`. */
+  decodeScale?: (mediaId: string) => number;
+  /**
+   * Decoded canvases rotated through a ring of this many per source instead of allocating a 4K canvas per frame.
+   * A pooled frame is overwritten once that many newer frames of the same source were read, so it is only handed out
+   * to `getFrame` calls that pass `exclusive: true`, i.e. when the caller needs one position of that source at a time.
+   */
+  canvasPoolSize?: number;
 }
+
+interface SinkSet { pooled: CanvasSink | null; fresh: CanvasSink | null }
 
 class VideoSource {
   private input: Input<BlobSource> | null = null;
-  private sink: CanvasSink | null = null;
+  private track: InputVideoTrack | null = null;
+  private sinks: SinkSet = { pooled: null, fresh: null };
+  private activeMode: keyof SinkSet = "fresh";
   private iterator: AsyncGenerator<WrappedCanvas, void, unknown> | null = null;
   private last: WrappedCanvas | null = null;
   private ended = false;
@@ -20,39 +32,58 @@ class VideoSource {
 
   lastUsed = 0;
 
-  constructor(private readonly blob: Blob, private readonly maxEdge: number | undefined) {}
+  constructor(
+    private readonly blob: Blob,
+    private readonly limits: { maxEdge: number | undefined; scale: number; canvasPoolSize: number | undefined },
+  ) {}
+
+  private get canvasPoolSize(): number | undefined {
+    return this.limits.canvasPoolSize;
+  }
 
   get isOpen(): boolean {
     return this.input !== null;
   }
 
-  private async open(): Promise<CanvasSink> {
-    if (this.sink) return this.sink;
-    const input = new Input({ source: new BlobSource(this.blob), formats: ALL_FORMATS });
-    this.input = input;
-    try {
-      const track: InputVideoTrack | null = await input.getPrimaryVideoTrack();
-      if (!track) throw new Error("Media has no video track");
-      this.sink = new CanvasSink(track, await this.sizeOptions(track));
-    } catch (error) {
-      input.dispose();
-      this.input = null;
-      throw error;
+  private async open(exclusive: boolean): Promise<CanvasSink> {
+    const mode: keyof SinkSet = exclusive && (this.canvasPoolSize ?? 0) > 0 ? "pooled" : "fresh";
+    if (!this.track) {
+      const input = new Input({ source: new BlobSource(this.blob), formats: ALL_FORMATS });
+      this.input = input;
+      try {
+        const track = await input.getPrimaryVideoTrack();
+        if (!track) throw new Error("Media has no video track");
+        this.track = track;
+      } catch (error) {
+        input.dispose();
+        this.input = null;
+        throw error;
+      }
     }
-    return this.sink;
+    if (mode !== this.activeMode) {
+      await this.iterator?.return(undefined);
+      this.iterator = null;
+      this.last = null;
+      this.activeMode = mode;
+    }
+    this.sinks[mode] ??= new CanvasSink(this.track, {
+      ...(await this.sizeOptions(this.track)), ...(mode === "pooled" ? { poolSize: this.canvasPoolSize } : {}),
+    });
+    return this.sinks[mode];
   }
 
   private async sizeOptions(track: InputVideoTrack): Promise<{ width: number; height: number; fit: "fill" } | undefined> {
-    if (this.maxEdge === undefined) return undefined;
+    const { maxEdge, scale: requested } = this.limits;
+    if (maxEdge === undefined && requested >= 1) return undefined;
     const [width, height] = await Promise.all([track.getDisplayWidth(), track.getDisplayHeight()]);
-    const scale = this.maxEdge / Math.max(width, height);
+    const scale = Math.min(maxEdge === undefined ? 1 : maxEdge / Math.max(width, height), requested);
     if (!(scale < 1)) return undefined;
     return { width: Math.max(2, Math.round(width * scale)), height: Math.max(2, Math.round(height * scale)), fit: "fill" };
   }
 
   /** Calls are serialised per source: one iterator cannot serve two positions at once. */
-  frameAt(seconds: number): Promise<WrappedCanvas | null> {
-    const run = this.chain.then(() => this.read(seconds));
+  frameAt(seconds: number, exclusive: boolean): Promise<WrappedCanvas | null> {
+    const run = this.chain.then(() => this.read(seconds, exclusive));
     this.chain = run.catch(() => undefined);
     return run;
   }
@@ -61,8 +92,8 @@ class VideoSource {
     return t >= frame.timestamp && t < frame.timestamp + frame.duration;
   }
 
-  private async read(t: number): Promise<WrappedCanvas | null> {
-    const sink = await this.open();
+  private async read(t: number, exclusive: boolean): Promise<WrappedCanvas | null> {
+    const sink = await this.open(exclusive);
     const last = this.last;
     if (last && this.covers(last, t)) return last;
 
@@ -94,7 +125,8 @@ class VideoSource {
     this.iterator = null;
     this.input?.dispose();
     this.input = null;
-    this.sink = null;
+    this.track = null;
+    this.sinks = { pooled: null, fresh: null };
     this.last = null;
   }
 }
@@ -113,19 +145,22 @@ export class VideoFrameCache {
     return open;
   }
 
-  async getFrame(mediaId: string, seconds: number): Promise<CanvasImageSource | null> {
+  /** `exclusive`: no other position of this media is read before the returned frame has been drawn (see `canvasPoolSize`). */
+  async getFrame(mediaId: string, seconds: number, options: { exclusive?: boolean } = {}): Promise<CanvasImageSource | null> {
     let source = this.sources.get(mediaId);
     if (!source) {
       const blob = this.getBlob(mediaId);
       if (!blob) return null;
       const evicted = this.evictToMakeRoom();
-      source = new VideoSource(blob, this.options.maxEdge);
+      source = new VideoSource(blob, {
+        maxEdge: this.options.maxEdge, scale: this.options.decodeScale?.(mediaId) ?? 1, canvasPoolSize: this.options.canvasPoolSize,
+      });
       source.lastUsed = ++this.clock;
       this.sources.set(mediaId, source);
       await evicted;
     }
     source.lastUsed = ++this.clock;
-    const result = await source.frameAt(Math.max(0, seconds));
+    const result = await source.frameAt(Math.max(0, seconds), options.exclusive === true);
     return result ? (result.canvas as CanvasImageSource) : null;
   }
 
