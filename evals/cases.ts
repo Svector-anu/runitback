@@ -980,6 +980,11 @@ const APPLY_LAUNCH_TEMPLATE: EvalCase = {
       run(input) {
         const length = timelineEnd(clipsOf(input.final));
         return verdict(length >= LAUNCH_SECONDS.min && length <= LAUNCH_SECONDS.max, `timeline is ${length.toFixed(2)}s`);
+      },
+    },
+  ],
+};
+
 // 19. Green screen over a background -----------------------------------------------------------------------------
 
 const KEY_GREEN: [number, number, number] = [0, 255, 0];
@@ -1108,8 +1113,7 @@ const SPEED_RAMP: EvalCase = {
 
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
-  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, APPLY_LAUNCH_TEMPLATE,
-  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, GREEN_SCREEN, SPEED_RAMP,
+  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, APPLY_LAUNCH_TEMPLATE, GREEN_SCREEN, SPEED_RAMP,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);
