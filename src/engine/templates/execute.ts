@@ -5,8 +5,9 @@ import {
 import type { Editor } from "#/engine/editor";
 import {
   FILTER_PRESETS, GRAPHIC_DEFINITIONS, IMAGE_DEFAULTS, buildGraphicElement, buildMediaElement, buildTextElement, defaultsOf, orderedTracks,
-  type ElementRef, type ImageElement, type MediaAssetInfo, type ParamValues, type TimelineElement, type VideoElement,
+  PARAM, type ElementRef, type ImageElement, type MediaAssetInfo, type ParamValues, type TextAnimationSpec, type TimelineElement, type VideoElement,
 } from "#/engine/model";
+import { inferCount } from "#/engine/render";
 import { allElements, canPlaceSpans, elementEnd, highestInsertIndex, maxTransitionDuration, trackTypeForElement, transitionPartner } from "#/engine/timeline";
 import { TICKS_PER_SECOND, frameRateToFloat, mediaTime, type MediaTime } from "#/engine/time";
 import { planTemplate, type PlannedClip, type TemplateInputs, type TemplatePlan, type TemplateWarning } from "./apply";
@@ -119,7 +120,15 @@ function finishClip(editor: Editor, clip: PlannedClip, elementId: string, warnin
   const { ref } = located;
   if (clip.type === "text") {
     if (clip.animation) {
-      editor.execute(setTextAnimationCommand({ ref, ...(clip.animation.in ? { in: clip.animation.in } : {}), ...(clip.animation.out ? { out: clip.animation.out } : {}) }));
+      const countable = inferCount(String(located.element.params[PARAM.content] ?? "")) !== null || located.element.params[PARAM.countEnabled] === true;
+      const keep = (spec: TextAnimationSpec | undefined, side: "in" | "out"): TextAnimationSpec | undefined => {
+        if (spec?.preset !== "count-up" || countable) return spec;
+        warnings.push({ code: "count-skipped", message: `The count-up ${side} animation on "${clip.name}" was skipped: its text has no number to count to.` });
+        return undefined;
+      };
+      const incoming = keep(clip.animation.in, "in");
+      const outgoing = keep(clip.animation.out, "out");
+      if (incoming || outgoing) editor.execute(setTextAnimationCommand({ ref, ...(incoming ? { in: incoming } : {}), ...(outgoing ? { out: outgoing } : {}) }));
     }
     return;
   }

@@ -30,7 +30,7 @@ export interface TemplateInputs {
 
 export type TemplateWarningCode =
   | "missing-slot" | "unknown-asset" | "wrong-kind" | "short-media" | "text-truncated" | "text-shrunk" | "repeat-count"
-  | "transition-skipped" | "caption-skipped" | "too-many-clips" | "unknown-input";
+  | "transition-skipped" | "caption-skipped" | "too-many-clips" | "unknown-input" | "count-skipped";
 
 export interface TemplateWarning {
   code: TemplateWarningCode;
