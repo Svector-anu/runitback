@@ -78,6 +78,12 @@ async function createProject(page: Page, tap = false): Promise<void> {
   await expect(page).toHaveURL(/#\/editor\//);
 }
 
+test("an empty Assets panel points to Generate", async ({ page }) => {
+  await createProject(page);
+  await page.getByTestId("generate-entry").click();
+  await expect(page.getByTestId("generate-panel")).toBeVisible();
+});
+
 test("generate an image with your own Surplus key and find it in Assets", async ({ page }) => {
   const gateway = await fakeGateway(page);
   await createProject(page);

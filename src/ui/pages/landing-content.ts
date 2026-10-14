@@ -43,8 +43,6 @@ export interface CompareRow {
   feature: string;
   runitback: string;
   capcut: string;
-  /** Which side is ahead on this row. Omit when neither is. Rendered as a small "ahead" tag. */
-  ahead?: "runitback" | "capcut";
 }
 export interface OpenSourcePart { title: string; body: string }
 export interface ExternalLink { label: string; href: string }
@@ -99,7 +97,6 @@ export interface LandingContent {
     intro: string;
     columns: { feature: string; runitback: string; capcut: string };
     rows: CompareRow[];
-    aheadLabel: string;
     checked: string;
   };
   openSource: {
@@ -285,15 +282,14 @@ export const LANDING_CONTENT: LandingContent = {
     intro: "CapCut is a well-known editor with a lot behind it. Here is where RunItBack is different, and where it is not there yet.",
     columns: { feature: "", runitback: "RunItBack", capcut: "CapCut" },
     rows: [
-      { feature: "Open source", runitback: "Yes, MIT licensed", capcut: "No", ahead: "runitback" },
+      { feature: "Open source", runitback: "Yes, MIT licensed", capcut: "No" },
       { feature: "Runs in your browser", runitback: "Yes, nothing to install", capcut: "Yes, with CapCut Online. It also has desktop apps." },
       { feature: "Files stay on your device while editing", runitback: "Yes, stored in your browser. The agent sends text and the frames it looks at to Anthropic, with your own key.", capcut: "Check CapCut's privacy policy." },
       { feature: "Edit by describing it", runitback: "Yes. An agent proposes a plan, you approve it, and one undo reverts it.", capcut: "AI tools that generate and edit. Check CapCut for how they work." },
       { feature: "Price", runitback: "Free. The agent uses your own Anthropic API key.", capcut: "A free plan, plus paid Pro, Ultra and Teams plans." },
-      { feature: "Mobile app", runitback: "Not yet. Desktop Chrome for now.", capcut: "Yes, on mobile, tablet and desktop.", ahead: "capcut" },
-      { feature: "Templates, stickers and effects", runitback: "Filters, transitions, chroma key, speed ramps, background removal and 8 original templates are built in. Stickers and a large music and effects library: not yet.", capcut: "A large library of templates, stickers, effects and AI tools.", ahead: "capcut" },
+      { feature: "Mobile app", runitback: "Desktop browsers. Chrome is the tested one, and the phone layout is limited.", capcut: "Yes, on mobile, tablet and desktop." },
+      { feature: "Templates, stickers and effects", runitback: "Filters, transitions, chroma key, speed ramps, background removal and 8 original templates are built in. It has no sticker packs or large music and effects library.", capcut: "A large library of templates, stickers, effects and AI tools." },
     ],
-    aheadLabel: "Ahead",
     checked: "CapCut details checked on capcut.com on 12 October 2026. Plans and features change, so check CapCut for the latest.",
   },
   openSource: {

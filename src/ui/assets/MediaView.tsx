@@ -266,6 +266,11 @@ export function MediaView(): ReactNode {
             {progress ? <div className="progress" style={{ width: "100%" }}><div style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div> : null}
           </button>
         ) : null}
+        {sorted.length === 0 && !progress ? (
+          <Button variant="outline" size="sm" className="generate-entry" data-testid="generate-entry" onClick={() => uiStore.set({ assetTab: "generate" })}>
+            <Icon name="star" />Or generate images, video or music
+          </Button>
+        ) : null}
         {hasPlayableMedia ? <UnderstandIntro /> : null}
         {sorted.length > 0 && view === "grid" ? (
           <div className={`media-grid`} style={{ marginTop: progress ? 16 : 0 }}>

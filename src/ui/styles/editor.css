@@ -240,6 +240,7 @@
 @media (max-width: 720px) { .landing__steps li + li { border-left: 0; border-top: 1px solid var(--border); } }
 
 /* Empty states and one-time hints */
+.generate-entry { width: 100%; margin-top: 0.75rem; }
 .dropzone__sub { font-size: var(--text-xs); max-width: 16rem; line-height: 1.4; }
 .timeline__empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem; pointer-events: none; color: var(--muted-foreground); font-size: var(--text-sm); }
 kbd { padding: 0 0.35rem; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; font: inherit; font-size: var(--text-xs); background: var(--background); color: var(--foreground); }

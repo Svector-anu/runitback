@@ -203,11 +203,11 @@ test("open source section shows the MIT badge and the star link, without OpenCut
   await expect(page.locator("main")).not.toContainText("OpenCut");
 });
 
-test("the comparison table is honest about where CapCut is ahead and carries the trademark note", async ({ page }) => {
+test("the comparison table states facts without scoreboard tags and carries the trademark note", async ({ page }) => {
   await openLanding(page);
   const table = page.locator("#compare table");
   await expect(table.locator("tbody tr")).toHaveCount(7);
-  await expect(table.locator("tr", { hasText: "Mobile app" })).toContainText("Ahead");
+  await expect(table.locator("tr", { hasText: "Mobile app" })).not.toContainText("Ahead");
   await expect(table.locator("tr", { hasText: "Templates, stickers and effects" })).toContainText("8 original templates");
   await expect(page.getByRole("contentinfo")).toContainText("CapCut is a trademark of its respective owner. RunItBack is not affiliated with or endorsed by it.");
 });
