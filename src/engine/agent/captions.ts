@@ -1,8 +1,9 @@
 import type { CaptionCue } from "#/engine/captions";
 import {
-  DEFAULT_ELEMENT_DURATION, PARAM, TEXT_DEFAULTS, TEXT_SIZE_REFERENCE_HEIGHT, type CanvasSize, type ParamValues, type TextElement,
+  DEFAULT_ELEMENT_DURATION, PARAM, TEXT_DEFAULTS, TEXT_SIZE_REFERENCE_HEIGHT, type CanvasSize, type ElementAnimations, type IdGenerator, type ParamValues, type TextElement,
 } from "#/engine/model";
 import { mediaTime, type MediaTime } from "#/engine/time";
+import { upsertKeyframe } from "#/engine/animation";
 
 const MAX_WIDTH_RATIO = 0.8;
 const DEFAULT_FONT_SIZE = 5;
@@ -28,12 +29,33 @@ function wrap(text: string, maxChars: number): string[] {
   return lines;
 }
 
+/** Word-by-word highlight of a caption: the colour, and when each word starts being spoken (ticks from the caption's start). */
+export interface CaptionHighlight {
+  color: string;
+  /** Keep words lit after they are spoken (karaoke sweep) instead of lighting only the current one. */
+  sweep: boolean;
+  wordStarts: ReadonlyArray<number>;
+  newId: IdGenerator;
+}
+
+/** Stepped `highlightWord` keyframes: -1 before the first word, then the index of the word being spoken. */
+export function highlightAnimations(input: { highlight: CaptionHighlight; duration: number }): ElementAnimations {
+  const { highlight } = input;
+  let animations: ElementAnimations = {};
+  const key = (time: number, value: number): void => {
+    animations = upsertKeyframe({ animations, path: PARAM.highlightWord, time: mediaTime(Math.max(0, Math.min(Math.round(time), input.duration - 1))), value, interpolation: "hold", newId: highlight.newId });
+  };
+  key(0, -1);
+  highlight.wordStarts.forEach((start, index) => key(start, index));
+  return animations;
+}
+
 /**
  * A caption cue as a bottom-anchored (or ASS-positioned) text element. Mirrors render/caption-elements.ts but
  * estimates text size instead of measuring it, because the engine has no canvas.
  */
 export function captionElement(input: {
-  cue: CaptionCue; index: number; id: string; canvas: CanvasSize; startTime: MediaTime; duration: MediaTime;
+  cue: CaptionCue; index: number; id: string; canvas: CanvasSize; startTime: MediaTime; duration: MediaTime; highlight?: CaptionHighlight;
 }): TextElement {
   const { cue, canvas } = input;
   const style = cue.style;
@@ -73,9 +95,15 @@ export function captionElement(input: {
   params[PARAM.positionX] = Math.round(positionX);
   params[PARAM.positionY] = Math.round(positionY);
 
+  const duration = input.duration > 0 ? input.duration : DEFAULT_ELEMENT_DURATION;
+  const highlight = input.highlight;
+  if (highlight) {
+    params[PARAM.highlightColor] = highlight.color;
+    params[PARAM.highlightSweep] = highlight.sweep;
+  }
   return {
-    id: input.id, type: "text", name: `Caption ${input.index + 1}`, startTime: input.startTime,
-    duration: input.duration > 0 ? input.duration : DEFAULT_ELEMENT_DURATION,
+    id: input.id, type: "text", name: `Caption ${input.index + 1}`, startTime: input.startTime, duration,
     trimStart: mediaTime(0), trimEnd: mediaTime(0), params, hidden: false,
+    ...(highlight && highlight.wordStarts.length > 0 ? { animations: highlightAnimations({ highlight, duration }) } : {}),
   };
 }

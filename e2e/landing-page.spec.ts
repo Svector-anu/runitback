@@ -58,7 +58,7 @@ test("FAQ accordion works from the keyboard", async ({ page }) => {
   await expect(questions.nth(1)).toHaveAttribute("aria-expanded", "true");
   const answer = page.locator("#faq-a-1");
   await expect(answer).toBeVisible();
-  await expect(answer).toContainText("7 transitions");
+  await expect(answer).toContainText("10 transitions");
   await page.keyboard.press("End");
   await expect(questions.nth(11)).toBeFocused();
   await page.keyboard.press("Enter");
@@ -208,7 +208,7 @@ test("the comparison table states facts without scoreboard tags and carries the 
   const table = page.locator("#compare table");
   await expect(table.locator("tbody tr")).toHaveCount(7);
   await expect(table.locator("tr", { hasText: "Mobile app" })).not.toContainText("Ahead");
-  await expect(table.locator("tr", { hasText: "Templates, stickers and effects" })).toContainText("8 original templates");
+  await expect(table.locator("tr", { hasText: "Templates, stickers and effects" })).toContainText("13 original templates");
   await expect(page.getByRole("contentinfo")).toContainText("CapCut is a trademark of its respective owner. RunItBack is not affiliated with or endorsed by it.");
 });
 

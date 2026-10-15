@@ -1,5 +1,5 @@
 import {
-  BLEND_MODES, ELEMENT_NUMBER_LIMITS, PARAM, TEXT_NUMBER_LIMITS, VOLUME_DB_MAX, VOLUME_DB_MIN, type NumberLimit, type ParamDef, type ParamValues,
+  BLEND_MODES, DEFAULT_PERSPECTIVE, ELEMENT_NUMBER_LIMITS, MAX_TILT_DEGREES, PARAM, PERSPECTIVE_MAX, PERSPECTIVE_MIN, numberParam, TEXT_NUMBER_LIMITS, VOLUME_DB_MAX, VOLUME_DB_MIN, type NumberLimit, type ParamDef, type ParamValues,
 } from "#/engine/model";
 import type { IconName } from "../icons";
 
@@ -15,7 +15,7 @@ interface FieldExtras {
   sliderMax?: number;
 }
 
-export type TextFieldDef = { type: "text"; key: string; label: string; default: string; widget: "textarea" | "font" };
+export type TextFieldDef = { type: "text"; key: string; label: string; default: string; widget: "textarea" | "font" | "line" };
 export type FieldDef = (ParamDef | TextFieldDef) & FieldExtras;
 
 /** Number fields get the same hard bounds the engine enforces, so the inspector never offers a value the engine would clamp. */
@@ -32,12 +32,17 @@ const BLEND_LABELS: Record<string, string> = {
   difference: "Difference", exclusion: "Exclusion", hue: "Hue", saturation: "Saturation", color: "Color", luminosity: "Luminosity",
 };
 
+const tilted = (p: ParamValues): boolean => numberParam(p, PARAM.rotateX, 0) !== 0 || numberParam(p, PARAM.rotateY, 0) !== 0;
+
 export const TRANSFORM_FIELDS: FieldDef[] = bounded([
   { type: "number", key: PARAM.positionX, label: "Position X", default: 0, min: -100000, step: 1, keyframable: true, icon: "move" },
   { type: "number", key: PARAM.positionY, label: "Position Y", default: 0, min: -100000, step: 1, keyframable: true, icon: "move" },
   { type: "number", key: PARAM.scaleX, label: "Scale X", default: 1, min: 0.01, step: 0.01, keyframable: true, icon: "zoom-in", displayMultiplier: 100, suffix: "%" },
   { type: "number", key: PARAM.scaleY, label: "Scale Y", default: 1, min: 0.01, step: 0.01, keyframable: true, icon: "zoom-in", displayMultiplier: 100, suffix: "%" },
   { type: "number", key: PARAM.rotate, label: "Rotation", default: 0, min: -360, max: 360, step: 1, keyframable: true, icon: "rotate", suffix: "°" },
+  { type: "number", key: PARAM.rotateX, label: "Tilt X (top away)", default: 0, min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES, step: 1, keyframable: true, control: "slider", suffix: "°" },
+  { type: "number", key: PARAM.rotateY, label: "Tilt Y (right away)", default: 0, min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES, step: 1, keyframable: true, control: "slider", suffix: "°" },
+  { type: "number", key: PARAM.perspective, label: "Perspective distance", default: DEFAULT_PERSPECTIVE, min: PERSPECTIVE_MIN, max: PERSPECTIVE_MAX, step: 0.1, keyframable: true, control: "slider", showWhen: tilted },
 ], ELEMENT_NUMBER_LIMITS);
 
 export const BLEND_FIELDS: FieldDef[] = bounded([
@@ -94,6 +99,26 @@ export const SHADOW_FIELDS: FieldDef[] = bounded([
   { type: "number", key: PARAM.shadowBlur, label: "Shadow blur", default: 8, min: 0, step: 1, keyframable: true, control: "slider", sliderMax: 50, showWhen: shadowOn },
   { type: "number", key: PARAM.shadowOffsetX, label: "Shadow offset X", default: 4, step: 1, keyframable: true, control: "slider", sliderMin: -50, sliderMax: 50, showWhen: shadowOn },
   { type: "number", key: PARAM.shadowOffsetY, label: "Shadow offset Y", default: 4, step: 1, keyframable: true, control: "slider", sliderMin: -50, sliderMax: 50, showWhen: shadowOn },
+], TEXT_NUMBER_LIMITS);
+
+const countOn = (p: ParamValues): boolean => p[PARAM.countEnabled] === true;
+const highlightOn = (p: ParamValues): boolean => numberParam(p, PARAM.highlightWord, -1) >= 0;
+
+/** Blur-in, per-word stagger, typing caret and word highlight: each is a plain parameter, so all of them can be keyframed. */
+export const TEXT_EFFECT_FIELDS: FieldDef[] = bounded([
+  { type: "number", key: PARAM.blur, label: "Blur", default: 0, min: 0, max: 100, step: 1, keyframable: true, control: "slider" },
+  { type: "number", key: PARAM.wordReveal, label: "Word reveal", default: 1, min: 0, max: 1, step: 0.01, keyframable: true, control: "slider", displayMultiplier: 100, suffix: "%" },
+  { type: "boolean", key: PARAM.caret, label: "Typing caret", default: false },
+  { type: "boolean", key: PARAM.countEnabled, label: "Count-up number", default: false },
+  { type: "number", key: PARAM.countValue, label: "Number", default: 0, step: 1, keyframable: true, showWhen: countOn },
+  { type: "select", key: PARAM.countFormat, label: "Number format", default: "plain", showWhen: countOn,
+    options: [{ value: "plain", label: "1234" }, { value: "thousands", label: "1,234" }, { value: "compact", label: "1.2K" }, { value: "percent", label: "12%" }] },
+  { type: "number", key: PARAM.countDecimals, label: "Decimals", default: 0, min: 0, max: 6, step: 1, showWhen: countOn },
+  { type: "text", key: PARAM.countPrefix, label: "Before the number", default: "", widget: "line", showWhen: countOn },
+  { type: "text", key: PARAM.countSuffix, label: "After the number", default: "", widget: "line", showWhen: countOn },
+  { type: "number", key: PARAM.highlightWord, label: "Highlight word (0 = first, -1 = none)", default: -1, min: -1, step: 1, keyframable: true },
+  { type: "color", key: PARAM.highlightColor, label: "Highlight color", default: "#ffd400", keyframable: true, showWhen: highlightOn },
+  { type: "boolean", key: PARAM.highlightSweep, label: "Keep earlier words lit", default: false, showWhen: highlightOn },
 ], TEXT_NUMBER_LIMITS);
 
 export const MASK_LABELS: Record<string, string> = {

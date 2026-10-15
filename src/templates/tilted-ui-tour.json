@@ -1,0 +1,425 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "tilted-ui-tour",
+  "name": "Tilted UI tour",
+  "category": "launch",
+  "tags": [
+    "product",
+    "perspective",
+    "screen-recording"
+  ],
+  "description": "Three screen recordings floating in perspective over a dark drifting gradient, each tipped a different way with a soft shadow, a slow push-in and a short caption, linked by blur dissolves.",
+  "canvas": {
+    "aspect": "16:9",
+    "fps": 30,
+    "backgroundColor": "#080217",
+    "gradient": {
+      "style": "mesh",
+      "colors": [
+        "#080217",
+        "#23346b",
+        "#1c5a45",
+        "#5c3a2d"
+      ],
+      "motion": 35
+    }
+  },
+  "durationSeconds": 25.2,
+  "slots": [
+    {
+      "id": "ui-1",
+      "kind": "video",
+      "label": "Screen 1",
+      "expectedSeconds": 6,
+      "aspect": "16:9"
+    },
+    {
+      "id": "ui-2",
+      "kind": "video",
+      "label": "Screen 2",
+      "expectedSeconds": 6,
+      "aspect": "16:9"
+    },
+    {
+      "id": "ui-3",
+      "kind": "video",
+      "label": "Screen 3",
+      "expectedSeconds": 6,
+      "aspect": "16:9"
+    },
+    {
+      "id": "logo",
+      "kind": "image",
+      "label": "Logo",
+      "optional": true,
+      "hint": "A square logo shown above the title."
+    },
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "kicker",
+      "label": "Kicker",
+      "default": "INTRODUCING",
+      "style": "kicker",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 40
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "title",
+      "label": "Product name",
+      "default": "Acme Studio",
+      "style": "display",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 190
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.9
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "feature-1",
+      "label": "Feature 1",
+      "default": "One timeline for everything your team makes",
+      "style": "headline",
+      "maxChars": 70,
+      "maxWidth": 390,
+      "overrides": {
+        "sizePx": 54,
+        "textAlign": "left",
+        "color": "#eeeff4"
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "feature-2",
+      "label": "Feature 2",
+      "default": "Comments land right on the frame",
+      "style": "headline",
+      "maxChars": 70,
+      "maxWidth": 390,
+      "overrides": {
+        "sizePx": 54,
+        "textAlign": "left",
+        "color": "#eeeff4"
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "feature-3",
+      "label": "Feature 3",
+      "default": "Export for every channel at once",
+      "style": "headline",
+      "maxChars": 70,
+      "maxWidth": 390,
+      "overrides": {
+        "sizePx": 54,
+        "textAlign": "left",
+        "color": "#eeeff4"
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "end",
+      "label": "Closing line",
+      "default": "See it in action",
+      "style": "headline",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 120
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.7
+        }
+      }
+    },
+    {
+      "id": "end-url",
+      "label": "Web address",
+      "default": "yourproduct.com",
+      "style": "label",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 54
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.4
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "logo",
+      "at": 0,
+      "duration": 3.2,
+      "media": {
+        "slot": "logo",
+        "track": "overlay",
+        "fit": "contain",
+        "box": {
+          "x": 0,
+          "y": -330,
+          "width": 160,
+          "height": 160
+        },
+        "corners": 24,
+        "shadow": {
+          "blur": 60,
+          "opacity": 45,
+          "offsetY": 20
+        }
+      }
+    },
+    {
+      "id": "intro",
+      "at": 0,
+      "duration": 3.2,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "kicker",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -165
+          },
+          "duration": 3.0
+        },
+        {
+          "kind": "text",
+          "text": "title",
+          "at": 0.3,
+          "position": {
+            "x": 0,
+            "y": 10
+          },
+          "duration": 2.8
+        }
+      ]
+    },
+    {
+      "id": "ui-1",
+      "at": 3.2,
+      "duration": 6.2,
+      "media": {
+        "slot": "ui-1",
+        "track": "overlay",
+        "fit": "cover",
+        "box": {
+          "x": 120,
+          "y": 30,
+          "width": 1260,
+          "height": 710
+        },
+        "tilt": {
+          "x": 8,
+          "y": -22,
+          "perspective": 2.2
+        },
+        "corners": 3,
+        "shadow": {
+          "blur": 130,
+          "opacity": 65,
+          "offsetY": 54
+        },
+        "pushIn": 1.08
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "feature-1",
+          "at": 0.9,
+          "position": {
+            "x": -910,
+            "y": -130
+          },
+          "duration": 4.9
+        }
+      ]
+    },
+    {
+      "id": "ui-2",
+      "at": 9.4,
+      "duration": 6.2,
+      "media": {
+        "slot": "ui-2",
+        "track": "overlay",
+        "fit": "cover",
+        "box": {
+          "x": -120,
+          "y": 30,
+          "width": 1260,
+          "height": 710
+        },
+        "tilt": {
+          "x": 8,
+          "y": 22,
+          "perspective": 2.2
+        },
+        "corners": 3,
+        "shadow": {
+          "blur": 130,
+          "opacity": 65,
+          "offsetY": 54
+        },
+        "pushIn": 1.08,
+        "transitionIn": {
+          "type": "blur",
+          "seconds": 0.6
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "feature-2",
+          "at": 0.9,
+          "position": {
+            "x": 530,
+            "y": -130
+          },
+          "duration": 4.9
+        }
+      ]
+    },
+    {
+      "id": "ui-3",
+      "at": 15.6,
+      "duration": 6.2,
+      "media": {
+        "slot": "ui-3",
+        "track": "overlay",
+        "fit": "cover",
+        "box": {
+          "x": 100,
+          "y": 30,
+          "width": 1260,
+          "height": 710
+        },
+        "tilt": {
+          "x": -10,
+          "y": -16,
+          "perspective": 2.2
+        },
+        "corners": 3,
+        "shadow": {
+          "blur": 130,
+          "opacity": 65,
+          "offsetY": 54
+        },
+        "pushIn": 1.08,
+        "transitionIn": {
+          "type": "blur",
+          "seconds": 0.6
+        }
+      },
+      "layers": [
+        {
+          "kind": "text",
+          "text": "feature-3",
+          "at": 0.9,
+          "position": {
+            "x": -910,
+            "y": -130
+          },
+          "duration": 4.9
+        }
+      ]
+    },
+    {
+      "id": "close",
+      "at": 21.8,
+      "duration": 3.4,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "end",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -60
+          }
+        },
+        {
+          "kind": "text",
+          "text": "end-url",
+          "at": 0.6,
+          "position": {
+            "x": 0,
+            "y": 150
+          }
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 25.2,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "tilted-ui-tour.webp",
+    "video": "tilted-ui-tour.mp4"
+  }
+}

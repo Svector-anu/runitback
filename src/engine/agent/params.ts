@@ -1,8 +1,9 @@
 import { batch, updateElements, upsertKeyframeCommand, type Command } from "#/engine/commands";
 import {
-  BLEND_MODES, CROP_MAX_EDGE, EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, MASK_DEFINITIONS, PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN,
+  BLEND_MODES, CROP_MAX_EDGE, MAX_TILT_DEGREES, PERSPECTIVE_MAX, PERSPECTIVE_MIN, EFFECT_DEFINITIONS, GRAPHIC_DEFINITIONS, MASK_DEFINITIONS, PARAM, VOLUME_DB_MAX, VOLUME_DB_MIN,
   type ElementRef, type MaskType, type ParamDef, type ParamValue, type ParamValues, type TimelineElement,
 } from "#/engine/model";
+import { COUNT_FORMATS } from "#/engine/render";
 import { ToolError } from "./env";
 import { didYouMean } from "./validate";
 
@@ -29,6 +30,9 @@ const TRANSFORM_SPECS: ParamSpec[] = [
   num(PARAM.scaleX, { min: 0 }),
   num(PARAM.scaleY, { min: 0 }),
   num(PARAM.rotate, { unit: "degrees" }),
+  num(PARAM.rotateX, { min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES, unit: "degrees of perspective tilt about the horizontal axis; positive tips the top edge away" }),
+  num(PARAM.rotateY, { min: -MAX_TILT_DEGREES, max: MAX_TILT_DEGREES, unit: "degrees of perspective tilt about the vertical axis; positive tips the right edge away" }),
+  num(PARAM.perspective, { min: PERSPECTIVE_MIN, max: PERSPECTIVE_MAX, unit: "camera distance in layer lengths for the tilt; lower is stronger, default 2" }),
   num(PARAM.opacity, { min: 0, max: 1 }),
   choice(PARAM.blendMode, BLEND_MODES),
 ];
@@ -72,6 +76,18 @@ const TEXT_SPECS: ParamSpec[] = [
   num(PARAM.shadowOffsetX, { min: -1000, max: 1000 }),
   num(PARAM.shadowOffsetY, { min: -1000, max: 1000 }),
   num(PARAM.reveal, { min: 0, max: 1, unit: "fraction of characters shown" }),
+  num(PARAM.blur, { min: 0, max: 100, unit: "text blur strength, 0 = sharp" }),
+  num(PARAM.wordReveal, { min: 0, max: 1, unit: "per-word stagger progress: words enter one after another as it rises to 1" }),
+  bool(PARAM.caret),
+  num(PARAM.highlightWord, { min: -1, max: 100000, unit: "index of the word drawn in highlightColor, counted from 0 across lines; -1 = none" }),
+  color(PARAM.highlightColor),
+  bool(PARAM.highlightSweep),
+  bool(PARAM.countEnabled),
+  num(PARAM.countValue, { min: -1e12, max: 1e12, unit: "the number shown when countEnabled; animate it to count up" }),
+  choice(PARAM.countFormat, COUNT_FORMATS),
+  num(PARAM.countDecimals, { min: 0, max: 6 }),
+  str(PARAM.countPrefix),
+  str(PARAM.countSuffix),
 ];
 
 export function specFromDef(def: ParamDef): ParamSpec {

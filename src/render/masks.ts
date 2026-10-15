@@ -5,6 +5,7 @@ import type { Point } from "./graphics";
 export type MaskShape =
   | { kind: "polygon"; points: Point[] }
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number; rotation: number }
+  | { kind: "roundRect"; cx: number; cy: number; w: number; h: number; radius: number; rotation: number }
   | { kind: "heart"; cx: number; cy: number; halfW: number; halfH: number; rotation: number };
 
 export const MIN_MASK_DIMENSION = 0.01;
@@ -32,11 +33,14 @@ export function maskShape(type: MaskType, params: ParamValues, w: number, h: num
   const rot = (points: Point[]): Point[] => points.map((p) => rotatePoint(p, center, rotation));
 
   switch (type) {
-    case "rectangle":
+    case "rectangle": {
+      const pct = Math.min(50, Math.max(0, numberParam(params, "cornerRadius", 0)));
+      if (pct > 0) return { kind: "roundRect", cx, cy, w: bw, h: bh, radius: (Math.min(bw, bh) / 2) * (pct / 50), rotation };
       return { kind: "polygon", points: rot([
         { x: cx - bw / 2, y: cy - bh / 2 }, { x: cx + bw / 2, y: cy - bh / 2 },
         { x: cx + bw / 2, y: cy + bh / 2 }, { x: cx - bw / 2, y: cy + bh / 2 },
       ]) };
+    }
     case "cinematic-bars": {
       const length = Math.max(bw, w, Math.hypot(w, h));
       return { kind: "polygon", points: rot([
@@ -83,6 +87,10 @@ export function shapePath(shape: MaskShape): Path2D {
     path.closePath();
   } else if (shape.kind === "ellipse") {
     path.ellipse(shape.cx, shape.cy, Math.max(0.5, shape.rx), Math.max(0.5, shape.ry), shape.rotation, 0, Math.PI * 2);
+  } else if (shape.kind === "roundRect") {
+    const box = new Path2D();
+    box.roundRect(-shape.w / 2, -shape.h / 2, shape.w, shape.h, shape.radius);
+    path.addPath(box, new DOMMatrix().translate(shape.cx, shape.cy).rotate((shape.rotation * 180) / Math.PI));
   } else {
     const { cx, cy, halfW, halfH } = shape;
     const m = new DOMMatrix().translate(cx, cy).rotate((shape.rotation * 180) / Math.PI);

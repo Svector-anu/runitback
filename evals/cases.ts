@@ -1111,6 +1111,68 @@ const SPEED_RAMP: EvalCase = {
   ],
 };
 
+// Auto zoom ------------------------------------------------------------------------------------------------------
+
+/** The framing of the main video clip at `seconds` on the timeline, with every keyframe resolved. */
+function framingAt(input: CheckInput, seconds: number): { scale: number; x: number; y: number } | null {
+  const clip = sceneOf(input.final).tracks.main.elements.find((e): e is Extract<TimelineElement, { type: "video" }> => e.type === "video");
+  if (!clip) return null;
+  const local = Math.round(seconds * TICKS_PER_SECOND) - clip.startTime;
+  const value = (key: string, fallback: number): number => {
+    const v = resolvePathValue(clip, key, local);
+    return typeof v === "number" ? v : fallback;
+  };
+  return { scale: value("transform.scaleX", 1), x: value("transform.positionX", 0), y: value("transform.positionY", 0) };
+}
+
+const ZOOM_CASE: EvalCase = {
+  id: "zoom-into-detail",
+  title: "Zoom into one corner of a screen recording",
+  brief: "screencast.mp4 is a 10 second screen recording. Between 3 and 6 seconds zoom in about 2x on its top-right corner, easing in and back out, and show the normal full frame the rest of the time. Don't cut anything.",
+  fixtures: [{ id: "screencast", name: "screencast.mp4", kind: "video", durationSeconds: 10, placeAt: 0, audio: { kind: "tone" }, blocks: [{ seconds: 5, rgb: BLUE }, { seconds: 5, rgb: AMBER }] }],
+  budget: BUDGET,
+  checks: [
+    {
+      id: "zooms-in",
+      description: "At 4.5 s the picture is between 1.7x and 2.4x its normal size.",
+      run(input) {
+        const f = framingAt(input, 4.5);
+        return f ? verdict(f.scale >= 1.7 && f.scale <= 2.4, `${f.scale.toFixed(2)}x at 4.5 s`) : fail("no video clip");
+      },
+    },
+    {
+      id: "aimed-at-top-right",
+      description: "At 4.5 s the middle of the top-right quarter of the frame is within 10% of the canvas size from the centre of the canvas.",
+      run(input) {
+        const f = framingAt(input, 4.5);
+        if (!f) return fail("no video clip");
+        const dx = Math.abs(f.x + f.scale * (FIXTURE_WIDTH / 4)) / FIXTURE_WIDTH;
+        const dy = Math.abs(f.y - f.scale * (FIXTURE_HEIGHT / 4)) / FIXTURE_HEIGHT;
+        return verdict(dx <= 0.1 && dy <= 0.1, `top-right quarter lands ${(dx * 100).toFixed(0)}% / ${(dy * 100).toFixed(0)}% from the centre`);
+      },
+    },
+    {
+      id: "normal-outside",
+      description: "At 1 s and at 8 s the picture is at its normal size and place.",
+      run(input) {
+        const frames = [1, 8].map((t) => framingAt(input, t));
+        if (frames.some((f) => !f)) return fail("no video clip");
+        const ok = frames.every((f) => f && Math.abs(f.scale - 1) <= 0.03 && Math.abs(f.x) <= 8 && Math.abs(f.y) <= 8);
+        return verdict(ok, frames.map((f) => `${f?.scale.toFixed(2)}x`).join(" and "));
+      },
+    },
+    {
+      id: "whole-clip-kept",
+      description: "All 10 s of the recording still play (at least 9.8 s).",
+      run(input) {
+        const clip = fixtureByName(input, "screencast.mp4");
+        const kept = retainedSource(clipsOfFixture(input, clip), [{ start: 0, end: 10 }]);
+        return graded({ score: kept / 10, threshold: 0.98, detail: `${kept.toFixed(2)}s of 10s source plays` });
+      },
+    },
+  ],
+};
+
 // 19. Snap existing cuts to the beat ----------------------------------------------------------------------------------
 
 const SNAP_SPLITS = [2.05, 4.45, 6.85, 8.65];
@@ -1210,7 +1272,7 @@ function voiceoverClips(input: CheckInput): ClipView[] {
 
 export const CASES: ReadonlyArray<EvalCase> = [
   removeSilences, CUT_TO_BEAT, TRIM_TO_DURATION, CAPTIONS, SPEED_TO_FIT, TITLE_CASE, REORDER, MATCH_PACING, AMBIGUOUS, IMPOSSIBLE, DELETE_SENTENCE,
-  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, APPLY_LAUNCH_TEMPLATE, GREEN_SCREEN, SPEED_RAMP, SNAP_TO_BEAT, ADD_VOICEOVER,
+  FIND_AND_CUT, HIGHLIGHT, LOUDEST_FIRST, FIND_VISUAL, REFRAME, ADD_TRANSITION, WARM_TITLE_CASE, APPLY_LAUNCH_TEMPLATE, GREEN_SCREEN, SPEED_RAMP, ZOOM_CASE, SNAP_TO_BEAT, ADD_VOICEOVER,
 ];
 
 export const RUNNABLE_CASES: ReadonlyArray<EvalCase> = CASES.filter((c) => c.blocked === undefined);

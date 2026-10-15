@@ -8,6 +8,11 @@ export const PARAM = {
   scaleX: "transform.scaleX",
   scaleY: "transform.scaleY",
   rotate: "transform.rotate",
+  /** Perspective tilt in degrees about the horizontal / vertical axis through the layer's centre; absent means flat. */
+  rotateX: "transform.rotateX",
+  rotateY: "transform.rotateY",
+  /** Camera distance in multiples of the layer's longer side: lower is a stronger perspective. Absent means `DEFAULT_PERSPECTIVE`. */
+  perspective: "transform.perspective",
   volume: "volume",
   muted: "muted",
   /** Noise removal strength 0-1 on clips with audio; absent means 0 (off). */
@@ -42,7 +47,31 @@ export const PARAM = {
   cropBottom: "crop.bottom",
   /** Fraction of the characters shown, 0..1 (typewriter animation). */
   reveal: "reveal",
+  /** Text blur strength 0-100 (same scale as the blur effect); absent means 0. */
+  blur: "blur",
+  /** Per-word stagger progress 0..1: words enter one after another as it rises; absent means 1 (all shown). */
+  wordReveal: "wordReveal",
+  /** Draws a typing caret after the revealed text; blinks once the text is complete. */
+  caret: "caret",
+  /** Index of the word drawn in the highlight colour (counted across lines, from 0); -1 or absent means none. */
+  highlightWord: "highlightWord",
+  highlightColor: "highlightColor",
+  /** Keeps every word up to `highlightWord` highlighted (karaoke sweep) instead of only that word. */
+  highlightSweep: "highlightSweep",
+  /** Shows a formatted number instead of `content` (count-up); `countValue` is the number and can be keyframed. */
+  countEnabled: "countEnabled",
+  countValue: "countValue",
+  /** One of COUNT_FORMATS. */
+  countFormat: "countFormat",
+  countDecimals: "countDecimals",
+  countPrefix: "countPrefix",
+  countSuffix: "countSuffix",
 } as const;
+
+export const DEFAULT_PERSPECTIVE = 2;
+export const MAX_TILT_DEGREES = 80;
+export const PERSPECTIVE_MIN = 1;
+export const PERSPECTIVE_MAX = 10;
 
 export const BLEND_MODES = [
   "normal", "darken", "multiply", "color-burn", "lighten", "screen", "plus-lighter", "color-dodge",
@@ -96,6 +125,10 @@ export const TEXT_DEFAULTS: ParamValues = {
   [PARAM.shadowOffsetX]: 4,
   [PARAM.shadowOffsetY]: 4,
   [PARAM.reveal]: 1,
+  [PARAM.blur]: 0,
+  [PARAM.wordReveal]: 1,
+  [PARAM.highlightWord]: -1,
+  [PARAM.countValue]: 0,
 };
 
 /** Crop edges are fractions (0-1) of the source removed from each side before the transform; the rest stays in place. */

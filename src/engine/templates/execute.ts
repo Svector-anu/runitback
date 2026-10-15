@@ -1,12 +1,13 @@
 import {
-  addClipEffect, batch, deleteElements, insertElement, setTextAnimationCommand, setTransitionCommand, updateClipEffectParams, updateSettings,
-  upsertKeyframeCommand, type Command, type InsertPlacement,
+  addClipEffect, autoZoomCommand, batch, deleteElements, insertElement, setCursorPathCommand, setTextAnimationCommand, setTransitionCommand,
+  updateClipEffectParams, updateElements, updateSettings, upsertKeyframeCommand, type Command, type InsertPlacement,
 } from "#/engine/commands";
 import type { Editor } from "#/engine/editor";
 import {
-  FILTER_PRESETS, GRAPHIC_DEFINITIONS, IMAGE_DEFAULTS, buildGraphicElement, buildMediaElement, buildTextElement, defaultsOf, orderedTracks,
-  type ElementRef, type ImageElement, type MediaAssetInfo, type ParamValues, type TimelineElement, type VideoElement,
+  FILTER_PRESETS, GRAPHIC_DEFINITIONS, IMAGE_DEFAULTS, MASK_DEFINITIONS, buildGraphicElement, buildMediaElement, buildTextElement, defaultsOf, orderedTracks,
+  PARAM, type ElementRef, type ImageElement, type MediaAssetInfo, type ParamValues, type TextAnimationSpec, type TimelineElement, type VideoElement,
 } from "#/engine/model";
+import { inferCount } from "#/engine/render";
 import { allElements, canPlaceSpans, elementEnd, highestInsertIndex, maxTransitionDuration, trackTypeForElement, transitionPartner } from "#/engine/timeline";
 import { TICKS_PER_SECOND, frameRateToFloat, mediaTime, type MediaTime } from "#/engine/time";
 import { planTemplate, type PlannedClip, type TemplateInputs, type TemplatePlan, type TemplateWarning } from "./apply";
@@ -119,17 +120,44 @@ function finishClip(editor: Editor, clip: PlannedClip, elementId: string, warnin
   const { ref } = located;
   if (clip.type === "text") {
     if (clip.animation) {
-      editor.execute(setTextAnimationCommand({ ref, ...(clip.animation.in ? { in: clip.animation.in } : {}), ...(clip.animation.out ? { out: clip.animation.out } : {}) }));
+      const countable = inferCount(String(located.element.params[PARAM.content] ?? "")) !== null || located.element.params[PARAM.countEnabled] === true;
+      const keep = (spec: TextAnimationSpec | undefined, side: "in" | "out"): TextAnimationSpec | undefined => {
+        if (spec?.preset !== "count-up" || countable) return spec;
+        warnings.push({ code: "count-skipped", message: `The count-up ${side} animation on "${clip.name}" was skipped: its text has no number to count to.` });
+        return undefined;
+      };
+      const incoming = keep(clip.animation.in, "in");
+      const outgoing = keep(clip.animation.out, "out");
+      if (incoming || outgoing) editor.execute(setTextAnimationCommand({ ref, ...(incoming ? { in: incoming } : {}), ...(outgoing ? { out: outgoing } : {}) }));
     }
     return;
   }
-  if (clip.type === "graphic") return;
+  if (clip.type === "graphic") {
+    const effects: Command[] = [];
+    if (clip.shadow) {
+      const effectId = editor.newId();
+      effects.push(addClipEffect({ ref, effectType: "shadow", effectId }), updateClipEffectParams(ref, effectId, clip.shadow));
+    }
+    if (clip.cursorPath) effects.push(setCursorPathCommand({ ref, waypoints: clip.cursorPath }));
+    if (clip.autoZooms) effects.push(autoZoomCommand({ ref, zooms: clip.autoZooms }));
+    if (effects.length > 0) editor.execute(batch("Template graphic", effects));
+    return;
+  }
   const commands: Command[] = [];
   if (clip.filter && clip.type !== "audio") {
     const effectId = editor.newId();
     commands.push(addClipEffect({ ref, effectType: "adjust", effectId }), updateClipEffectParams(ref, effectId, filterParams(clip.filter.preset, clip.filter.intensity)));
   }
+  if (clip.shadow && clip.type !== "audio") {
+    const effectId = editor.newId();
+    commands.push(addClipEffect({ ref, effectType: "shadow", effectId }), updateClipEffectParams(ref, effectId, clip.shadow));
+  }
+  if (clip.corners !== undefined && clip.type !== "audio") {
+    const mask = { id: editor.newId(), type: "rectangle" as const, params: { ...defaultsOf(MASK_DEFINITIONS.rectangle.params), width: 1, height: 1, cornerRadius: clip.corners } };
+    commands.push(updateElements([{ ref, patch: { masks: [mask] } }], "Template corners"));
+  }
   for (const key of clip.keyframes) commands.push(upsertKeyframeCommand({ ref, path: key.path, time: key.time, value: key.value }));
+  if (clip.autoZooms && clip.type !== "audio") commands.push(autoZoomCommand({ ref, zooms: clip.autoZooms }));
   if (commands.length > 0) editor.execute(batch("Template look", commands));
   if (clip.transition) {
     const partner = transitionPartner(located.siblings, located.element);
@@ -152,7 +180,7 @@ function runPlan(editor: Editor, plan: TemplatePlan, warnings: TemplateWarning[]
   }
   editor.execute(updateSettings({
     canvasSize: { ...plan.canvas }, canvasSizeMode: "preset", fps: plan.fps,
-    ...(plan.backgroundColor ? { background: { type: "color" as const, color: plan.backgroundColor } } : {}),
+    ...(plan.gradient ? { background: plan.gradient } : plan.backgroundColor ? { background: { type: "color" as const, color: plan.backgroundColor } } : {}),
   }));
   for (const { clip, id } of created) finishClip(editor, clip, id, warnings);
   return created.map((c) => c.id);

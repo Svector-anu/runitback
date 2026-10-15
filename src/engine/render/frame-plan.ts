@@ -1,10 +1,12 @@
 import {
   BLEND_MODES, CROP_MAX_EDGE, DEFAULT_GRAPHIC_SOURCE_SIZE, numberParam, stringParam, PARAM, type BlendMode, type CanvasSize,
-  type Background, type Effect, type Mask, type MediaAssetInfo, type ParamValues, type SceneTracks, type TimelineElement,
+  type Background, type Effect, type GradientBackground, type Mask, type MediaAssetInfo, type ParamValues, type SceneTracks, type TimelineElement,
   type TimelineTrack, type TransitionType,
 } from "#/engine/model";
 import { TICKS_PER_SECOND } from "#/engine/time";
 import { effectiveTransition, resolveEffectParams, resolveElementParams, sourceTimeAt } from "#/engine/timeline";
+import { activeGradient } from "./gradient";
+import { resolveTilt, type LayerTilt } from "./perspective";
 import { easeTransition, isTransitionLayerVisible, type LayerTransition } from "./transitions";
 
 export interface LayerTransform {
@@ -57,6 +59,8 @@ export interface MediaLayer extends LayerBase {
   transform: LayerTransform;
   mask: ResolvedMask | null;
   crop: LayerCrop | null;
+  /** Perspective tilt about the layer's centre; null while flat. */
+  tilt: LayerTilt | null;
   /** Set while this clip is part of a transition (also outside its own start/end, using the media either side of the cut). */
   transition: LayerTransition | null;
 }
@@ -64,6 +68,9 @@ export interface MediaLayer extends LayerBase {
 export interface TextLayer extends LayerBase {
   kind: "text";
   params: ParamValues;
+  /** Seconds into the clip; drives the blinking caret. */
+  seconds: number;
+  tilt: LayerTilt | null;
 }
 
 export interface SceneEffectItem {
@@ -87,6 +94,8 @@ export interface FramePlan {
   time: number;
   /** Solid fill drawn first; blur backgrounds contribute `blurBackground` items instead. */
   backgroundColor: string | null;
+  /** Gradient drawn over the base fill when the project background is a gradient. */
+  backgroundGradient: GradientBackground | null;
   items: DrawItem[];
   /** Elements that could not be drawn (their media is not in the project). */
   missingMedia: string[];
@@ -224,9 +233,15 @@ export function buildFramePlan(input: {
         case "effect":
           items.push({ kind: "sceneEffect", elementId: element.id, effects: [{ type: element.effectType, params }] });
           break;
-        case "text":
-          items.push({ kind: "text", elementId: element.id, params, opacity, blendMode, effects: resolveEffects(element, clipTime) });
+        case "text": {
+          const blur = numberParam(params, PARAM.blur, 0);
+          const effects = resolveEffects(element, clipTime);
+          items.push({
+            kind: "text", elementId: element.id, params, opacity, blendMode, seconds: clipTime / TICKS_PER_SECOND, tilt: resolveTilt(params),
+            effects: blur > 0 ? [{ type: "blur", params: { intensity: blur } }, ...effects] : effects,
+          });
           break;
+        }
         case "graphic": {
           const size = DEFAULT_GRAPHIC_SOURCE_SIZE;
           const graphicParams: ParamValues = {};
@@ -235,7 +250,7 @@ export function buildFramePlan(input: {
             kind: "layer", elementId: element.id, opacity, blendMode, effects: resolveEffects(element, clipTime),
             source: { type: "graphic", definitionId: element.definitionId, params: graphicParams, width: size, height: size },
             transform: computeVisualTransform({ canvas, sourceWidth: size, sourceHeight: size, params }),
-            mask: activeMask(element), crop: null, transition: null,
+            mask: activeMask(element), crop: null, tilt: resolveTilt(params), transition: null,
           });
           break;
         }
@@ -257,7 +272,7 @@ export function buildFramePlan(input: {
           items.push({
             kind: "layer", elementId: element.id, opacity, blendMode, effects: resolveEffects(element, clipTime), source,
             transform: computeVisualTransform({ canvas, sourceWidth: asset.width, sourceHeight: asset.height, params }),
-            mask: activeMask(element), crop: resolveCrop(params), transition,
+            mask: activeMask(element), crop: resolveCrop(params), tilt: resolveTilt(params), transition,
           });
           if (active && input.background.type === "blur" && track.id === tracks.main.id) {
             blurBackgrounds.push({ kind: "blurBackground", elementId: element.id, source, intensity: input.background.blurIntensity ?? DEFAULT_BACKGROUND_BLUR_INTENSITY });
@@ -271,6 +286,7 @@ export function buildFramePlan(input: {
   return {
     width: canvas.width, height: canvas.height, time,
     backgroundColor: input.background.type === "color" && input.background.color !== "transparent" ? input.background.color : null,
+    backgroundGradient: activeGradient(input.background),
     items: [...blurBackgrounds, ...items],
     missingMedia: missing,
   };

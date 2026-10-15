@@ -1,11 +1,12 @@
-import { numberParam, type BlendMode } from "#/engine/model";
-import type { DrawItem, FramePlan, LayerSource, MediaLayer, ResolvedEffect, TextLayer } from "#/engine/render";
-import { adjustPlan, applyChromaKey, blurSigma, chromaKeyIsNoop, chromaKeyPlan, transitionLook, type AdjustPlan, type ChromaKeyPlan } from "#/engine/render";
+import { numberParam, PARAM, type BlendMode, type GradientBackground, type ParamValues } from "#/engine/model";
+import { TICKS_PER_SECOND } from "#/engine/time";
+import type { DrawItem, FramePlan, GlitchLook, LayerTilt, LayerSource, MediaLayer, ResolvedEffect, TextLayer } from "#/engine/render";
+import { adjustPlan, applyChromaKey, blurSigma, chromaKeyIsNoop, chromaKeyPlan, gradientAngleAt, gradientBlobs, linearGradientLine, radialCenter, affineBetween, rgba, rotatedBox, tiltMesh, TRANSITION_BLUR_INTENSITY, transitionLook, type AdjustPlan, type ChromaKeyPlan } from "#/engine/render";
 import type { MaskFrame } from "#/engine/segmentation";
 import { ChromaKeyGpu } from "./chroma-gpu";
 import { MaskRasterizer } from "./segmentation";
 import { context2d, createCanvas, resizeCanvas, type AnyCanvas, type AnyContext } from "./canvas";
-import { GraphicCache } from "./graphics";
+import { GraphicCache, isSizedGraphic } from "./graphics";
 import { isInverted, renderMask, renderMaskStroke } from "./masks";
 import { drawText } from "./text";
 
@@ -17,6 +18,10 @@ export interface FrameSources {
   mask?(source: Extract<LayerSource, { type: "video" | "image" }>): MaskFrame | null;
 }
 
+/** Triangles of a tilted layer are painted this much larger than they are, so neighbouring ones overlap instead of leaving hairline gaps. */
+const TILT_SEAM_PX = 0.75;
+const HEX_COLOR = /^#[0-9a-f]{6}/i;
+
 const COMPOSITE: Record<BlendMode, GlobalCompositeOperation> = {
   normal: "source-over", darken: "darken", multiply: "multiply", "color-burn": "color-burn", lighten: "lighten",
   screen: "screen", "plus-lighter": "lighter", "color-dodge": "color-dodge", overlay: "overlay", "soft-light": "soft-light",
@@ -26,6 +31,26 @@ const COMPOSITE: Record<BlendMode, GlobalCompositeOperation> = {
 
 export function compositeOperation(mode: BlendMode): GlobalCompositeOperation {
   return COMPOSITE[mode];
+}
+
+/** Box on the canvas around a text layout after the element's position, scale and rotation. */
+function textContentBox(rect: { left: number; top: number; width: number; height: number }, params: ParamValues, plan: FramePlan): { left: number; top: number; width: number; height: number } {
+  const sx = numberParam(params, PARAM.scaleX, 1);
+  const sy = numberParam(params, PARAM.scaleY, 1);
+  const turn = (numberParam(params, PARAM.rotate, 0) * Math.PI) / 180;
+  const ox = plan.width / 2 + numberParam(params, PARAM.positionX, 0);
+  const oy = plan.height / 2 + numberParam(params, PARAM.positionY, 0);
+  const corners = [[rect.left, rect.top], [rect.left + rect.width, rect.top], [rect.left, rect.top + rect.height], [rect.left + rect.width, rect.top + rect.height]]
+    .map(([x, y]) => {
+      const scaledX = (x as number) * sx;
+      const scaledY = (y as number) * sy;
+      return { x: ox + scaledX * Math.cos(turn) - scaledY * Math.sin(turn), y: oy + scaledX * Math.sin(turn) + scaledY * Math.cos(turn) };
+    });
+  const xs = corners.map((c) => c.x);
+  const ys = corners.map((c) => c.y);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  return { left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top };
 }
 
 function imageSize(image: CanvasImageSource): { width: number; height: number } {
@@ -98,7 +123,43 @@ export class Compositor {
       ctx.fillStyle = plan.backgroundColor;
       ctx.fillRect(0, 0, plan.width, plan.height);
     }
+    if (plan.backgroundGradient) this.drawBackgroundGradient(plan.backgroundGradient, plan);
     for (const item of plan.items) this.drawItem(item, plan, sources);
+    ctx.restore();
+  }
+
+  private drawBackgroundGradient(gradient: GradientBackground, plan: FramePlan): void {
+    const { ctx } = this;
+    const { width, height } = plan;
+    const seconds = plan.time / TICKS_PER_SECOND;
+    const { colors } = gradient;
+    const stops = (target: CanvasGradient): CanvasGradient => {
+      colors.forEach((color, i) => target.addColorStop(i / (colors.length - 1), color));
+      return target;
+    };
+    ctx.save();
+    if (gradient.style === "linear") {
+      const line = linearGradientLine({ width, height, angle: gradientAngleAt(gradient, seconds) });
+      ctx.fillStyle = stops(ctx.createLinearGradient(line.x0, line.y0, line.x1, line.y1));
+      ctx.fillRect(0, 0, width, height);
+    } else if (gradient.style === "radial") {
+      const center = radialCenter({ motion: gradient.motion, seconds });
+      const cx = center.x * width;
+      const cy = center.y * height;
+      ctx.fillStyle = stops(ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.hypot(width, height) * 0.6));
+      ctx.fillRect(0, 0, width, height);
+    } else {
+      ctx.fillStyle = colors[0] as string;
+      ctx.fillRect(0, 0, width, height);
+      for (const blob of gradientBlobs({ colors, motion: gradient.motion, seconds })) {
+        const radius = blob.radius * Math.max(width, height);
+        const fade = ctx.createRadialGradient(blob.x * width, blob.y * height, 0, blob.x * width, blob.y * height, radius);
+        fade.addColorStop(0, rgba(blob.color, 1));
+        fade.addColorStop(1, rgba(blob.color, 0));
+        ctx.fillStyle = fade;
+        ctx.fillRect(0, 0, width, height);
+      }
+    }
     ctx.restore();
   }
 
@@ -244,6 +305,107 @@ export class Compositor {
     this.layerCtx.globalAlpha = 1;
   }
 
+  /** Slides horizontal slices of the layer sideways (wrapping round the edge), then pulls its red and blue channels apart. */
+  private applyGlitch(glitch: GlitchLook): void {
+    const { width, height } = this.layer;
+    const lc = this.layerCtx;
+    this.copyLayerTo(this.scratchCtx);
+    lc.globalCompositeOperation = "copy";
+    lc.clearRect(0, 0, width, height);
+    lc.globalCompositeOperation = "source-over";
+    for (const band of glitch.bands) {
+      const y = Math.floor(band.from * height);
+      const h = Math.max(1, Math.ceil((band.to - band.from) * height));
+      const dx = band.shiftX * width;
+      lc.drawImage(this.scratch as CanvasImageSource, 0, y, width, h, dx, y, width, h);
+      if (dx !== 0) lc.drawImage(this.scratch as CanvasImageSource, 0, y, width, h, dx > 0 ? dx - width : dx + width, y, width, h);
+    }
+    if (glitch.split <= 0) return;
+    this.copyLayerTo(this.scratchCtx);
+    lc.clearRect(0, 0, width, height);
+    const channels: ReadonlyArray<readonly [string, number]> = [["#ff0000", -glitch.split], ["#00ff00", 0], ["#0000ff", glitch.split]];
+    const tint = this.scratch2Ctx;
+    for (const [color, shift] of channels) {
+      tint.setTransform(1, 0, 0, 1, 0, 0);
+      tint.globalAlpha = 1;
+      tint.filter = "none";
+      tint.globalCompositeOperation = "copy";
+      tint.drawImage(this.scratch as CanvasImageSource, 0, 0);
+      tint.globalCompositeOperation = "multiply";
+      tint.fillStyle = color;
+      tint.fillRect(0, 0, width, height);
+      tint.globalCompositeOperation = "destination-in";
+      tint.drawImage(this.scratch as CanvasImageSource, 0, 0);
+      tint.globalCompositeOperation = "source-over";
+      lc.globalCompositeOperation = "lighter";
+      lc.drawImage(this.scratch2 as CanvasImageSource, shift * width, 0);
+    }
+    lc.globalCompositeOperation = "source-over";
+  }
+
+  /** Soft drop shadows follow the layer's final outline (after mask and tilt), so a rounded, tilted card casts a rounded, tilted shadow. */
+  private applyShadows(effects: ResolvedEffect[], canvasHeight: number): void {
+    const scale = canvasHeight / 1080;
+    for (const effect of effects) {
+      if (effect.type !== "shadow") continue;
+      const opacity = numberParam(effect.params, "opacity", 40) / 100;
+      if (opacity <= 0) continue;
+      const named = effect.params["color"];
+      const color = typeof named === "string" && HEX_COLOR.test(named) ? named : "#000000";
+      const offsetX = numberParam(effect.params, "offsetX", 0) * scale;
+      const offsetY = numberParam(effect.params, "offsetY", 24) * scale;
+      const blur = numberParam(effect.params, "blur", 40) * scale;
+      this.copyLayerTo(this.scratchCtx);
+      this.layerCtx.globalCompositeOperation = "copy";
+      this.layerCtx.filter = `drop-shadow(${offsetX}px ${offsetY}px ${blur}px ${rgba(color, opacity)})`;
+      this.layerCtx.drawImage(this.scratch as CanvasImageSource, 0, 0);
+      this.layerCtx.filter = "none";
+      this.layerCtx.globalCompositeOperation = "source-over";
+    }
+  }
+
+  /**
+   * Re-draws the layer as if it were turned in space: the box around its content is cut into small triangles and each one is
+   * painted through the affine transform that matches the projection at its corners. The pivot is the box centre.
+   */
+  private applyTilt(tilt: LayerTilt, content: { left: number; top: number; width: number; height: number }): void {
+    const { width, height } = this.layer;
+    const pad = Math.max(16, Math.max(content.width, content.height) * 0.03);
+    const left = Math.max(0, content.left - pad);
+    const top = Math.max(0, content.top - pad);
+    const right = Math.min(width, content.left + content.width + pad);
+    const bottom = Math.min(height, content.top + content.height + pad);
+    if (right - left < 2 || bottom - top < 2) return;
+    const box = { left, top, width: right - left, height: bottom - top };
+    const pivot = { x: content.left + content.width / 2, y: content.top + content.height / 2 };
+    this.copyLayerTo(this.scratchCtx);
+    const lc = this.layerCtx;
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.globalAlpha = 1;
+    lc.filter = "none";
+    lc.globalCompositeOperation = "source-over";
+    lc.clearRect(0, 0, width, height);
+    for (const triangle of tiltMesh({ box, pivot, tilt })) {
+      const matrix = affineBetween(triangle.src, triangle.dst);
+      if (!matrix) continue;
+      const cx = (triangle.dst[0].x + triangle.dst[1].x + triangle.dst[2].x) / 3;
+      const cy = (triangle.dst[0].y + triangle.dst[1].y + triangle.dst[2].y) / 3;
+      lc.save();
+      lc.beginPath();
+      triangle.dst.forEach((p, i) => {
+        const away = Math.hypot(p.x - cx, p.y - cy) || 1;
+        const x = p.x + ((p.x - cx) / away) * TILT_SEAM_PX;
+        const y = p.y + ((p.y - cy) / away) * TILT_SEAM_PX;
+        if (i === 0) lc.moveTo(x, y); else lc.lineTo(x, y);
+      });
+      lc.closePath();
+      lc.clip();
+      lc.setTransform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+      lc.drawImage(this.scratch as CanvasImageSource, 0, 0);
+      lc.restore();
+    }
+  }
+
   private composite(blend: BlendMode): void {
     this.ctx.save();
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -267,9 +429,11 @@ export class Compositor {
   private drawTextLayer(item: TextLayer, plan: FramePlan): void {
     this.clearLayer();
     this.layerCtx.globalAlpha = item.opacity;
-    drawText({ ctx: this.layerCtx, params: item.params, canvasWidth: plan.width, canvasHeight: plan.height });
+    const layout = drawText({ ctx: this.layerCtx, params: item.params, canvasWidth: plan.width, canvasHeight: plan.height, seconds: item.seconds });
     this.layerCtx.globalAlpha = 1;
     this.applyEffects(item.effects, { width: plan.width, height: plan.height, centerX: plan.width / 2, centerY: plan.height / 2 });
+    if (item.tilt) this.applyTilt(item.tilt, textContentBox(layout.visualRect, item.params, plan));
+    this.applyShadows(item.effects, plan.height);
     this.composite(item.blendMode);
   }
 
@@ -289,11 +453,13 @@ export class Compositor {
   }
 
   private drawMediaLayer(item: MediaLayer, plan: FramePlan, sources: Pick<FrameSources, "get" | "mask">): void {
+    const t = item.transform;
     const image = item.source.type === "graphic"
-      ? (this.graphics.get(item.source.definitionId, item.source.params) as CanvasImageSource)
+      ? (isSizedGraphic(item.source.definitionId)
+        ? this.graphics.getSized(item.source.definitionId, item.source.params, { width: t.width, height: t.height, canvasHeight: plan.height })
+        : this.graphics.get(item.source.definitionId, item.source.params)) as CanvasImageSource
       : sources.get(item.source);
     if (!image) return;
-    const t = item.transform;
     const look = item.transition ? transitionLook(item.transition) : null;
     const centerX = t.centerX + (look ? look.shiftX * plan.width : 0);
     const scale = look?.scale ?? 1;
@@ -336,12 +502,16 @@ export class Compositor {
     });
 
     this.applyEffects(item.effects, { width: drawnWidth, height: drawnHeight, centerX, centerY: t.centerY });
-    if (look && look.darkness > 0) {
+    if (look && look.blur > 0) {
+      this.applyBlur({ type: "blur", params: { intensity: look.blur * TRANSITION_BLUR_INTENSITY } }, { width: drawnWidth, height: drawnHeight });
+    }
+    if (look && (look.darkness > 0 || look.lightness > 0)) {
       lc.globalCompositeOperation = "source-atop";
-      lc.fillStyle = `rgba(0,0,0,${look.darkness})`;
+      lc.fillStyle = look.darkness > 0 ? `rgba(0,0,0,${look.darkness})` : `rgba(255,255,255,${look.lightness})`;
       lc.fillRect(0, 0, plan.width, plan.height);
       lc.globalCompositeOperation = "source-over";
     }
+    if (look?.glitch) this.applyGlitch(look.glitch);
 
     let stroke: AnyCanvas | null = null;
     if (item.mask) {
@@ -355,6 +525,8 @@ export class Compositor {
       this.layerCtx.globalCompositeOperation = "source-over";
       stroke = renderMaskStroke(input);
     }
+    if (item.tilt) this.applyTilt(item.tilt, rotatedBox({ center: { x: centerX, y: t.centerY }, width: drawnWidth, height: drawnHeight, degrees: t.rotationDegrees }));
+    this.applyShadows(item.effects, plan.height);
     this.composite(item.blendMode);
     if (stroke) {
       this.ctx.save();

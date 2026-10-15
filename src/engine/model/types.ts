@@ -47,7 +47,7 @@ export interface Mask {
 }
 
 export const TRANSITION_TYPES = [
-  "dissolve", "fade-black", "slide-left", "slide-right", "wipe-left", "wipe-right", "zoom",
+  "dissolve", "fade-black", "slide-left", "slide-right", "wipe-left", "wipe-right", "zoom", "blur", "flash", "glitch",
 ] as const;
 export type TransitionType = (typeof TRANSITION_TYPES)[number];
 
@@ -100,7 +100,7 @@ export interface ImageElement extends BaseElement {
   masks?: Mask[];
   transition?: Transition;
 }
-export const TEXT_ANIMATION_PRESETS = ["fade", "slide-up", "pop", "typewriter"] as const;
+export const TEXT_ANIMATION_PRESETS = ["fade", "slide-up", "pop", "typewriter", "blur-in", "stagger-words", "type-caret", "count-up"] as const;
 export type TextAnimationPreset = (typeof TEXT_ANIMATION_PRESETS)[number];
 
 export interface TextAnimationSpec {
@@ -177,7 +177,26 @@ export interface Scene {
   updatedAt: string;
 }
 
-export type Background = { type: "color"; color: string } | { type: "blur"; blurIntensity: number };
+export const GRADIENT_STYLES = ["linear", "radial", "mesh"] as const;
+export type GradientStyle = (typeof GRADIENT_STYLES)[number];
+export const GRADIENT_MIN_COLORS = 2;
+export const GRADIENT_MAX_COLORS = 6;
+
+/**
+ * A gradient canvas background. `linear` runs along `angle` (CSS convention: 0 = towards the top, 90 = towards the right),
+ * `radial` spreads from the middle, `mesh` blends one soft blob per colour. `motion` (0-100) drifts it over time: it turns
+ * a linear gradient, orbits a radial one and floats the mesh blobs; 0 holds it still.
+ */
+export interface GradientBackground {
+  type: "gradient";
+  style: GradientStyle;
+  /** 2 to 6 hex colours (#rrggbb), first to last. */
+  colors: string[];
+  angle: number;
+  motion: number;
+}
+
+export type Background = { type: "color"; color: string } | { type: "blur"; blurIntensity: number } | GradientBackground;
 export interface CanvasSize { width: number; height: number }
 
 export interface ProjectSettings {

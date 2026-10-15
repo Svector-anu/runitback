@@ -1,5 +1,6 @@
-import { DEFAULT_GRAPHIC_SOURCE_SIZE, numberParam, stringParam, type ParamValues } from "#/engine/model";
+import { DEFAULT_GRAPHIC_SOURCE_SIZE, GRAPHIC_DEFINITIONS, numberParam, stringParam, type ParamValues } from "#/engine/model";
 import { context2d, createCanvas, type AnyCanvas, type AnyContext } from "./canvas";
+import { drawCursor, drawAppFrame } from "./graphic-symbols";
 
 export interface Point { x: number; y: number }
 
@@ -112,6 +113,22 @@ export function drawGraphic(ctx: AnyContext, definitionId: string, params: Param
   }
 }
 
+/** Largest side a sized graphic is rasterised at; the compositor stretches anything bigger. */
+export const SIZED_GRAPHIC_MAX_SIDE = 2048;
+
+export interface GraphicBox { width: number; height: number; canvasHeight: number }
+
+/** Draws a graphic whose definition is `sized` into a canvas of its on-screen pixel size. */
+export function drawSizedGraphic(ctx: AnyContext, definitionId: string, params: ParamValues, box: GraphicBox): void {
+  switch (definitionId) {
+    case "cursor": return drawCursor(ctx, params, box.width, box.height);
+    case "app-frame": return drawAppFrame(ctx, params, box);
+    default: throw new Error(`Unknown sized graphic "${definitionId}"`);
+  }
+}
+
+export const isSizedGraphic = (definitionId: string): boolean => GRAPHIC_DEFINITIONS[definitionId]?.sized === true;
+
 export class GraphicCache {
   private readonly cache = new Map<string, AnyCanvas>();
 
@@ -121,6 +138,24 @@ export class GraphicCache {
     if (!canvas) {
       canvas = createCanvas(DEFAULT_GRAPHIC_SOURCE_SIZE, DEFAULT_GRAPHIC_SOURCE_SIZE);
       drawGraphic(context2d(canvas), definitionId, params);
+      if (this.cache.size > 64) this.cache.delete(this.cache.keys().next().value as string);
+      this.cache.set(key, canvas);
+    }
+    return canvas;
+  }
+
+  /** A sized graphic at its laid-out pixel size (rounded, so a tiny animation step does not re-rasterise). */
+  getSized(definitionId: string, params: ParamValues, box: GraphicBox): AnyCanvas {
+    const width = Math.max(1, Math.round(box.width));
+    const height = Math.max(1, Math.round(box.height));
+    const key = `${definitionId}@${width}x${height}/${Math.round(box.canvasHeight)}:${JSON.stringify(params)}`;
+    let canvas = this.cache.get(key);
+    if (!canvas) {
+      const k = Math.min(1, SIZED_GRAPHIC_MAX_SIDE / Math.max(width, height));
+      canvas = createCanvas(Math.max(1, Math.ceil(width * k)), Math.max(1, Math.ceil(height * k)));
+      const ctx = context2d(canvas);
+      ctx.scale(k, k);
+      drawSizedGraphic(ctx, definitionId, params, { width, height, canvasHeight: box.canvasHeight });
       if (this.cache.size > 64) this.cache.delete(this.cache.keys().next().value as string);
       this.cache.set(key, canvas);
     }

@@ -12,14 +12,15 @@ Vision: an agent-native video editor, a "Claude for video editors". The agent ed
 | Temporal index + find/cut moments | built; never run on real footage in-app | `engine/temporal` |
 | Visual search (CLIP) | built; 5/9 top-1 on real footage | `docs/VISUAL_SEARCH.md` |
 | Faces (MediaPipe) | detection + storage only; not in index, UI or tools | `platform/visual/face-*` |
-| Word-level caption styling | data plumbing only; compositor has no rich text | `CaptionCue.words` |
+| Word-level caption highlight | built as stepped `highlightWord` keyframes from transcript word times (`add_captions_from_transcript` with `highlight`) and a text parameter; no UI button, SRT/ASS captions have no word times | `engine/agent/captions.ts`, `docs/CAPCUT_PARITY.md` |
 | Snap cuts to beat (toolbar, ruler beat ticks, `snap_cuts_to_beat`) | built; verified in Chrome on a synthetic click track; needs spare footage at each cut | `engine/beatsync`, `docs/AUDIO_VOICE.md` |
 | Noise removal (RNNoise, `denoise` clip param, `reduce_noise`) | built; 23.5 dB lower noise floor measured in an exported file (synthetic speech + noise), not yet on real recordings | `platform/denoise`, `docs/AUDIO_VOICE.md` |
 | Text to speech (SpeechT5, `generate_voiceover`) | built; real inference verified; clearly synthetic English only | `platform/tts`, `docs/AUDIO_VOICE.md` |
 | Caption translation (opus-mt, `translate_captions`) | built; en-es, en-fr, es-en verified on real output; machine quality | `platform/translate`, `docs/AUDIO_VOICE.md` |
 | Reference-style matching | engine + tools; opt-in | `engine/reference` |
-| Templates | engine, 8 templates, previews, agent tools and eval built; fuzzed for invariants; gallery UI separate; count-up, beat sync, speed ramps, device frames not available | `engine/templates`, `src/templates`, `docs/TEMPLATES.md` |
-| Evals | 70 scripted policy runs; real-model run **not done** | `evals/`, `docs/EVALS.md` |
+| Template style elements | blur-in, word-by-word and typing-caret text, count-up numbers, gradient and mesh backgrounds, blur / flash / glitch transitions, cursor with click ripple, app frames, perspective tilt, drop shadow, rounded cards, auto zoom; each renders through the shared plan and compositor and has unit tests; pixel specs `e2e/fx-*.spec.ts` ran locally in Chrome and in CI | `docs/CAPCUT_PARITY.md`, `docs/TEMPLATES.md` |
+| Templates | engine, 13 templates (5 use the style elements), previews, agent tools and eval built; fuzzed for invariants; gallery UI separate; beat sync, speed ramps not in the template format; inline icons that flow with text not available | `engine/templates`, `src/templates`, `docs/TEMPLATES.md` |
+| Evals | 125 scripted policy runs; real-model run **not done** | `evals/`, `docs/EVALS.md` |
 | Hosted build | deployed behind Vercel login | Deployment Protection on |
 | Speed / pitch | built; export pitch verified on real audio | `e2e/pitch-real-audio.spec.ts`; live playback not measured |
 

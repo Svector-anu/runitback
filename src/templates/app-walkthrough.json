@@ -1,0 +1,374 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "app-walkthrough",
+  "name": "App walkthrough",
+  "category": "explainer",
+  "tags": [
+    "screen-recording",
+    "tutorial",
+    "zoom"
+  ],
+  "description": "Show one screen recording in a browser frame that pushes in on three parts of the screen, each with a short step label, between an opening line and a closing line.",
+  "canvas": {
+    "aspect": "16:9",
+    "fps": 30,
+    "backgroundColor": "#050816",
+    "gradient": {
+      "style": "mesh",
+      "colors": [
+        "#050816",
+        "#1e2a78",
+        "#0f766e"
+      ],
+      "motion": 25
+    }
+  },
+  "durationSeconds": 25,
+  "slots": [
+    {
+      "id": "screen",
+      "kind": "video",
+      "label": "Screen recording",
+      "expectedSeconds": 18,
+      "aspect": "16:9",
+      "hint": "One continuous recording of the app, about 18 seconds. The zooms are at 2, 7 and 12 seconds in."
+    },
+    {
+      "id": "music",
+      "kind": "audio",
+      "label": "Music",
+      "optional": true
+    }
+  ],
+  "texts": [
+    {
+      "id": "opening-kicker",
+      "label": "Opening kicker",
+      "default": "HOW IT WORKS",
+      "style": "kicker",
+      "maxChars": 30,
+      "overrides": {
+        "sizePx": 40
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.4
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "opening",
+      "label": "Opening line",
+      "default": "Three steps from idea to launch",
+      "style": "headline",
+      "maxChars": 60,
+      "maxWidth": 1500,
+      "overrides": {
+        "sizePx": 120
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.8
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "step-1",
+      "label": "Step 1",
+      "default": "1  Connect your data",
+      "style": "label",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 44
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.3
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.25
+        }
+      }
+    },
+    {
+      "id": "step-2",
+      "label": "Step 2",
+      "default": "2  Pick a layout",
+      "style": "label",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 44
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.3
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.25
+        }
+      }
+    },
+    {
+      "id": "step-3",
+      "label": "Step 3",
+      "default": "3  Share a link",
+      "style": "label",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 44
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.3
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.25
+        }
+      }
+    },
+    {
+      "id": "end",
+      "label": "Closing line",
+      "default": "Ready when you are",
+      "style": "headline",
+      "maxChars": 50,
+      "overrides": {
+        "sizePx": 124
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.7
+        }
+      }
+    },
+    {
+      "id": "end-url",
+      "label": "Web address",
+      "default": "yourproduct.com",
+      "style": "label",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 54
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.4
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "open",
+      "at": 0,
+      "duration": 3.4,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "opening-kicker",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -140
+          },
+          "duration": 3.2
+        },
+        {
+          "kind": "text",
+          "text": "opening",
+          "at": 0.3,
+          "position": {
+            "x": 0,
+            "y": 20
+          },
+          "duration": 3.0
+        }
+      ]
+    },
+    {
+      "id": "tour",
+      "at": 3.4,
+      "duration": 18,
+      "media": {
+        "slot": "screen",
+        "track": "overlay",
+        "fit": "cover",
+        "box": {
+          "x": 0,
+          "y": -3.0,
+          "width": 1616,
+          "height": 842.0
+        },
+        "corners": 1.66,
+        "autoZoom": [
+          {
+            "at": 1.8,
+            "x": -400,
+            "y": -150,
+            "scale": 1.9,
+            "in": 0.7,
+            "hold": 3.0,
+            "out": 0.7
+          },
+          {
+            "at": 7.2,
+            "x": 330,
+            "y": 20,
+            "scale": 1.9,
+            "in": 0.7,
+            "hold": 3.0,
+            "out": 0.7
+          },
+          {
+            "at": 12.4,
+            "x": -60,
+            "y": 210,
+            "scale": 1.9,
+            "in": 0.7,
+            "hold": 3.0,
+            "out": 0.7
+          }
+        ]
+      },
+      "layers": [
+        {
+          "kind": "graphic",
+          "shape": "app-frame",
+          "at": 0,
+          "box": {
+            "x": 0,
+            "y": -20,
+            "width": 1640,
+            "height": 900
+          },
+          "params": {
+            "style": "browser",
+            "cornerRadius": 16
+          },
+          "behind": true,
+          "shadow": {
+            "blur": 100,
+            "opacity": 55,
+            "offsetY": 44
+          },
+          "autoZoom": [
+            {
+              "at": 1.8,
+              "x": -400,
+              "y": -150,
+              "scale": 1.9,
+              "in": 0.7,
+              "hold": 3.0,
+              "out": 0.7
+            },
+            {
+              "at": 7.2,
+              "x": 330,
+              "y": 20,
+              "scale": 1.9,
+              "in": 0.7,
+              "hold": 3.0,
+              "out": 0.7
+            },
+            {
+              "at": 12.4,
+              "x": -60,
+              "y": 210,
+              "scale": 1.9,
+              "in": 0.7,
+              "hold": 3.0,
+              "out": 0.7
+            }
+          ]
+        },
+        {
+          "kind": "text",
+          "text": "step-1",
+          "at": 1.6,
+          "position": {
+            "x": 0,
+            "y": 495
+          },
+          "duration": 5.6
+        },
+        {
+          "kind": "text",
+          "text": "step-2",
+          "at": 7.0,
+          "position": {
+            "x": 0,
+            "y": 495
+          },
+          "duration": 5.0
+        },
+        {
+          "kind": "text",
+          "text": "step-3",
+          "at": 12.2,
+          "position": {
+            "x": 0,
+            "y": 495
+          },
+          "duration": 5.4
+        }
+      ]
+    },
+    {
+      "id": "close",
+      "at": 21.4,
+      "duration": 3.6,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "end",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -60
+          }
+        },
+        {
+          "kind": "text",
+          "text": "end-url",
+          "at": 0.6,
+          "position": {
+            "x": 0,
+            "y": 150
+          }
+        }
+      ]
+    },
+    {
+      "id": "music-bed",
+      "at": 0,
+      "duration": 25,
+      "toEnd": true,
+      "media": {
+        "slot": "music"
+      }
+    }
+  ],
+  "preview": {
+    "poster": "app-walkthrough.webp",
+    "video": "app-walkthrough.mp4"
+  }
+}

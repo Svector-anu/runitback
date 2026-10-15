@@ -1,16 +1,17 @@
 import { mediaTime, type MediaTime } from "#/engine/time";
 import {
-  buildDefaultEffect, buildDefaultMask, InvalidInputError, TEXT_ANIMATION_PRESETS, type TextAnimationSpec, type TextAnimationState, type TransitionType, clampParams, clampToLimit, isMaskable, limitForPath, limitsForEffect, limitsForMask, isVisualElement, type AnimationInterpolation, type ElementRef, type Effect, type Mask,
+  buildDefaultEffect, buildDefaultMask, InvalidInputError, PARAM, TEXT_ANIMATION_PRESETS, TEXT_DEFAULTS, type TextAnimationSpec, type TextAnimationState, type TransitionType, clampParams, clampToLimit, isMaskable, limitForPath, limitsForEffect, limitsForMask, isVisualElement, type AnimationInterpolation, type ElementRef, type Effect, type Mask,
   type MaskType, type ParamValue, type TimelineElement, type ParamValues,
 } from "#/engine/model";
 import {
-  applyTextAnimation, keyframeIdAtTime, maxTextAnimationDuration, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
+  applyTextAnimation, autoZoomAnimations, autoZoomProblem, cursorAnimations, cursorPathProblem, TEXT_ANIMATION_PATHS, type AutoZoom, type CursorWaypoint, keyframeIdAtTime, maxTextAnimationDuration, removeKeyframe, removePathAnimation, retimeKeyframe, updateScalarCurve, upsertKeyframe,
   type ScalarCurvePatch,
 } from "#/engine/animation";
 import {
   canHaveTransition, getBaseValue, getElement, isTransitionType, maxTransitionDuration, replaceElement, requireFiniteParams,
   requireTick, resolvePathValue, setBaseValue, transitionPartner, withoutTransition,
 } from "#/engine/timeline";
+import { inferCount } from "#/engine/render";
 import { mapCurrentTracks, type Command, type CommandContext, type EditorDocument } from "./types";
 import { updateElements } from "./timeline";
 
@@ -44,7 +45,9 @@ export function upsertKeyframeCommand(input: {
           animations: el.animations, path: input.path, time, value,
           interpolation: input.interpolation, keyframeId: input.keyframeId, newId: ctx.newId,
         });
-        return { ...el, animations };
+        const keyed = { ...el, animations };
+        // A parameter older clips never stored has no base value, and animated values are only read for parameters that have one.
+        return getBaseValue(el, input.path) === undefined ? setBaseValue(keyed, input.path, value) : keyed;
       }) };
     },
   };
@@ -240,6 +243,27 @@ export function setTransitionCommand(input: { ref: ElementRef; transition: { typ
 // ---- Text animation presets ----------------------------------------------------------------------------------
 
 /**
+ * The params a text animation needs to find in place: defaults for every parameter a preset keys (so there is a base value
+ * to animate to), the caret for `type-caret`, and the number read out of the text for `count-up`.
+ */
+function textAnimationParams(el: Extract<TimelineElement, { type: "text" }>, state: TextAnimationState): ParamValues {
+  let params = el.params;
+  const missing = Object.entries(TEXT_DEFAULTS).filter(([key]) => (TEXT_ANIMATION_PATHS as readonly string[]).includes(key) && params[key] === undefined);
+  if (missing.length > 0) params = { ...params, ...Object.fromEntries(missing) };
+  const presets = [state.in?.preset, state.out?.preset];
+  if (presets.includes("type-caret")) params = { ...params, [PARAM.caret]: true };
+  if (presets.includes("count-up") && params[PARAM.countEnabled] !== true) {
+    const inferred = inferCount(String(params[PARAM.content] ?? ""));
+    if (!inferred) throw new InvalidInputError("Count up needs a number in the text, like 1,200 or $5");
+    params = {
+      ...params, [PARAM.countEnabled]: true, [PARAM.countValue]: inferred.value, [PARAM.countFormat]: inferred.format,
+      [PARAM.countDecimals]: inferred.decimals, [PARAM.countPrefix]: inferred.prefix, [PARAM.countSuffix]: inferred.suffix,
+    };
+  }
+  return params;
+}
+
+/**
  * Sets the in and/or out animation preset of a text clip (`undefined` keeps that side, `null` removes it). The presets
  * are written as ordinary keyframes on opacity, position Y, scale and `reveal`, replacing whatever keyframes those
  * parameters had; lengths clamp to half of the clip. One undo step.
@@ -263,14 +287,57 @@ export function setTextAnimationCommand(input: { ref: ElementRef; in?: TextAnima
         const outgoing = input.out === undefined ? el.textAnimation?.out : input.out;
         if (incoming) next.in = clamp(incoming);
         if (outgoing) next.out = clamp(outgoing);
+        const params = textAnimationParams(el, next);
         const animations = applyTextAnimation({
-          animations: el.animations, state: next, clipDuration: el.duration, params: el.params, canvasHeight: doc.settings.canvasSize.height, newId: ctx.newId,
+          animations: el.animations, state: next, clipDuration: el.duration, params, canvasHeight: doc.settings.canvasSize.height, newId: ctx.newId,
         });
-        const out: TimelineElement = { ...el };
+        const out: TimelineElement = { ...el, params };
         if (animations) out.animations = animations; else delete out.animations;
         if (next.in || next.out) (out as { textAnimation?: TextAnimationState }).textAnimation = next;
         else delete (out as { textAnimation?: TextAnimationState }).textAnimation;
         return out;
+      }) };
+    },
+  };
+}
+
+// ---- Cursor path ---------------------------------------------------------------------------------------------
+
+/**
+ * Moves a cursor graphic through `waypoints` (ticks from the clip start, px from the canvas centre) and plays the click
+ * ripple at the clicking stops. The static position becomes the first stop. One undo step.
+ */
+export function setCursorPathCommand(input: { ref: ElementRef; waypoints: ReadonlyArray<CursorWaypoint> }): Command {
+  return {
+    label: "Cursor path",
+    run(doc, ctx) {
+      return { doc: editElement(doc, ctx, input.ref, (el) => {
+        if (el.type !== "graphic" || el.definitionId !== "cursor") throw new InvalidInputError("A cursor path applies to cursor graphics");
+        const problem = cursorPathProblem({ waypoints: input.waypoints, clipDuration: el.duration });
+        if (problem) throw new InvalidInputError(`Cannot apply the cursor path: ${problem}`);
+        const first = input.waypoints[0] as CursorWaypoint;
+        const animations = cursorAnimations({ animations: el.animations, waypoints: input.waypoints, clipDuration: el.duration, newId: ctx.newId });
+        return { ...el, animations, params: { ...el.params, [PARAM.positionX]: first.x, [PARAM.positionY]: first.y, click: 0 } };
+      }) };
+    },
+  };
+}
+
+// ---- Auto zoom -----------------------------------------------------------------------------------------------
+
+/**
+ * Pushes a video, image or graphic clip in on points of its picture, easing in, holding and easing back (see `autoZoomAnimations`).
+ * Replaces the clip's keyframes on scale and position. One undo step.
+ */
+export function autoZoomCommand(input: { ref: ElementRef; zooms: ReadonlyArray<AutoZoom> }): Command {
+  return {
+    label: "Auto zoom",
+    run(doc, ctx) {
+      return { doc: editElement(doc, ctx, input.ref, (el) => {
+        if (el.type !== "video" && el.type !== "image" && el.type !== "graphic") throw new InvalidInputError("Auto zoom applies to video, image and graphic clips");
+        const problem = autoZoomProblem({ zooms: input.zooms, clipDuration: el.duration });
+        if (problem) throw new InvalidInputError(`Cannot apply auto zoom: ${problem}`);
+        return { ...el, animations: autoZoomAnimations({ animations: el.animations, params: el.params, zooms: input.zooms, newId: ctx.newId }) };
       }) };
     },
   };

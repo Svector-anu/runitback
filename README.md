@@ -24,13 +24,13 @@ Built and covered by tests (see [`docs/FEATURE_MATRIX.md`](docs/FEATURE_MATRIX.m
 
 - Multi-track timeline: split, trim, move, ripple, snapping, bookmarks, keyframes, multiple scenes, undo/redo, autosave.
 - Preview that renders the real composition, shared with export (one frame plan, one compositor).
-- Text (stroke, shadow, background, animation presets), shapes, masks, blur, colour adjust and eight filters, crop, freeze frame, speed with optional pitch preservation, seven transitions.
+- Text (stroke, shadow, background, animation presets including blur-in, word by word, typing caret and count-up), shapes, a cursor with a click ripple, app frames, masks (rounded corners too), blur, drop shadow, perspective tilt, colour adjust and eight filters, crop, freeze frame, auto zoom, gradient and mesh backgrounds, speed with optional pitch preservation, ten transitions (blur, flash and glitch among them).
 - Captions import (SRT/ASS) and local speech transcription (Whisper) with transcript search and delete-by-sentence.
 - Video effects: chroma key with an eyedropper, speed ramps with a curve editor and presets, on-device background removal, point tracking and stabilization.
 - Audio and voice: snap cuts to the beat, on-device noise removal, local text to speech and caption translation (models download only after consent).
 - Generate images, video, music and speech with your own Surplus key (bring your own key; nothing is generated without it; see [`docs/GENERATE.md`](docs/GENERATE.md)).
 - MP4 (H.264/AAC) and WebM (VP9/Opus) export, run in the browser with WebCodecs.
-- Templates: eight original templates (product launch, kinetic announcement, feature callouts, before and after, numbered list, testimonial, talking head with captions, metric reveal) in a gallery at `/templates`, applied in one undo step from the editor, the Projects page or the agent. Importing or saving your own template in the app is not built yet ([`docs/TEMPLATES.md`](docs/TEMPLATES.md)).
+- Templates: thirteen original templates (product launch, kinetic announcement, feature callouts, before and after, numbered list, testimonial, talking head with captions, metric reveal, kinetic sentences, prompt to result, app walkthrough, tilted UI tour, growth numbers) in a gallery at `/templates`, applied in one undo step from the editor, the Projects page or the agent. Importing or saving your own template in the app is not built yet ([`docs/TEMPLATES.md`](docs/TEMPLATES.md)).
 - Agent layer: an in-app chat agent and an MCP server over the same typed tools, with plan-then-approve, local perception (silence, loudness, beats, scene cuts), a per-asset temporal index, visual search (CLIP) and face detection (MediaPipe).
 
 In progress or known gaps (stated plainly):

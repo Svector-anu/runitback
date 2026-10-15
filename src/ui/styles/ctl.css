@@ -58,4 +58,7 @@
 .transition-type[data-type="slide-right"] .transition-type__glyph { background: linear-gradient(90deg, color-mix(in srgb, var(--foreground) 55%, transparent) 0 60%, var(--primary) 60% 100%); }
 .transition-type[data-type="wipe-left"] .transition-type__glyph { background: linear-gradient(135deg, var(--primary) 0 50%, color-mix(in srgb, var(--foreground) 55%, transparent) 50% 100%); }
 .transition-type[data-type="wipe-right"] .transition-type__glyph { background: linear-gradient(45deg, color-mix(in srgb, var(--foreground) 55%, transparent) 0 50%, var(--primary) 50% 100%); }
+.transition-type[data-type="blur"] .transition-type__glyph { background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--foreground) 55%, transparent)); filter: blur(0.5px); }
+.transition-type[data-type="flash"] .transition-type__glyph { background: linear-gradient(90deg, var(--primary) 0 25%, #fff 50%, color-mix(in srgb, var(--foreground) 55%, transparent) 75% 100%); }
+.transition-type[data-type="glitch"] .transition-type__glyph { background: repeating-linear-gradient(0deg, var(--primary) 0 2px, color-mix(in srgb, var(--foreground) 55%, transparent) 2px 4px); }
 .transition-type[data-type="zoom"] .transition-type__glyph { background: radial-gradient(circle, var(--primary) 0 30%, color-mix(in srgb, var(--foreground) 55%, transparent) 32% 100%); }

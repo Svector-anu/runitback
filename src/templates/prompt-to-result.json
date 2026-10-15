@@ -1,0 +1,438 @@
+{
+  "format": "runitback-template",
+  "templateVersion": 1,
+  "id": "prompt-to-result",
+  "name": "Prompt to result",
+  "category": "showcase",
+  "tags": [
+    "ai",
+    "demo",
+    "screen-recording"
+  ],
+  "description": "Type a prompt, click send, see the result: a typed prompt with a blinking caret, a cursor that clicks the button, then your recording in a browser frame, repeated for each example on a drifting gradient.",
+  "canvas": {
+    "aspect": "16:9",
+    "fps": 30,
+    "backgroundColor": "#1b0b3a",
+    "gradient": {
+      "style": "mesh",
+      "colors": [
+        "#1b0b3a",
+        "#ef007e",
+        "#f77400",
+        "#4a30f3"
+      ],
+      "motion": 30
+    }
+  },
+  "durationSeconds": 21.6,
+  "slots": [
+    {
+      "id": "logo",
+      "kind": "image",
+      "label": "Logo",
+      "optional": true,
+      "hint": "A square logo shown above the title."
+    }
+  ],
+  "texts": [
+    {
+      "id": "title",
+      "label": "Title",
+      "default": "Prompt in. Video out.",
+      "style": "headline",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 132
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.8
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "Describe it. Watch it happen.",
+      "style": "subhead",
+      "maxChars": 60,
+      "overrides": {
+        "sizePx": 60
+      },
+      "animation": {
+        "in": {
+          "preset": "fade",
+          "seconds": 0.5
+        },
+        "out": {
+          "preset": "fade",
+          "seconds": 0.3
+        }
+      }
+    },
+    {
+      "id": "outro-title",
+      "label": "Closing line",
+      "default": "Try it on your next video",
+      "style": "headline",
+      "maxChars": 50,
+      "overrides": {
+        "sizePx": 112
+      },
+      "animation": {
+        "in": {
+          "preset": "blur-in",
+          "seconds": 0.7
+        }
+      }
+    },
+    {
+      "id": "outro-url",
+      "label": "Web address",
+      "default": "yourproduct.com",
+      "style": "label",
+      "maxChars": 40,
+      "overrides": {
+        "sizePx": 52
+      },
+      "animation": {
+        "in": {
+          "preset": "pop",
+          "seconds": 0.4
+        }
+      }
+    }
+  ],
+  "beats": [
+    {
+      "id": "logo",
+      "at": 0,
+      "duration": 2.6,
+      "media": {
+        "slot": "logo",
+        "track": "overlay",
+        "fit": "contain",
+        "box": {
+          "x": 0,
+          "y": -300,
+          "width": 170,
+          "height": 170
+        },
+        "corners": 22,
+        "shadow": {
+          "blur": 50,
+          "opacity": 40,
+          "offsetY": 16
+        }
+      }
+    },
+    {
+      "id": "intro",
+      "at": 0,
+      "duration": 2.6,
+      "layers": [
+        {
+          "kind": "text",
+          "text": "title",
+          "at": 0.2,
+          "position": {
+            "x": 0,
+            "y": -10
+          },
+          "duration": 2.2
+        },
+        {
+          "kind": "text",
+          "text": "subtitle",
+          "at": 0.9,
+          "position": {
+            "x": 0,
+            "y": 150
+          },
+          "duration": 1.6
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "at": 0,
+      "duration": 3,
+      "afterRepeat": "cycles",
+      "layers": [
+        {
+          "kind": "text",
+          "text": "outro-title",
+          "at": 0.1,
+          "position": {
+            "x": 0,
+            "y": -60
+          }
+        },
+        {
+          "kind": "text",
+          "text": "outro-url",
+          "at": 0.6,
+          "position": {
+            "x": 0,
+            "y": 130
+          }
+        }
+      ]
+    }
+  ],
+  "repeat": [
+    {
+      "id": "cycles",
+      "label": "Prompt and result",
+      "min": 2,
+      "max": 4,
+      "at": 2.6,
+      "itemSeconds": 8,
+      "slots": [
+        {
+          "id": "result",
+          "kind": "video",
+          "label": "Result recording",
+          "expectedSeconds": 5,
+          "aspect": "16:9",
+          "hint": "What the prompt produced: a screen recording of the result."
+        }
+      ],
+      "texts": [
+        {
+          "id": "prompt",
+          "label": "Prompt",
+          "default": "Make a 20 second launch video for my app",
+          "style": "headline",
+          "maxChars": 110,
+          "maxWidth": 1280,
+          "overrides": {
+            "sizePx": 62,
+            "textAlign": "left",
+            "shadow.enabled": false
+          },
+          "animation": {
+            "in": {
+              "preset": "type-caret",
+              "seconds": 1.8
+            },
+            "out": {
+              "preset": "fade",
+              "seconds": 0.2
+            }
+          }
+        },
+        {
+          "id": "step",
+          "label": "Step label",
+          "default": "EXAMPLE {n} OF {count}",
+          "style": "kicker",
+          "maxChars": 40,
+          "overrides": {
+            "sizePx": 34,
+            "textAlign": "left",
+            "color": "#ffa3d0"
+          },
+          "animation": {
+            "in": {
+              "preset": "fade",
+              "seconds": 0.3
+            }
+          }
+        },
+        {
+          "id": "answer",
+          "label": "Result caption",
+          "default": "Your result, ready to share",
+          "style": "label",
+          "maxChars": 50,
+          "overrides": {
+            "sizePx": 46
+          },
+          "animation": {
+            "in": {
+              "preset": "pop",
+              "seconds": 0.35
+            },
+            "out": {
+              "preset": "fade",
+              "seconds": 0.25
+            }
+          }
+        }
+      ],
+      "beats": [
+        {
+          "id": "prompt",
+          "at": 0,
+          "duration": 3.6,
+          "layers": [
+            {
+              "kind": "graphic",
+              "shape": "app-frame",
+              "at": 0,
+              "box": {
+                "x": 0,
+                "y": -30,
+                "width": 1500,
+                "height": 520
+              },
+              "params": {
+                "style": "plain",
+                "fill": "#101111",
+                "stroke": "#2a2a2e",
+                "cornerRadius": 36
+              },
+              "shadow": {
+                "blur": 90,
+                "opacity": 60,
+                "offsetY": 40
+              }
+            },
+            {
+              "kind": "text",
+              "text": "step",
+              "at": 0.1,
+              "position": {
+                "x": -690,
+                "y": -215
+              },
+              "duration": 3.4
+            },
+            {
+              "kind": "text",
+              "text": "prompt",
+              "at": 0.4,
+              "position": {
+                "x": -690,
+                "y": -95
+              },
+              "duration": 3.1
+            },
+            {
+              "kind": "graphic",
+              "shape": "ellipse",
+              "at": 1.0,
+              "box": {
+                "x": 650,
+                "y": 150,
+                "width": 124,
+                "height": 124
+              },
+              "params": {
+                "fill": "#ffffff"
+              }
+            },
+            {
+              "kind": "graphic",
+              "shape": "polygon",
+              "at": 1.0,
+              "box": {
+                "x": 655,
+                "y": 150,
+                "width": 52,
+                "height": 52
+              },
+              "params": {
+                "fill": "#101111",
+                "sides": 3,
+                "transform.rotate": 90
+              }
+            },
+            {
+              "kind": "graphic",
+              "shape": "cursor",
+              "at": 1.5,
+              "box": {
+                "x": 380,
+                "y": 320,
+                "width": 460,
+                "height": 460
+              },
+              "cursor": {
+                "path": [
+                  {
+                    "at": 0,
+                    "x": 380,
+                    "y": 320
+                  },
+                  {
+                    "at": 0.9,
+                    "x": 650,
+                    "y": 150,
+                    "click": true
+                  },
+                  {
+                    "at": 1.8,
+                    "x": 650,
+                    "y": 150
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "result",
+          "at": 3.6,
+          "duration": 4.4,
+          "media": {
+            "slot": "result",
+            "track": "overlay",
+            "fit": "cover",
+            "box": {
+              "x": 0,
+              "y": -3.0,
+              "width": 1476,
+              "height": 762.0
+            },
+            "corners": 1.84
+          },
+          "layers": [
+            {
+              "kind": "graphic",
+              "shape": "app-frame",
+              "at": 0,
+              "box": {
+                "x": 0,
+                "y": -20,
+                "width": 1500,
+                "height": 820
+              },
+              "params": {
+                "style": "browser",
+                "cornerRadius": 16
+              },
+              "behind": true,
+              "shadow": {
+                "blur": 90,
+                "opacity": 60,
+                "offsetY": 40
+              }
+            },
+            {
+              "kind": "text",
+              "text": "answer",
+              "at": 0.4,
+              "position": {
+                "x": 0,
+                "y": 458
+              },
+              "duration": 3.8
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preview": {
+    "poster": "prompt-to-result.webp",
+    "video": "prompt-to-result.mp4"
+  }
+}

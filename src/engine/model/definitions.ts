@@ -83,6 +83,18 @@ export const EFFECT_DEFINITIONS: Record<string, EffectDefinition> = {
       { type: "boolean", key: "invert", label: "Keep background instead", default: false },
     ],
   },
+  shadow: {
+    type: "shadow",
+    name: "Drop shadow",
+    scope: "clip",
+    params: [
+      { type: "color", key: "color", label: "Color", default: "#000000" },
+      { type: "number", key: "opacity", label: "Opacity", default: 40, min: 0, max: 100, step: 1, unit: "%" },
+      { type: "number", key: "blur", label: "Blur", default: 40, min: 0, max: 200, step: 1, unit: "px at 1080p" },
+      { type: "number", key: "offsetX", label: "Offset X", default: 0, min: -400, max: 400, step: 1, unit: "px at 1080p" },
+      { type: "number", key: "offsetY", label: "Offset Y", default: 24, min: -400, max: 400, step: 1, unit: "px at 1080p" },
+    ],
+  },
 };
 
 /** Effects that can be dropped on an empty area as a scene-wide effect layer. */
@@ -124,10 +136,23 @@ export const STROKE_PARAMS: ReadonlyArray<ParamDef> = [
     options: [{ value: "inside", label: "Inside" }, { value: "center", label: "Center" }, { value: "outside", label: "Outside" }] },
 ];
 
+export const CURSOR_STYLES = ["arrow", "hand", "dot"] as const;
+export type CursorStyle = (typeof CURSOR_STYLES)[number];
+export const APP_FRAME_STYLES = ["mac", "browser", "plain"] as const;
+export type AppFrameStyle = (typeof APP_FRAME_STYLES)[number];
+
+const optionsOf = (values: ReadonlyArray<string>, labels: Record<string, string>): Array<{ value: string; label: string }> =>
+  values.map((value) => ({ value, label: labels[value] ?? value }));
+
 export interface GraphicDefinition {
   id: string;
   name: string;
   params: ReadonlyArray<ParamDef>;
+  /**
+   * Drawn at the size it ends up on screen instead of into a square that is then stretched, so corner radii, window
+   * buttons and pointer shapes stay undistorted at any box size (the compositor passes the laid-out pixel size).
+   */
+  sized?: boolean;
 }
 
 export const GRAPHIC_DEFINITIONS: Record<string, GraphicDefinition> = {
@@ -143,6 +168,26 @@ export const GRAPHIC_DEFINITIONS: Record<string, GraphicDefinition> = {
     { type: "number", key: "points", label: "Points", default: 5, min: 3, max: 12, step: 1 },
     { type: "number", key: "depth", label: "Depth", default: 45, min: 1, max: 99, step: 1 },
   ] },
+  cursor: {
+    id: "cursor", name: "Cursor", sized: true,
+    params: [
+      { type: "select", key: "style", label: "Style", default: "arrow", options: optionsOf(CURSOR_STYLES, { arrow: "Arrow", hand: "Hand", dot: "Touch dot" }) },
+      { type: "color", key: "fill", label: "Fill", default: "#ffffff" },
+      { type: "color", key: "stroke", label: "Outline", default: "#111111" },
+      { type: "color", key: "rippleColor", label: "Click ripple", default: "#3b82f6" },
+      { type: "number", key: "click", label: "Click", default: 0, min: 0, max: 1, step: 0.01 },
+    ],
+  },
+  "app-frame": {
+    id: "app-frame", name: "App frame", sized: true,
+    params: [
+      { type: "select", key: "style", label: "Style", default: "mac", options: optionsOf(APP_FRAME_STYLES, { mac: "Desktop app", browser: "Browser", plain: "Plain card" }) },
+      { type: "color", key: "fill", label: "Body", default: "#ffffff" },
+      { type: "color", key: "barColor", label: "Title bar", default: "#ececf1" },
+      { type: "color", key: "stroke", label: "Outline", default: "#d4d4dc" },
+      { type: "number", key: "cornerRadius", label: "Corner radius", default: 12, min: 0, max: 50, step: 1 },
+    ],
+  },
 };
 
 export const DEFAULT_GRAPHIC_SOURCE_SIZE = 512;
@@ -180,7 +225,10 @@ export const MASK_DEFINITIONS: Record<MaskType, MaskDefinition> = {
     { type: "number", key: "rotation", label: "Rotation", default: 0, min: 0, max: 360, step: 1 },
   ] },
   "cinematic-bars": { type: "cinematic-bars", name: "Cinematic bars", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },
-  rectangle: { type: "rectangle", name: "Rectangle", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },
+  rectangle: { type: "rectangle", name: "Rectangle", params: [
+    ...MASK_BASE_PARAMS, ...BOX_PARAMS,
+    { type: "number", key: "cornerRadius", label: "Corner radius", default: 0, min: 0, max: 50, step: 1 },
+  ] },
   ellipse: { type: "ellipse", name: "Ellipse", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },
   heart: { type: "heart", name: "Heart", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },
   diamond: { type: "diamond", name: "Diamond", params: [...MASK_BASE_PARAMS, ...BOX_PARAMS] },

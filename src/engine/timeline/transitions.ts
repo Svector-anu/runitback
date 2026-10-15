@@ -12,6 +12,9 @@ export const TRANSITION_NAMES: Record<TransitionType, string> = {
   "wipe-left": "Wipe left",
   "wipe-right": "Wipe right",
   zoom: "Zoom",
+  blur: "Blur dissolve",
+  flash: "Flash",
+  glitch: "Glitch",
 };
 
 type Transitionable = Extract<TimelineElement, { type: "video" | "image" }>;
