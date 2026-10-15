@@ -75,11 +75,11 @@ Not checked: the page itself. The browser extension was not connected, so nothin
 4. `shadowBlur` is used 7 times in canvas code; replace with pre-rendered glow sprites before profiling on real hardware.
 5. (Fixed) The spider is scale 1.0 below 720 px; the scale is chosen at load, so resizing across the breakpoint needs a reload.
 6. Terrain network is aligned to an average video frame; strikes can sit a few pixels off the drifting dunes.
-7. Mobile legend is hidden below 720 px.
+7. (Fixed) The mobile legend is a collapsible `Legend` disclosure below 720 px.
 8. No scope or time controls in the workspace (no data to scope yet).
 9. Third-party requests remain: Google Fonts and the OnlineWebFonts display face (the unused Font Awesome stylesheet was removed).
-10. Accessibility is partial: focus styles, labels, live regions, a list view alternative, but no screen-reader pass and no skip link.
-11. Nothing is committed; the folder shares a repo with RunItBack.
+10. Accessibility is partial: focus styles, labels, live regions, a list view alternative and a skip link, but no screen-reader pass.
+11. Committed and pushed on branch `opencrawl` (commit 7792499), but inside the RunItBack repo; DEC-010 (own repo) is open.
 12. Banner and social card PNGs were captured from the browser at about 1456 px wide (not 2x); `assets/brand/render.sh` re-renders them at higher resolution if you want to run it.
 13. Live data depends on a third-party public API (rate limits and availability are outside this project); only recent transactions are read (25 confirmed plus pending), so counts are "of the most recent".
 14. The spider still crosses the headline area for brief moments while leaving it.

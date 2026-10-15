@@ -4,7 +4,7 @@ Project: OpenCrawl (`/Users/mac/Desktop/coding/oss/dejavu`). Period: 2026-10-04 
 
 ## Summary
 
-A static, dependency-free web app (HTML, CSS, vanilla ES modules): a cinematic landing page with a living procedural spider, a terrain light layer that reacts to the spider, a guided demo tour, a brand kit, and an investigation workspace (graph, filters, findings, inspector, timeline, provenance, recent leads) running on a clearly labeled demo dataset. No live data and no real agent are connected.
+A static, dependency-free web app (HTML, CSS, vanilla ES modules): a cinematic landing page with a living procedural spider, a terrain light layer that reacts to the spider, a guided demo tour, a brand kit, and an investigation workspace (graph, filters, findings, inspector, timeline, provenance, recent leads) running on a clearly labeled demo dataset or live Bitcoin addresses (Blockstream), and a market terminal with an interactive candle chart on live Binance spot data. No real agent is connected; derived events are rule-based and labeled Derived.
 
 Size: about 5,700 lines of code (index.html, styles.css, main.js, serve.py, js/, tests/) and about 1,800 lines of documentation. Zero third-party dependencies. Git: nothing committed; the folder sits inside the unrelated `oss` (RunItBack) repo.
 
@@ -48,7 +48,7 @@ Root `CLAUDE.md` (rules for every future session), `HANDOFF.md`, `docs/` with pr
 
 ## 6. Tooling
 
-`serve.py` no-cache dev server; `tests/model.check.mjs` (11 checks, built-in `node:assert`); `assets/brand/render.sh` brand renderer (run by hand).
+`serve.py` no-cache dev server; `tests/model.check.mjs` (19 checks) and `tests/market.check.mjs` (23 checks), both built-in `node:assert`; `assets/brand/render.sh` brand renderer (run by hand).
 
 ## 7. Naming and repo
 
