@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenCrawl: Markets leave trails</title>
+    <meta
+      name="description"
+      content="Trace the connections between stocks, tokens, wallets, and on-chain activity. Watch an agent investigate the signal."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://db.onlinewebfonts.com/c/8cb707a9b8a73f8a7403336b861c3074?family=BubbledotICG-FinePos"
+      rel="stylesheet"
+    />
+    <meta name="theme-color" content="#0d0614" />
+    <link rel="icon" type="image/svg+xml" href="assets/brand/opencrawl-icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/icon-32.png" />
+    <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="OpenCrawl: Markets leave trails" />
+    <meta property="og:description" content="Trace the connections between stocks, tokens, wallets, and on-chain activity. Watch an agent investigate the signal." />
+    <meta property="og:image" content="assets/brand/opencrawl-og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-view="landing">
+    <a class="skip-link" href="#" id="skip-link">Skip to content</a>
+    <div class="bg" aria-hidden="true">
+      <video class="bg-video" muted loop playsinline preload="auto"></video>
+    </div>
+
+    <canvas class="terrain-canvas" id="terrain-canvas" aria-hidden="true"></canvas>
+
+    <div class="page" id="top">
+      <header class="header">
+        <a class="brand" href="#top" aria-label="OpenCrawl home">
+          <span class="logo"><img src="assets/logo.svg" alt="" width="52" height="52" /></span>
+          <span class="wordmark">OPENCRAWL</span>
+        </a>
+
+        <nav class="nav" aria-label="Primary">
+          <a class="nav-link" data-route="landing" href="#top">Home</a>
+          <a class="nav-link" href="#how">How it works</a>
+          <a class="nav-link" href="#status">Status</a>
+          <a class="nav-link" data-route="terminal" href="#/investigate">Terminal</a>
+        </nav>
+
+        <a class="sign-in" href="#/investigate" data-spider-id="open-terminal">Open terminal</a>
+
+        <button
+          class="burger"
+          type="button"
+          aria-label="Toggle menu"
+          aria-expanded="false"
+          aria-controls="mobile-menu"
+        >
+          <span></span><span></span><span></span>
+        </button>
+      </header>
+
+      <main id="landing" class="view">
+        <section class="hero-screen">
+          <div class="hero">
+            <p class="eyebrow">MARKET INTELLIGENCE IN MOTION</p>
+
+            <h1 class="headline" id="hero-title" data-spider-id="hero-title">
+              <span class="line"><span class="line-inner" data-text="Markets leave trails.">Markets leave trails.</span></span>
+              <span class="line"><span class="line-inner" data-text="Follow them.">Follow them.</span></span>
+            </h1>
+
+            <p class="subhead hero-in" style="--d: 0.85s">
+              Trace the connections between stocks, tokens, wallets, and on-chain activity. Watch an
+              agent investigate the signal.
+            </p>
+
+            <div class="hero-actions hero-in" style="--d: 1.05s">
+              <a class="cta" href="#/investigate" data-start-investigation>Start an investigation</a>
+              <button class="cta-secondary" type="button" data-watch-tour>Watch the spider work</button>
+            </div>
+          </div>
+
+          <ul class="caps hero-in" style="--d: 1.3s">
+            <li class="cap">
+              <strong>Stocks and tokens</strong>
+              <span>Follow a ticker or a token address across the markets it touches.</span>
+            </li>
+            <li class="cap">
+              <strong>Wallets</strong>
+              <span>See which wallets sit around a trade, and how they connect.</span>
+            </li>
+            <li class="cap">
+              <strong>An agent that shows its work</strong>
+              <span>It opens the pages, reads the evidence, and you watch it happen.</span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="section" id="how" aria-labelledby="how-title">
+          <h2 class="section-title" id="how-title" data-reveal>
+            <span class="title-mask"><span class="title-inner">Give it a trail. Watch it work.</span></span>
+          </h2>
+          <p class="section-lead" data-reveal style="--i: 1">
+            OpenCrawl follows one thread through the market and keeps the evidence it finds along
+            the way.
+          </p>
+
+          <div class="story">
+            <ol class="steps">
+              <li class="step" data-spider-id="step-1" data-reveal>
+                <h3>Start with a subject</h3>
+                <p>Enter a stock ticker, a token address, or a wallet.</p>
+              </li>
+              <li class="step" data-spider-id="step-2" data-reveal>
+                <h3>Investigate the activity</h3>
+                <p>The agent looks at market activity and the on-chain relationships around it.</p>
+              </li>
+              <li class="step" data-spider-id="step-3" data-reveal>
+                <h3>Watch the spider move</h3>
+                <p>Every action shows on the page: where it looks, what it opens, what it finds.</p>
+              </li>
+              <li class="step" data-spider-id="step-4" data-reveal>
+                <h3>Inspect the evidence</h3>
+                <p>Each connection points back to the source it came from.</p>
+              </li>
+              <li class="step" data-spider-id="step-5" data-reveal>
+                <h3>Open the terminal</h3>
+                <p>Charts, wallet relationships, and the agent's evidence in one investigation view.</p>
+              </li>
+            </ol>
+
+            <figure class="story-graph" data-step="0">
+              <svg viewBox="0 0 360 300" role="img" aria-label="Illustration of a subject connected to market activity, wallets, transactions and evidence">
+                <g class="edges" fill="none" stroke-linecap="round">
+                  <path class="edge" data-from="2" d="M180 140 L72 62" pathLength="1" />
+                  <path class="edge" data-from="2" d="M180 140 L292 70" pathLength="1" />
+                  <path class="edge" data-from="3" d="M292 70 L304 214" pathLength="1" />
+                  <path class="edge" data-from="3" d="M180 140 L304 214" pathLength="1" />
+                  <path class="edge evidence" data-from="4" d="M180 140 L96 232" pathLength="1" />
+                  <path class="edge evidence" data-from="4" d="M304 214 L96 232" pathLength="1" />
+                </g>
+                <g class="nodes">
+                  <g class="node" data-from="1" data-spider-id="g-subject"><circle cx="180" cy="140" r="15" /><text x="180" y="172" text-anchor="middle">Subject</text></g>
+                  <g class="node" data-from="2" data-spider-id="g-market"><circle cx="72" cy="62" r="10" /><text x="72" y="40" text-anchor="middle">Market activity</text></g>
+                  <g class="node" data-from="2" data-spider-id="g-wallets"><circle cx="292" cy="70" r="10" /><text x="292" y="48" text-anchor="middle">Wallets</text></g>
+                  <g class="node" data-from="3" data-spider-id="g-transactions"><circle cx="304" cy="214" r="10" /><text x="304" y="244" text-anchor="middle">Transactions</text></g>
+                  <g class="node" data-from="4" data-spider-id="g-evidence"><circle cx="96" cy="232" r="10" /><text x="96" y="262" text-anchor="middle">Evidence</text></g>
+                </g>
+              </svg>
+              <figcaption>Illustration only. Not live data.</figcaption>
+            </figure>
+          </div>
+
+          <p class="tour-status" data-spider-id="tour-status" aria-live="polite" data-reveal>
+            <span class="tour-badge">Simulated</span>
+            <span class="tour-message">Press “Watch the spider work” for a guided tour.</span>
+          </p>
+        </section>
+
+        <section class="section" id="status" aria-labelledby="status-title">
+          <h2 class="section-title" id="status-title" data-reveal>
+            <span class="title-mask"><span class="title-inner">What works today</span></span>
+          </h2>
+          <p class="section-lead" data-reveal style="--i: 1">
+            OpenCrawl is an early build. This is what is real, what is placeholder, and what is not
+            connected yet.
+          </p>
+          <div class="status-grid">
+            <div data-reveal style="--i: 2">
+              <h3>Working now</h3>
+              <ul>
+                <li>The spider: movement, silk, and the event interface that drives it.</li>
+                <li>The investigation terminal layout.</li>
+                <li>A simulated investigation that sends the same events a live agent would.</li>
+              </ul>
+            </div>
+            <div data-reveal style="--i: 3">
+              <h3>Demonstration only</h3>
+              <ul>
+                <li>Findings, connections, and evidence from simulated runs. They are labeled as demonstration data.</li>
+              </ul>
+            </div>
+            <div data-reveal style="--i: 4">
+              <h3>Not connected yet</h3>
+              <ul>
+                <li>Market data and charts.</li>
+                <li>On-chain and wallet data.</li>
+                <li>The computer-use agent.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="section final" aria-labelledby="final-title">
+          <h2 class="section-title" id="final-title" data-reveal>
+            <span class="title-mask"><span class="title-inner">Start with a ticker, a token, or a wallet.</span></span>
+          </h2>
+          <a class="cta" data-reveal style="--i: 1" href="#/investigate" data-start-investigation>Start an investigation</a>
+        </section>
+
+        <footer class="footer">OpenCrawl. Demonstration build: no live market data.</footer>
+      </main>
+
+      <main id="terminal" class="view workspace" hidden tabindex="-1" aria-labelledby="workspace-title" data-pane="graph" data-sheet="closed" data-view="market">
+        <h1 id="workspace-title" class="visually-hidden">Investigation workspace</h1>
+
+        <div class="ws-top">
+          <form class="ws-search" id="query-form" role="search" autocomplete="off">
+            <label class="visually-hidden" for="query-input">Lead</label>
+            <input
+              id="query-input"
+              data-spider-id="terminal-query"
+              name="lead"
+              type="text"
+              placeholder="Symbol like BTC or ETH"
+              maxlength="120"
+            />
+            <span class="chip" id="detected-chip" hidden></span>
+            <button class="btn-primary" type="submit">Investigate</button>
+            <button class="btn-quiet" type="button" id="clear-input">Start over</button>
+          </form>
+          <div class="ws-meta">
+            <div class="view-switch" role="group" aria-label="Workspace view">
+              <button type="button" data-view-tab="market" aria-pressed="true">Market</button>
+              <button type="button" data-view-tab="network" aria-pressed="false">Network</button>
+            </div>
+            <div class="ws-subject" id="ws-subject" aria-label="Current subject"></div>
+            <span class="chip chip-demo" id="mode-chip" data-spider-id="mode-badge">Demo</span>
+            <span class="run-state" id="run-state" data-run="idle" aria-live="polite">Idle</span>
+            <button class="btn-quiet" type="button" id="calm-toggle" aria-pressed="false">Spider: on</button>
+          </div>
+        </div>
+
+        <div class="ws-body">
+          <aside class="ws-left" aria-label="Investigation">
+            <div class="rail-market" id="rail-market">
+              <section class="rail-section" aria-labelledby="markets-title">
+                <h2 class="rail-heading" id="markets-title">Markets</h2>
+                <ul class="watchlist" id="watchlist"></ul>
+              </section>
+              <section class="rail-section" aria-labelledby="mfilters-title">
+                <div class="rail-head-row">
+                  <h2 class="rail-heading" id="mfilters-title">Events <span class="count-badge" id="mfilter-count" hidden></span></h2>
+                  <button class="btn-quiet" type="button" id="mfilters-clear" hidden>Clear all</button>
+                </div>
+                <div class="filter-group" id="mfilter-kinds" role="group" aria-label="Filter events by kind"></div>
+              </section>
+              <section class="rail-section grow" aria-labelledby="mfindings-title" data-spider-id="panel-findings">
+                <h2 class="rail-heading" id="mfindings-title">Findings</h2>
+                <ol class="findings" id="mfindings"></ol>
+              </section>
+            </div>
+            <section class="rail-section rail-network">
+              <h2 class="rail-heading">Question</h2>
+              <p id="ws-question" class="rail-question">No question yet.</p>
+            </section>
+            <section class="rail-section rail-network" aria-labelledby="filters-title">
+              <div class="rail-head-row">
+                <h2 class="rail-heading" id="filters-title">Filters <span class="count-badge" id="filter-count" hidden></span></h2>
+                <button class="btn-quiet" type="button" id="filters-clear" hidden>Clear all</button>
+              </div>
+              <div class="filter-group" id="filter-types" role="group" aria-label="Filter by connection type"></div>
+              <div class="filter-group" id="filter-status" role="group" aria-label="Filter by connection status"></div>
+            </section>
+            <section class="rail-section grow rail-network" aria-labelledby="findings-title" data-spider-id="panel-findings">
+              <h2 class="rail-heading" id="findings-title">Findings</h2>
+              <ol class="findings" id="findings"></ol>
+            </section>
+          </aside>
+
+          <section class="ws-center" aria-label="Main canvas">
+            <div class="market-wrap" id="ws-market">
+              <header class="market-head" id="market-head" data-spider-id="market-head" data-spider-pad="-70">
+                <div class="mh-symbol">
+                  <strong id="mh-symbol">Market</strong>
+                  <span class="chip chip-quiet" id="mh-live">Not loaded</span>
+                </div>
+                <div class="mh-price">
+                  <span class="mh-last" id="mh-last">-</span>
+                  <span class="mh-change" id="mh-change"></span>
+                </div>
+                <dl class="mh-stats" id="mh-stats"></dl>
+              </header>
+              <div class="market-toolbar">
+                <div class="seg" id="interval-seg" role="group" aria-label="Candle interval"></div>
+                <div class="seg" role="group" aria-label="Chart type">
+                  <button type="button" data-chart-type="candles" aria-pressed="true">Candles</button>
+                  <button type="button" data-chart-type="line" aria-pressed="false">Line</button>
+                </div>
+                <button class="btn-tool" type="button" id="chart-zoom-in" aria-label="Zoom in">+</button>
+                <button class="btn-tool" type="button" id="chart-zoom-out" aria-label="Zoom out">-</button>
+                <button class="btn-tool" type="button" id="chart-fit">Fit</button>
+                <button class="btn-tool" type="button" id="chart-latest">Latest</button>
+                <button class="btn-tool" type="button" id="chart-table-toggle" aria-pressed="false">Table</button>
+                <span class="market-status" id="market-status" data-spider-id="market-status" data-spider-pad="-30" role="status"></span>
+              </div>
+              <div class="banner" id="market-banner" hidden role="status"></div>
+              <div class="chart-area">
+                <div class="chart" id="chart"></div>
+                <div class="state-block market-state" id="market-state" hidden></div>
+                <div class="list-view" id="market-table" hidden>
+                  <table>
+                    <thead><tr><th>Time (UTC)</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead>
+                    <tbody id="market-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="banner" id="ws-banner" hidden role="status"></div>
+
+            <div class="ws-toolbar" id="ws-toolbar" hidden>
+              <button class="btn-tool" type="button" id="zoom-in" aria-label="Zoom in">+</button>
+              <button class="btn-tool" type="button" id="zoom-out" aria-label="Zoom out">-</button>
+              <button class="btn-tool" type="button" id="fit">Fit</button>
+              <button class="btn-tool" type="button" id="focus-root">Root</button>
+              <button class="btn-tool" type="button" id="clear-selection">Clear</button>
+              <button class="btn-tool" type="button" id="toggle-list" aria-pressed="false">List</button>
+              <details class="legend-mobile">
+                <summary>Legend</summary>
+                <span class="legend-item"><i class="swatch swatch-direct"></i>Direct</span>
+                <span class="legend-item"><i class="swatch swatch-provider"></i>Provider-labeled</span>
+                <span class="legend-item"><i class="swatch swatch-derived"></i>Derived</span>
+                <span class="legend-item"><i class="swatch swatch-hypothesis"></i>Hypothesis</span>
+              </details>
+              <span class="legend" aria-label="Legend">
+                <span class="legend-item"><i class="swatch swatch-direct"></i>Direct</span>
+                <span class="legend-item"><i class="swatch swatch-provider"></i>Provider-labeled</span>
+                <span class="legend-item"><i class="swatch swatch-derived"></i>Derived</span>
+                <span class="legend-item"><i class="swatch swatch-hypothesis"></i>Hypothesis</span>
+                <span class="legend-item"><i class="swatch swatch-verified"></i>Verified</span>
+              </span>
+            </div>
+
+            <div class="state-block" id="ws-empty">
+              <h2>Start with a lead</h2>
+              <p>Enter a Bitcoin address to read live data from the Bitcoin chain, or open the demonstration dataset. Other kinds of leads are not supported yet.</p>
+              <button class="btn-primary" type="button" id="open-demo">Open the demo</button>
+              <div class="recents" id="recents" hidden>
+                <h3 class="rail-heading">Recent</h3>
+                <div class="chip-row" id="recents-list"></div>
+              </div>
+            </div>
+
+            <div class="state-block" id="ws-unsupported" hidden>
+              <h2>Not supported yet</h2>
+              <p id="unsupported-text"></p>
+              <button class="btn-primary" type="button" id="open-demo-2">Open the demo</button>
+            </div>
+
+            <div class="state-block" id="ws-choose" hidden>
+              <h2>Which did you mean?</h2>
+              <p id="choose-text"></p>
+              <div class="chip-row choose-row" id="choose-list"></div>
+            </div>
+
+            <div class="graph-wrap" id="ws-graph" hidden>
+              <svg id="graph" role="group" aria-label="Network graph"></svg>
+            </div>
+
+            <div class="list-view" id="ws-list" hidden>
+              <h2 class="rail-heading">Entities</h2>
+              <table><thead><tr><th>Name</th><th>Kind</th></tr></thead><tbody id="list-entities"></tbody></table>
+              <h2 class="rail-heading">Connections</h2>
+              <table><thead><tr><th>Between</th><th>Type</th><th>Status</th></tr></thead><tbody id="list-relationships"></tbody></table>
+            </div>
+          </section>
+
+          <aside class="ws-right" id="inspector" aria-label="Inspector">
+            <button class="btn-quiet sheet-close" type="button" id="sheet-close">Close</button>
+            <div id="inspector-body"></div>
+          </aside>
+        </div>
+
+        <section class="ws-timeline" id="timeline" data-open="false" aria-label="Timeline" data-spider-id="panel-log">
+          <div class="timeline-bar">
+            <button class="btn-quiet" type="button" id="timeline-toggle" aria-expanded="false" aria-controls="log">Timeline</button>
+            <span class="timeline-latest" id="timeline-latest">No events yet.</span>
+            <span class="timeline-count" id="timeline-count"></span>
+          </div>
+          <ol class="log" id="log" aria-live="polite" aria-label="Activity"></ol>
+        </section>
+
+        <nav class="ws-tabs" aria-label="Workspace panes">
+          <button type="button" data-pane-tab="graph" aria-selected="true">Graph</button>
+          <button type="button" data-pane-tab="activity" aria-selected="false">Activity</button>
+          <button type="button" data-pane-tab="inspector" aria-selected="false">Inspector</button>
+        </nav>
+      </main>
+    </div>
+
+    <canvas class="spider-canvas" id="spider-canvas" aria-hidden="true"></canvas>
+
+    <div class="overlay" hidden></div>
+    <div class="mobile-menu" id="mobile-menu" hidden>
+      <a class="mobile-link" data-route="landing" href="#top" style="--i: 0">Home</a>
+      <a class="mobile-link" href="#how" style="--i: 1">How it works</a>
+      <a class="mobile-link" href="#status" style="--i: 2">Status</a>
+      <a class="mobile-link" data-route="terminal" href="#/investigate" style="--i: 3">Terminal</a>
+      <a class="mobile-signin mobile-link" href="#/investigate" style="--i: 4">Open terminal</a>
+    </div>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
