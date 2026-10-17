@@ -20,6 +20,7 @@ export function createChoreography({ spider, bus, reducedMotion }) {
   let lastTarget = null;
   let lastVisit = 0;
   let surface = 'landing';
+  let userEpoch = 0;
   let calm = false;
   const timers = new Set();
   const cleanups = [];
@@ -157,38 +158,42 @@ export function createChoreography({ spider, bus, reducedMotion }) {
     begin((alive) => startled(point, alive));
   }
 
-  async function handleAgentEvent(event) {
+  async function handleAgentEvent(event, epoch) {
+    const superseded = () => event.initiator !== 'user' && epoch !== userEpoch;
     const el = resolveTarget(event.target);
-    if (!el || el.hidden) return;
+    if (!el || el.hidden || superseded()) return;
     if (calm) {
       spider.flash(el, 'select');
       return;
     }
     if (event.initiator === 'user' && ensureVisible(el, { instant: reducedMotion })) await sleep(650);
 
-    const approach = async (options) => walkToElement(el, () => true, options).catch(() => {});
+    const approach = async (options) => {
+      await walkToElement(el, () => true, options).catch(() => {});
+      return !superseded();
+    };
 
     switch (event.type) {
       case 'agent.observing':
       case 'agent.navigating':
-        await approach({ speed: 1.2 });
+        if (!(await approach({ speed: 1.2 }))) return;
         spider.touch(el, { strands: 2 });
         break;
       case 'agent.target_selected':
-        await approach({ speed: 1.2 });
+        if (!(await approach({ speed: 1.2 }))) return;
         spider.touch(el, { tone: 'select', scan: true });
         break;
       case 'agent.action_started':
-        await approach({ speed: 1.2 });
+        if (!(await approach({ speed: 1.2 }))) return;
         spider.flash(el, 'select');
         await sleep(350);
         break;
       case 'agent.action_completed':
-        await approach({ speed: 1.2 });
+        if (!(await approach({ speed: 1.2 }))) return;
         spider.touch(el, { strands: 3 });
         break;
       case 'agent.finding_discovered':
-        await approach({ speed: 1.2 });
+        if (!(await approach({ speed: 1.2 }))) return;
         spider.touch(el, { tone: 'finding', strands: 4, scan: true });
         await sleep(300);
         break;
@@ -199,7 +204,7 @@ export function createChoreography({ spider, bus, reducedMotion }) {
         break;
       }
       case 'agent.action_failed':
-        await approach({ speed: 1.2 });
+        if (!(await approach({ speed: 1.2 }))) return;
         spider.touch(el, { tone: 'fail', strands: 2 });
         await sleep(450);
         break;
@@ -219,8 +224,13 @@ export function createChoreography({ spider, bus, reducedMotion }) {
 
   const offAgent = bus.on('*', (event) => {
     enterAgentMode();
+    if (event.initiator === 'user') {
+      userEpoch += 1;
+      spider.cancelGoal();
+    }
+    const epoch = userEpoch;
     queue = queue
-      .then(() => handleAgentEvent(event))
+      .then(() => handleAgentEvent(event, epoch))
       .then(() => {
         if (event.type === 'agent.investigation_completed') return sleep(700).then(() => begin(ambient));
         return undefined;

@@ -84,3 +84,9 @@ Not checked: the page itself. The browser extension was not connected, so nothin
 13. Live data depends on a third-party public API (rate limits and availability are outside this project); only recent transactions are read (25 confirmed plus pending), so counts are "of the most recent".
 14. The spider still crosses the headline area for brief moments while leaving it.
 15. Live graphs are laid out by a ring heuristic, so labels can overlap on dense nodes; zoom and list view are the workaround.
+
+## Market terminal browser check (2026-10-17, desktop 1456 px, Chrome)
+
+Observed: chart renders 500 live BTCUSDT 1h candles; no console errors; the spider enters, walks to the highlighted bars, strikes along the real close-price path, and traces the reference bar to the breakout bar on event selection; inspector shows rule, values and raw-record link.
+Fixed: a user selection waited behind the automatic walk (about 10 s). User-initiated cues now supersede queued automatic ones (`userEpoch` in `js/spider/choreography.js`).
+Not checked: 390 px layout (the browser window could not be narrowed below the viewport), pan and zoom, Network view, Safari, Firefox.
